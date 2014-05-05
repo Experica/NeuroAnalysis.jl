@@ -1,5 +1,7 @@
 module NeuroAnalysis
 
-# package code goes here
+include("Core.jl")
+include("Base.jl")
+include("IO.jl")
 
 end # module

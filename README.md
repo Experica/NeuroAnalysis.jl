@@ -1,1 +1,2 @@
-# NeuroAnalysis
+# NeuroAnalysis - Neural Signal Analysis
+___
