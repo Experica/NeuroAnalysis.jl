@@ -1,6 +1,6 @@
-module Analysis.IO
+module NeuroShareIO
 # Read Neural Data via NeuroShare API
-using Base NeuroShare
+
 
 function nssetlib(libfile)
 	ns_SetLibrary(libfile)

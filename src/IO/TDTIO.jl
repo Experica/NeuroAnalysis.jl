@@ -1,6 +1,5 @@
-module Analysis.IO
+module TDTIO
 # Read Neural Data from TDT TTank via TTankX ActiveX Control
-using Base
 
 
 end # module

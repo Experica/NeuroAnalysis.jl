@@ -1,4 +1,7 @@
-type AbstratVector3{T}
+export TimePoints
+
+##############################
+type AbstractVector3{T}
 	x::T
 	y::T
 	z::T
@@ -10,12 +13,11 @@ end
 
 typealias TimePoints{T<:Real} AbstractArray{T,1}
 
-
 ##############################
 type Spike
 	channel::Uint64
 	fs::Float64
-	value::AbstratVector{Float64}
+	value::AbstractVector{Float64}
 	time::Float64
 	delay::Float64
 	sort
@@ -23,20 +25,20 @@ end
 
 type SpikeTrain
 	name::String
-	spikes::AbstratVector{Spike}
+	spikes::AbstractVector{Spike}
 end
 
 type Channel
 	name::String
 	index::Uint64
-	coordinate::AbstratVector3{Float64}
+	coordinate::AbstractVector{Float64}
 	signal
-	spiketrains::AbstratVector{SpikeTrain}
+	spiketrains::AbstractVector{SpikeTrain}
 end
 
 type ChannelGroup
 	name::String
-	channels::AbstratVector{Channel}
+	channels::AbstractVector{Channel}
 end
 
 type AnalogSignal
@@ -44,13 +46,13 @@ type AnalogSignal
 	description
 	channel::Uint64
 	fs::Float64
-	value::AbstratVector{Float64}
+	value::AbstractVector{Float64}
 	startime::Float64
 end
 
 type AnalogSignalArray
   name::String
-  signals::AbstratVector{AnalogSignal}
+  signals::AbstractVector{AnalogSignal}
 end
 
 type Event
@@ -61,7 +63,7 @@ end
 
 type EventArray
 	name::String
-	events::AbstratVector{Event}
+	events::AbstractVector{Event}
 end
 
 type Epoch
@@ -73,19 +75,19 @@ end
 
 type EpochArray
 	name::String
-	epochs::AbstratVector{Epoch}
+	epochs::AbstractVector{Epoch}
 end
 
 type Cell
 	name::String
 	celltype
-	coordinate::AbstratVector3{Float64}
-	spiketrain::AbstratVector{Float64}
+	coordinate::AbstractVector{Float64}
+	spiketrain::AbstractVector{Float64}
 end
 
 type CellAssemble
 	name::String
-	cells::AbstratVector{Cell}
+	cells::AbstractVector{Cell}
 end
 
 type Segment
@@ -95,10 +97,10 @@ type Segment
   endtime
   duration
 	settings::Dict
-  eventarrays::AbstratVector{EventArray}
-  epocharrays::AbstratVector{EpochArray}
-  cellassembles::AbstratVector{CellAssemble}
-  channelgroups::AbstratVector{ChannelGroup}
+  eventarrays::AbstractVector{EventArray}
+  epocharrays::AbstractVector{EpochArray}
+  cellassembles::AbstractVector{CellAssemble}
+  channelgroups::AbstractVector{ChannelGroup}
 end
 
 type Block
@@ -109,7 +111,7 @@ type Block
   endtime
 	duration
 	settings::Dict
-  segments::AbstratVector{Segment}
+  segments::AbstractVector{Segment}
 end
 
 type RecordSession
@@ -117,8 +119,8 @@ type RecordSession
 	description
 	region
 	date
-	experimenters::AbstratVector{String}
-	blocks::AbstratVector{Block}
+	experimenters::AbstractVector{String}
+	blocks::AbstractVector{Block}
 end
 
 type Subject
@@ -129,12 +131,12 @@ type Subject
 	age
 	height
 	weight
-	recordsessions::AbstratVector{RecordSession}
+	recordsessions::AbstractVector{RecordSession}
 end
 
 type Experiment
 	name::String
 	description
-	designers::AbstratVector{String}
-	subjects::AbstratVector{Subject}
+	designers::AbstractVector{String}
+	subjects::AbstractVector{Subject}
 end

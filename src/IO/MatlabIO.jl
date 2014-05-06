@@ -2,8 +2,11 @@ module MatlabIO
 
 using MAT
 
-function read(filename)
-   vars = matread(filename);
+export readdataset
+
+function readdataset(filename)
+  vars = matread(filename)
+  vars = vars["dataset"]
 end
 
 end # module
