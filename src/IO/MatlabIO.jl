@@ -1,8 +1,8 @@
 module MatlabIO
 
-using MAT
+import MAT: matread
 
-export readdataset
+export readdataset,matread
 
 function readdataset(filename)
   vars = matread(filename)
