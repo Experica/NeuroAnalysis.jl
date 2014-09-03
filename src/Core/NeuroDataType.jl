@@ -1,4 +1,4 @@
-export TimePoints
+export TimePoints,TPsVector
 
 ##############################
 type AbstractVector3{T}
@@ -12,7 +12,7 @@ type CellError <: Exception
 end
 
 typealias TimePoints{T<:Real} AbstractArray{T,1}
-
+typealias TPsVector AbstractArray{TimePoints,1}
 ##############################
 type Spike
 	channel::Uint64
