@@ -1,16 +1,12 @@
 export TimePoints,TPsVector
 
 ##############################
-type AbstractVector3{T}
-	x::T
-	y::T
-	z::T
-end
 
 type CellError <: Exception
 
 end
 
+# Time Unit is Millisecond
 typealias TimePoints{T<:Real} AbstractArray{T,1}
 typealias TPsVector AbstractArray{TimePoints,1}
 ##############################
