@@ -1,8 +1,5 @@
 export itpi,histtps,histmatrix,psth
 
-function prepare(block)
-
-end
 
 function itpi(tps::TimePoints)
   diff(sort(tps))
@@ -55,7 +52,7 @@ end
 
 function psth(hm::Matrix{Int},x)
   binwidth = x[2]-x[1]
-  hrm = hm * 1000/binwidth
+  hrm = hm / (binwidth*0.001)
   n = size(hrm,1)
   m = mean(hrm,1.0)[:]
   se = std(hrm,1)[:]/sqrt(n)

@@ -1,21 +1,5 @@
 export subtps
 
-function blockinfo()
-end
-
-function unitinfo()
-end
-
-function eventdata()
-end
-
-function indexbytime()
-end
-
-function timebyindex()
-end
-
-
 function subtps(tps::TimePoints,starttime::Real,endtime::Real;isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
   if isendtimeorigin && isstarttimeorigin
     error("Time Origin Setting Conflicts.")

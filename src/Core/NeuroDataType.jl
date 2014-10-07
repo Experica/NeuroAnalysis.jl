@@ -1,27 +1,23 @@
-export TimePoints,TPsVector
-
-##############################
-
-type CellError <: Exception
-
-end
+export TimePoints,TPsVector,Spike,SpikeTrain,Cell,CellAssembly,
+Block,Segment,Subject,Experiment
 
 # Time Unit is Millisecond
 typealias TimePoints{T<:Real} AbstractArray{T,1}
 typealias TPsVector AbstractArray{TimePoints,1}
-##############################
+
 type Spike
-	channel::Uint64
-	fs::Float64
-	value::AbstractVector{Float64}
-	time::Float64
-	delay::Float64
+  value::Vector{Real}
+  time::Real
+  delay::Real
 	sort
 end
 
 type SpikeTrain
 	name::String
-	spikes::AbstractVector{Spike}
+  id
+  channel::Uint
+  fs::Real
+	spikes::Vector{Spike}
 end
 
 type Channel
@@ -74,65 +70,54 @@ type EpochArray
 	epochs::AbstractVector{Epoch}
 end
 
-type Cell
-	name::String
-	celltype
-	coordinate::AbstractVector{Float64}
-	spiketrain::AbstractVector{Float64}
-end
-
-type CellAssemble
-	name::String
-	cells::AbstractVector{Cell}
-end
-
 type Segment
-  name::String
-	description
+  id
 	starttime
   endtime
   duration
-	settings::Dict
-  eventarrays::AbstractVector{EventArray}
-  epocharrays::AbstractVector{EpochArray}
-  cellassembles::AbstractVector{CellAssemble}
-  channelgroups::AbstractVector{ChannelGroup}
+	param::Dict
+  data
 end
 
 type Block
 	name::String
+  id
 	description
 	source
 	starttime
   endtime
 	duration
-	settings::Dict
-  segments::AbstractVector{Segment}
+	setting::Dict
+  segments::Vector{Segment}
 end
 
-type RecordSession
+type Cell
 	name::String
-	description
-	region
-	date
-	experimenters::AbstractVector{String}
-	blocks::AbstractVector{Block}
+  id
+  description
+  spiketrain
+  tests::Vector{Block}
+end
+
+type CellAssembly
+	name::String
+  id
+	cells::Vector{Cell}
+  projections
+  tests::Vector{Block}
 end
 
 type Subject
 	name::String
 	description
 	contact
-	gender
-	age
-	height
-	weight
-	recordsessions::AbstractVector{RecordSession}
+  cellassemblies::Vector{CellAssembly}
 end
 
 type Experiment
 	name::String
 	description
-	designers::AbstractVector{String}
-	subjects::AbstractVector{Subject}
+	designers::Vector{String}
+  experimenters::Vector{String}
+	subjects::Vector{Subject}
 end
