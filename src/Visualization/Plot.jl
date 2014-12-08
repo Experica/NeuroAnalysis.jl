@@ -2,16 +2,18 @@ using Gadfly
 export plotspiketrain,plotpsth
 
 
-function plotspiketrain(sts::TPsVector;theme=Theme())
-  stn = length(sts)
-  ls = []
-  for i in 1:stn
+function plotspiketrain(sts::TPsVector;timemark=[],theme=Theme())
+  x=[];y=[]
+  xmin=0;xmax=0
+  for i in 1:length(sts)
     cst = sts[i]
-    cstn = length(cst)
-    y = ones(cstn)*i
-    ls = [ls,layer(x=cst,y=y,theme,Geom.point)]
+    xmin = minimum([xmin,minimum(cst)])
+    xmax = maximum([xmax,maximum(cst)])
+    x = [x,cst]
+    y = [y,ones(length(cst))*i]
   end
-  plot(ls,Guide.xlabel("Time (ms)"),Guide.ylabel("Trials"))
+  plot(x=x,y=y,xintercept=timemark,theme,Geom.point,Geom.vline(color="gray",size=1pt),
+       Coord.Cartesian(xmin=xmin,xmax=xmax),Guide.xlabel("Time (ms)"),Guide.ylabel("Trials"))
 end
 
 function plotpsth(sts::TPsVector,binedges::TimePoints;theme=Theme())

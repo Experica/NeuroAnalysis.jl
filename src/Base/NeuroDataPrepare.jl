@@ -25,6 +25,7 @@ function histtps(tps::TPsVector,binedges::TimePoints;isstarttimeorigin::Bool=fal
   for i in 1:ntps
     vtpns[i],wins,vsubs[i],vsis[i] = histtps(tps[i],binedges,isstarttimeorigin=isstarttimeorigin,isendtimeorigin=isendtimeorigin)
   end
+  ntps == 0 && warn("Empty TPsVector in histtps(tps::TPsVector,binedges::TimePoints)")
   return vtpns,wins,vsubs,vsis
 end
 function histtps(tps::TPsVector,starttime::Real,endtime::Real;nbins::Integer=10,binwidth::Real=0.0,isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
@@ -37,6 +38,7 @@ end
 function histmatrix(vhist::Vector{Vector{Int}},wins::TPsVector)
   hn = length(vhist)
   nbins = length(wins)
+  ((hn == 0) || (nbins == 0)) && error("Arguments Empty.")
   binwidth = wins[1][2]-wins[1][1]
   hm = Array(Int,hn,nbins)
   for i in 1:hn
@@ -55,8 +57,8 @@ function psth(hm::Matrix{Int},x)
   hrm = hm / (binwidth*0.001)
   n = size(hrm,1)
   m = mean(hrm,1.0)[:]
-  se = std(hrm,1)[:]/sqrt(n)
-  return m,se,x,n
+  sd = std(hrm,1)[:]
+  return m,sd,x,n
 end
 function psth(vhist::Vector{Vector{Int}},wins::TPsVector)
   hm,x = histmatrix(vhist,wins)

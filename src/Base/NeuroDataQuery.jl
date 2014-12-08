@@ -1,4 +1,4 @@
-export subtps
+export subtps,subtpsr
 
 function subtps(tps::TimePoints,starttime::Real,endtime::Real;isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
   if isendtimeorigin && isstarttimeorigin
@@ -29,4 +29,25 @@ function subtps(tps::TimePoints,starttimes::TimePoints,endtimes::TimePoints;isst
     subs[i],tpns[i],sis[i],wins[i] = subtps(tps,starttimes[i],endtimes[i],isstarttimeorigin=isstarttimeorigin,isendtimeorigin=isendtimeorigin)
   end
   return subs,tpns,sis,wins
+end
+
+function subtpsr(tps::TimePoints,starttimes::TimePoints,endtimes::TimePoints;winstart::Real=0.0,winend::Real=0.0
+                ,isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
+  if isendtimeorigin && isstarttimeorigin
+    error("Response Window Time Origin Conflicts.")
+  end
+  if isstarttimeorigin
+    startt = starttimes + winstart
+    endt = starttimes + winend
+  end
+  if isendtimeorigin
+    startt = endtimes + winstart
+    endt = endtimes + winend
+  end
+  if !isendtimeorigin && !isstarttimeorigin
+    startt = starttimes
+    endt = endtimes
+  end
+  sts,stn,sis,wins = subtps(tps,startt,endt,isstarttimeorigin=isstarttimeorigin,isendtimeorigin=isendtimeorigin)
+  response = stn ./ ((endt-startt)*0.001)
 end

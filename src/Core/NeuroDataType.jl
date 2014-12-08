@@ -1,9 +1,10 @@
-export TimePoints,TPsVector,Spike,SpikeTrain,Cell,CellAssembly,
+export TimePoints,TPsVector,TPVVector,Spike,SpikeTrain,Cell,CellAssembly,
 Block,Segment,Subject,Experiment
 
 # Time Unit is Millisecond
 typealias TimePoints{T<:Real} AbstractArray{T,1}
-typealias TPsVector AbstractArray{TimePoints,1}
+typealias TPsVector{T<:TimePoints} AbstractArray{T,1}
+typealias TPVVector{T<:TPsVector} AbstractArray{T,1}
 
 type Spike
   value::Vector{Real}

@@ -1,8 +1,8 @@
 module NeuroAnalysis
 
-include("Core/Core.jl")
-include("Base/Base.jl")
-include("IO/IO.jl")
-include("Visualization/Visualization.jl")
+include("Core/NACore.jl")
+include("Base/NABase.jl")
+include("IO/NAIO.jl")
+include("Visualization/NAVisualization.jl")
 
 end # module
