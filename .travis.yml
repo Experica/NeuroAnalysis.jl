@@ -1,4 +1,6 @@
-language: cpp
+language: julia
+julia:
+  - release
 compiler:
   - clang
 notifications:

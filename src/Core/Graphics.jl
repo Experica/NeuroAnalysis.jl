@@ -1,12 +1,12 @@
-import Base: convert,getindex,setindex!,+,-
-export Vec3,Vec4,translation,rotationxyz,
-transform,transrotatez,ang2rad,rad2ang
+import Base: convert,getindex,setindex!,+,-,*,/,==,length,norm
+export Vec3,Vec4,translation,rotationxyz,reflection,
+transform,translate,rotatexyz,transrotatez,ang2rad,rad2ang
 
 function ang2rad(a)
-  r = a * pi/180
+  r = a * (pi/180)
 end
 function rad2ang(r)
-  a = r * 180/pi
+  a = r * (180/pi)
 end
 
 # Vector3
@@ -15,8 +15,8 @@ type Vec3{T}
   y::T
   z::T
 end
-Vec3{T}(x::T,y::T)=Vec3{T}(x,y,y)
-Vec3{T}(x::T)=Vec3{T}(x,x,x)
+Vec3(x,y)=Vec3(x,y,y)
+Vec3(x)=Vec3(x,x,x)
 Vec3()=Vec3(0.0)
 function getindex(V::Vec3,i::Int)
   if i==1
@@ -30,37 +30,38 @@ function getindex(V::Vec3,i::Int)
   end
 end
 function setindex!(V::Vec3,X,i::Int)
-    if i==1
+  if i==1
     V.x=X
-        elseif i==2
-        V.y=X
-        elseif i==3
-        V.z=X
-    else
-        error("Out of Bound of Vector3.")
-    end
+  elseif i==2
+    V.y=X
+  elseif i==3
+    V.z=X
+  else
+    error("Out of Bound of Vector3.")
+  end
 end
-function convert(::Type{Vec3},a::Vector)
-    l=length(a)
-    if l==0
-        v = Vec3()
-    elseif l==1
-        v = Vec3(a[1])
-    elseif l==2
-        v = Vec3(a[1],a[2])
-    else l==3
-        v = Vec3(a[1],a[2],a[3])
-    end
+function convert(::Type{Vec3},a::AbstractVector)
+  l=length(a)
+  if l==0
+    error("Empty Vector.")
+  elseif l==1
+    v = Vec3(a[1])
+  elseif l==2
+    v = Vec3(a[1],a[2])
+  else
+    v = Vec3(a[1],a[2],a[3])
+  end
 end
 function convert(::Type{Vector},v::Vec3)
-    a = Array(typeof(v.x),3)
-    a[1]=v.x
-    a[2]=v.y
-    a[3]=v.z
-    return a
+  a = [v.x,v.y,v.z]
 end
-+{T}(a::Vec3{T},b::Vec3{T})=Vec3{T}(a.x+b.x,a.y+b.y,a.z+b.z)
--{T}(a::Vec3{T},b::Vec3{T})=Vec3{T}(a.x-b.x,a.y-b.y,a.z-b.z)
++(a::Vec3,b::Vec3)=Vec3(a.x+b.x,a.y+b.y,a.z+b.z)
+-(a::Vec3,b::Vec3)=Vec3(a.x-b.x,a.y-b.y,a.z-b.z)
+*(a::Vec3,b::Real)=Vec3(a.x*b,a.y*b,a.z*b)
+*(b::Real,a::Vec3)=*(a,b)
+/(a::Vec3,b::Real)=Vec3(a.x/b,a.y/b,a.z/b)
+/(b::Real,a::Vec3)=/(a,b)
+==(a::Vec3,b::Vec3)=(a.x==b.x) && (a.y==b.y) && (a.z==b.z)
 
 # Vector4
 type Vec4{T}
@@ -69,9 +70,9 @@ type Vec4{T}
   z::T
   w::T
 end
-Vec4{T}(x::T,y::T,z::T)=Vec4{T}(x,y,z,z)
-Vec4{T}(x::T,y::T)=Vec4{T}(x,y,y,y)
-Vec4{T}(x::T)=Vec4{T}(x,x,x,x)
+Vec4(x,y,z)=Vec4(x,y,z,z)
+Vec4(x,y)=Vec4(x,y,y,y)
+Vec4(x)=Vec4(x,x,x,x)
 Vec4()=Vec4(0.0,0.0,0.0,1.0)
 function getindex(V::Vec4,i::Int)
   if i==1
@@ -87,73 +88,80 @@ function getindex(V::Vec4,i::Int)
   end
 end
 function setindex!(V::Vec4,X,i::Int)
-    if i==1
+  if i==1
     V.x=X
-        elseif i==2
-        V.y=X
-        elseif i==3
-        V.z=X
-        elseif i==4
-        V.w=X
-    else
-        error("Out of Bound of Vector4.")
-    end
+  elseif i==2
+    V.y=X
+  elseif i==3
+    V.z=X
+  elseif i==4
+    V.w=X
+  else
+    error("Out of Bound of Vector4.")
+  end
 end
-function convert(::Type{Vec4},a::Vector)
-    l=length(a)
-    if l==0
-        v = Vec4()
-    elseif l==1
-        v = Vec4(a[1])
-    elseif l==2
-        v = Vec4(a[1],a[2])
-    elseif l==3
-        v = Vec4(a[1],a[2],a[3])
-    else
-        v = Vec4(a[1],a[2],a[3],a[4])
-    end
+function convert(::Type{Vec4},a::AbstractVector)
+  l=length(a)
+  if l==0
+    error("Empty Vector.")
+  elseif l==1
+    v = Vec4(a[1])
+  elseif l==2
+    v = Vec4(a[1],a[2])
+  elseif l==3
+    v = Vec4(a[1],a[2],a[3])
+  else
+    v = Vec4(a[1],a[2],a[3],a[4])
+  end
 end
 function convert(::Type{Vector},v::Vec4)
-  a = Array(typeof(v.x),4)
-    a[1]=v.x
-    a[2]=v.y
-    a[3]=v.z
-    a[4]=v.w
-    return a
+  a = [v.x,v.y,v.z,v.w]
 end
-function convert{T}(::Type{Matrix{T}},vs::Vector{Vec4{T}})
-    l = length(vs)
-    if l==0
-        return Array(None,4,l)
-    else
-        a = Array(T,4,l)
+function convert{T<:Vec4}(::Type{Matrix},vs::AbstractVector{T})
+  l = length(vs)
+  if l==0
+    error("Empty Vector.")
+  else
+    a = Array(typeof(vs[1].x),4,l)
     for i in 1:l
-        a[1,i]=vs[i].x
-        a[2,i]=vs[i].y
-        a[3,i]=vs[i].z
-        a[4,i]=vs[i].w
+      a[1,i]=vs[i].x
+      a[2,i]=vs[i].y
+      a[3,i]=vs[i].z
+      a[4,i]=vs[i].w
     end
-    end
-    return a
+  end
+  return a
 end
-function convert{T}(::Type{Vector{Vec4{T}}},a::Matrix{T})
-    s1,s2 = size(a)
-    if s1 != 4
-        error("Size of Dim1 of Matrix Doesn't Match Vector4")
-        elseif s2 == 0
-        return []
-    else
-        vs = Array(Vec4{T},s2)
-        for i in 1:s2
-            vs[i] = Vec4(a[1,i],a[2,i],a[3,i],a[4,i])
-        end
-        return vs
+function convert{T<:Vec4}(::Type{Vector{T}},a::Matrix)
+  s1,s2 = size(a)
+  if s1 != 4
+    error("Size of Dim 1 of Matrix Doesn't Match Vec4")
+  elseif s2 == 0
+    return []
+  else
+    vs = Array(T,s2)
+    for i in 1:s2
+      vs[i] = Vec4(a[1,i],a[2,i],a[3,i],a[4,i])
     end
+    return vs
+  end
 end
 convert(::Type{Vec3},v::Vec4)=Vec3(v.x,v.y,v.z)
 convert(::Type{Vec4},v::Vec3)=Vec4(v.x,v.y,v.z,1.0)
-+{T}(a::Vec4{T},b::Vec4{T})=Vec4{T}(a.x+b.x,a.y+b.y,a.z+b.z,a.w+b.w)
--{T}(a::Vec4{T},b::Vec4{T})=Vec4{T}(a.x-b.x,a.y-b.y,a.z-b.z,a.w-b.w)
++(a::Vec4,b::Vec4)=Vec4(a.x+b.x,a.y+b.y,a.z+b.z,a.w+b.w)
+-(a::Vec4,b::Vec4)=Vec4(a.x-b.x,a.y-b.y,a.z-b.z,a.w-b.w)
+*(a::Vec4,b::Real)=Vec4(a.x*b,a.y*b,a.z*b,a.w)
+*(b::Real,a::Vec4)=*(a,b)
+/(a::Vec4,b::Real)=Vec4(a.x/b,a.y/b,a.z/b,a.w)
+/(b::Real,a::Vec4)=/(a,b)
+==(a::Vec4,b::Vec4)=(a.x==b.x) && (a.y==b.y) && (a.z==b.z) && (a.w==b.w)
+
+function length(V::Union(Vec3,Vec4))
+  sqrt(V.x^2+V.y^2+V.z^2)
+end
+function norm(V::Union(Vec3,Vec4))
+  V/length(V)
+end
 
 # Transformation
 function translation(x,y,z)
@@ -162,12 +170,12 @@ function translation(x,y,z)
          0.0 0.0 1.0   z;
          0.0 0.0 0.0 1.0]
 end
-translation(t::Vec3)=translation(t.x,t.y,t.z)
+translation(t::Union(Vec3,Vec4))=translation(t.x,t.y,t.z)
 translation(;x=0.0,y=0.0,z=0.0)=translation(x,y,z)
 
-function rotationxyz(axis::Int,theta::Real)
+function rotationxyz(theta::Real,axis::Int)
   if (3<axis) || (axis <1)
-    error("Only 1:x, 2:y, 3:z Axis Allowed.")
+    error("Only X:1, Y:2, Z:3 Axis Allowed.")
   else
     r=Vec3()
     r[axis]=theta
@@ -197,16 +205,43 @@ function rotationxyz(r::Vec3)
   elseif axis==2
     rm = [  c 0.0   s 0.0;
           0.0 1.0 0.0 0.0;
-           -s 0.0   c 0.0;
+          -s 0.0   c 0.0;
           0.0 0.0 0.0 1.0]
   else
     rm = [  c  -s 0.0 0.0;
-            s   c 0.0 0.0;
+          s   c 0.0 0.0;
           0.0 0.0 1.0 0.0;
           0.0 0.0 0.0 1.0]
   end
 end
-rotationxyz(ar::Vector)=rotationxyz(convert(Vec3,ar))
+rotationxyz(ar::AbstractVector)=rotationxyz(convert(Vec3,ar))
+
+function reflection(r::Vec3)
+  ar = convert(Vector,r)
+  ri = find(ar)
+  rn = length(ri)
+  if rn != 2
+    error("Only XY, XZ, YZ Plane Allowed.")
+  end
+  pi = sum(ri)
+  if pi==3 # xy
+    rm = [1.0  0.0  0.0  0.0;
+          0.0  1.0  0.0  0.0;
+          0.0  0.0 -1.0  0.0;
+          0.0  0.0  0.0  1.0]
+  elseif pi==4 # xz
+    rm = [1.0  0.0  0.0  0.0;
+          0.0 -1.0  0.0  0.0;
+          0.0  0.0  1.0  0.0;
+          0.0  0.0  0.0  1.0]
+  else # yz
+    rm = [-1.0  0.0  0.0  0.0;
+          0.0  1.0  0.0  0.0;
+          0.0  0.0  1.0  0.0;
+          0.0  0.0  0.0  1.0]
+  end
+end
+reflection(ar::AbstractVector)=reflection(convert(Vec3,ar))
 
 function transform(v::Vec4,m::Matrix)
   s1,s2 = size(m)
@@ -215,13 +250,24 @@ function transform(v::Vec4,m::Matrix)
   end
   convert(Vec4,m*convert(Vector,v))
 end
-function transrotatez(v::Vec4,t::Vec3,theta::Real)
-    tm = translation(t)
-    rm = rotationxyz(Vec3(0.0,0.0,theta))
-    convert(Vec4,rm*tm*convert(Vector,v))
+function transform{T<:Vec4}(vs::AbstractVector{T},m::Matrix)
+  s1,s2 = size(m)
+  if (s1 != s2) || (s1 != 4)
+    error("Invalid Transform Matrix.")
+  end
+  convert(Vector{T},m*convert(Matrix,vs))
 end
-function transrotatez{T}(vs::Vector{Vec4{T}},t::Vec3,theta::Real)
-    tm = translation(t)
-    rm = rotationxyz(Vec3(0.0,0.0,theta))
-    convert(Vector{Vec4{T}},rm*tm*convert(Matrix{T},vs))
+translate(v::Vec4,t::Vec3)=transform(v,translation(t))
+translate{T<:Vec4}(vs::AbstractVector{T},t::Vec3)=transform(vs,translation(t))
+rotatexyz(v::Vec4,r::Vec3)=transform(v,rotationxyz(r))
+rotatexyz{T<:Vec4}(vs::AbstractVector{T},r::Vec3)=transform(vs,rotationxyz(r))
+function transrotatez(v::Vec4,t::Vec3,theta::Real)
+  tm = translation(t)
+  rm = rotationxyz(Vec3(0.0,0.0,theta))
+  convert(Vec4,rm*tm*convert(Vector,v))
+end
+function transrotatez{T<:Vec4}(vs::AbstractVector{T},t::Vec3,theta::Real)
+  tm = translation(t)
+  rm = rotationxyz(Vec3(0.0,0.0,theta))
+  convert(Vector{T},rm*tm*convert(Matrix,vs))
 end

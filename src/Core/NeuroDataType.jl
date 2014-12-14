@@ -7,40 +7,40 @@ typealias TPsVector{T<:TimePoints} AbstractArray{T,1}
 typealias TPVVector{T<:TPsVector} AbstractArray{T,1}
 
 type Spike
-  value::Vector{Real}
+  value::AbstractVector{Real}
   time::Real
   delay::Real
-	sort
+  sort
 end
 
 type SpikeTrain
-	name::String
+  name::String
   id
   channel::Uint
   fs::Real
-	spikes::Vector{Spike}
+  spikes::AbstractVector{Spike}
 end
 
 type Channel
-	name::String
-	index::Uint64
-	coordinate::AbstractVector{Float64}
-	signal
-	spiketrains::AbstractVector{SpikeTrain}
+  name::String
+  index::Uint64
+  coordinate::AbstractVector{Float64}
+  signal
+  spiketrains::AbstractVector{SpikeTrain}
 end
 
 type ChannelGroup
-	name::String
-	channels::AbstractVector{Channel}
+  name::String
+  channels::AbstractVector{Channel}
 end
 
 type AnalogSignal
-	name::String
-	description
-	channel::Uint64
-	fs::Float64
-	value::AbstractVector{Float64}
-	startime::Float64
+  name::String
+  description
+  channel::Uint64
+  fs::Float64
+  value::AbstractVector{Float64}
+  startime::Float64
 end
 
 type AnalogSignalArray
@@ -49,76 +49,76 @@ type AnalogSignalArray
 end
 
 type Event
-	name::String
-	value
-	time::Float64
+  name::String
+  value
+  time::Float64
 end
 
 type EventArray
-	name::String
-	events::AbstractVector{Event}
+  name::String
+  events::AbstractVector{Event}
 end
 
 type Epoch
-	name::String
-	time::Float64
-	duration::Float64
-	value
+  name::String
+  time::Float64
+  duration::Float64
+  value
 end
 
 type EpochArray
-	name::String
-	epochs::AbstractVector{Epoch}
+  name::String
+  epochs::AbstractVector{Epoch}
 end
 
 type Segment
   id
-	starttime
+  starttime
   endtime
   duration
-	param::Dict
+  param::Dict
   data
 end
 
 type Block
-	name::String
+  name::String
   id
-	description
-	source
-	starttime
+  description
+  source
+  starttime
   endtime
-	duration
-	setting::Dict
-  segments::Vector{Segment}
+  duration
+  setting::Dict
+  segments::AbstractVector{Segment}
 end
 
 type Cell
-	name::String
+  name::String
   id
   description
   spiketrain
-  tests::Vector{Block}
+  tests::AbstractVector{Block}
 end
 
 type CellAssembly
-	name::String
+  name::String
   id
-	cells::Vector{Cell}
+  cells::AbstractVector{Cell}
   projections
-  tests::Vector{Block}
+  tests::AbstractVector{Block}
 end
 
 type Subject
-	name::String
-	description
-	contact
-  cellassemblies::Vector{CellAssembly}
+  name::String
+  description
+  contact
+  cellassemblies::AbstractVector{CellAssembly}
 end
 
 type Experiment
-	name::String
-	description
-	designers::Vector{String}
-  experimenters::Vector{String}
-	subjects::Vector{Subject}
+  name::String
+  description
+  designers::AbstractVector{String}
+  experimenters::AbstractVector{String}
+  subjects::AbstractVector{Subject}
 end
