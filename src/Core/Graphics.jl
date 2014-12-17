@@ -55,6 +55,34 @@ end
 function convert(::Type{Vector},v::Vec3)
   a = [v.x,v.y,v.z]
 end
+function convert{T<:Vec3}(::Type{Matrix},vs::AbstractVector{T})
+  l = length(vs)
+  if l==0
+    error("Empty Vector.")
+  else
+    a = Array(typeof(vs[1].x),3,l)
+    for i in 1:l
+      a[1,i]=vs[i].x
+      a[2,i]=vs[i].y
+      a[3,i]=vs[i].z
+    end
+  end
+  return a
+end
+function convert{T<:Vec3}(::Type{Vector{T}},a::Matrix)
+  s1,s2 = size(a)
+  if s1 != 4
+    error("Size of Dim 1 of Matrix Doesn't Match Vec4")
+  elseif s2 == 0
+    return []
+  else
+    vs = Array(T,s2)
+    for i in 1:s2
+      vs[i] = Vec3(a[1,i],a[2,i],a[3,i])
+    end
+    return vs
+  end
+end
 +(a::Vec3,b::Vec3)=Vec3(a.x+b.x,a.y+b.y,a.z+b.z)
 -(a::Vec3,b::Vec3)=Vec3(a.x-b.x,a.y-b.y,a.z-b.z)
 *(a::Vec3,b::Real)=Vec3(a.x*b,a.y*b,a.z*b)
