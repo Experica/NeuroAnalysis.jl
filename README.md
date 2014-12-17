@@ -3,7 +3,8 @@ ___
 
 Julia package for neural signal analysis
 
-- Travis: [![Build Status](https://travis-ci.org/babaq/NeuroAnalysis.jl.png?branch=master)](https://travis-ci.org/babaq/NeuroAnalysis.jl)
+[![Build Status](https://travis-ci.org/babaq/NeuroAnalysis.jl.svg?branch=master)](https://travis-ci.org/babaq/NeuroAnalysis.jl)
+[![Coverage Status](https://img.shields.io/coveralls/babaq/NeuroAnalysis.jl.svg)](https://coveralls.io/r/babaq/NeuroAnalysis.jl)
 
 ## 3D Transformation
 ```julia
