@@ -3,20 +3,13 @@ module NAIO
 include("TDTIO.jl")
 include("NeuroShareIO.jl")
 
-using DataFrames
-export squeezedictdf,matchfiles
+export matchfile
 
-function squeezedictdf(d)
-  for k in keys(d)
-    d[k] = squeeze(d[k],2)
-  end
-  convert(DataFrame,d)
-end
 
-function matchfiles(pattern::Regex;path="")
+function matchfile(pattern::Regex;path="")
     fs = readdir(path)
-    midx = [ismatch(pattern,fs[i]) for i=1:length(fs)]
-    mfs = fs[midx]
+    mi = map(f->ismatch(pattern,f),fs)
+    mfs = fs[mi]
 end
 
 end # module

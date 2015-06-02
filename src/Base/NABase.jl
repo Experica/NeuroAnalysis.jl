@@ -1,13 +1,12 @@
 module NABase
-
 using NeuroAnalysis.NACore
 
 include("NeuroDataQuery.jl")
 include("NeuroDataPrepare.jl")
 
 import Base: convert
-export drv,randvec3,anscombe,fconds,fcondi,fcondis,psthdf
-using DataFrames, Distributions
+export drv,randvec3,anscombe,flcond,findcond,flfln,setfln,testfln
+using Distributions
 
 function drv(p,n=1,isfreq=false)
   d=Categorical(p)
@@ -80,47 +79,110 @@ function anscombe(x)
   2*sqrt(x+(3/8))
 end
 
-function fconds(fl,f)
-  conds = [[(f,l)] for l in fl[f]]
+# function flcond(fl,fs...)
+#   if length(fs)==0
+#     fs=collect(keys(fl))
+#   end
+#   ex = :([{(fs[1],l1)} for l1=fl[fs[1]]][:])
+#   for i=2:length(fs)
+#     lx=symbol("l$i")
+#     push!(ex.args[1].args,:($lx=fl[fs[$i]]))
+#     push!(ex.args[1].args[1].args,:((fs[$i],$lx)))
+#   end
+#   eval(ex)
+# end
+function flcond(fl,f)
+  conds = [Any[(f,l)] for l in fl[f]]
 end
-function fconds(fl,f1,f2)
-  conds = [[(f1,l1),(f2,l2)] for l1 in fl[f1],l2 in fl[f2]][:]
+function flcond(fl,f1,f2)
+  conds = [Any[(f1,l1),(f2,l2)] for l1 in fl[f1],l2 in fl[f2]][:]
 end
-function fconds(fl,f1,f2,f3)
-  conds = [[(f1,l1),(f2,l2),(f3,l3)] for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
+function flcond(fl,f1,f2,f3)
+  conds = [{(f1,l1),(f2,l2),(f3,l3)} for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
 end
-function fcondi(df::DataFrame,fcond)
-  fcidx = trues(size(df,1))
-  fcstr = ""
-  for fc in fcond
-    f = fc[1]
-    l = fc[2]
-    fcidx &= df[symbol(f)].==l
-    fcstr = "$fcstr, $f=$l"
+
+function findcond(df::DataFrame,cond::Vector{Any})
+  i = trues(size(df,1))
+  condstr = ""
+  for fl in cond
+    f = fl[1]
+    l = fl[2]
+    i &= df[symbol(f)].==l
+    condstr = "$condstr, $f=$l"
   end
-  return find(fcidx),fcstr[3:end]
+  return find(i),condstr[3:end]
 end
-function fcondis(df::DataFrame,fconds)
-  nfcs = length(fconds)
-  fcis = Array(Vector{Int},nfcs)
-  fcss = Array(String,nfcs)
-  for i in 1:nfcs
-    fcis[i],fcss[i] = fcondi(df,fconds[i])
+function findcond(df::DataFrame,conds::Vector{Vector{Any}})
+  n = length(conds)
+  is = Array(Vector{Int},n)
+  ss = Array(String,n)
+  for i in 1:n
+    is[i],ss[i] = findcond(df,conds[i])
   end
-  return fcis,fcss
+  return is,ss
 end
-function psthdf(tps::TPsVector,binedges::TimePoints,condstr="")
-  m,sd,x,n = psth(tps,binedges)
-  df = DataFrame(x=x,y=m,ysd=sd,n=n,Condition=condstr)
-end
-function psthdf(tpsv::TPVVector,binedges::TimePoints,condstrs::Vector{String})
-  nconds = length(condstrs)
-  dfs = [psthdf(tpsv[i],binedges,condstrs[i]) for i=1:nconds]
-  df=DataFrame()
-  for i=1:nconds
-    df = [df,dfs[i]]
+
+function flfln(df::DataFrame,factors)
+  fl=Dict();fln=Dict()
+  for f in factors
+    ft = df[symbol(f)]
+    fl[f] = sort(unique(ft))
+    for l in fl[f]
+      fln[(f,l)] = countnz(ft.==l)
+    end
   end
-  return df
+  return fl,fln
+end
+
+function setfln(fl::Dict,n::Int)
+  fln=Dict()
+  for f in keys(fl)
+    for l in fl[f]
+      fln[(f,l)] = n
+    end
+  end
+  return fln
+end
+function setfln(fl::Dict,fn::Dict)
+  fln=Dict()
+  for f in keys(fl)
+    for i=1:length(fl[f])
+      fln[(f,fl[f][i])] = fn[f][i]
+    end
+  end
+  return fln
+end
+
+function testfln(fln::Dict,minfln::Dict;showmsg::Bool=true)
+  r=true
+  for mkey in keys(minfln)
+    if haskey(fln,mkey)
+      if fln[mkey] < minfln[mkey]
+        if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" repeats $(fln[mkey]) < $(minfln[mkey]).\n");end
+        r=false
+      end
+    else
+      if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" is missing.\n");end
+      r=false
+    end
+  end
+  return r
+end
+function testfln(ds::Vector,minfln::Dict;showmsg::Bool=true)
+  vi = map(d->begin
+             if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
+             testfln(d["fln"],minfln,showmsg=showmsg)
+           end,ds)
+end
+
+function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};isse::Bool=true)
+  is,ss = findcond(ds,conds)
+  df = psth(map(x->ds[:spike][x],is),binedges,ss)
+  if isse
+    df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
+    df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
+  end
+  return df,ss
 end
 
 end # module
