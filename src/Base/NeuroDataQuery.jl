@@ -1,53 +1,54 @@
-export subtps,subtpsr
+export subrv,subrvr
 
-function subtps(tps::TimePoints,starttime::Real,endtime::Real;isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
-  if isendtimeorigin && isstarttimeorigin
-    error("Time Origin Setting Conflicts.")
+
+function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false)
+  if ismaxzero && isminzero
+    error("Zero Setting Conflicts.")
   end
-  si = find(starttime .<= tps .< endtime)
-  tpn = length(si)
-  sub = tps[si]
-  if isstarttimeorigin
-    sub -= starttime
+  i = find(min .<= rv .< max)
+  n = length(i)
+  y = rv[i]
+  if isminzero
+    y -= min
   end
-  if isendtimeorigin
-    sub -= endtime
+  if ismaxzero
+    y -= max
   end
-  win = [starttime, endtime]
-  return sub,tpn,si,win
+  w = [min, max]
+  return y,n,w,i
 end
-function subtps(tps::TimePoints,starttimes::TimePoints,endtimes::TimePoints;isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
-  subn = length(starttimes)
-  if subn != length(endtimes)
-    error("Lengths of starttimes and endtimes do not match.")
+function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=false,ismaxzero::Bool=false)
+  yn = length(mins)
+  if yn != length(maxs)
+    error("Lengths of mins and maxs do not match.")
   end
-  subs = Array(TimePoints,subn)
-  tpns = zeros(Int,subn)
-  sis = Array(Vector{Int},subn)
-  wins = Array(TimePoints,subn)
-  for i in 1:subn
-    subs[i],tpns[i],sis[i],wins[i] = subtps(tps,starttimes[i],endtimes[i],isstarttimeorigin=isstarttimeorigin,isendtimeorigin=isendtimeorigin)
+  ys = Array(RealVector,yn)
+  ns = zeros(Int,yn)
+  ws = Array(RealVector,yn)
+  is = Array(Vector{Int},yn)
+  for i in 1:yn
+    ys[i],ns[i],ws[i],is[i] = subrv(rv,mins[i],maxs[i],isminzero=isminzero,ismaxzero=ismaxzero)
   end
-  return subs,tpns,sis,wins
+  return ys,ns,ws,is
 end
 
-function subtpsr(tps::TimePoints,starttimes::TimePoints,endtimes::TimePoints;winstart::Real=0.0,winend::Real=0.0
-                ,isstarttimeorigin::Bool=false,isendtimeorigin::Bool=false)
-  if isendtimeorigin && isstarttimeorigin
-    error("Response Window Time Origin Conflicts.")
+function subrvr(rv::RealVector,mins::RealVector,maxs::RealVector;winmin::Real=0.0,winmax::Real=0.0
+                ,isminzero::Bool=false,ismaxzero::Bool=false,isfiringrate::Bool=false)
+  if ismaxzero && isminzero
+    error("Zero Setting For Response Window Conflicts.")
   end
-  if isstarttimeorigin
-    startt = starttimes + winstart
-    endt = starttimes + winend
+  if isminzero
+    winmins = mins + winmin
+    winmaxs = mins + winmax
   end
-  if isendtimeorigin
-    startt = endtimes + winstart
-    endt = endtimes + winend
+  if ismaxzero
+    winmins = maxs + winmin
+    winmaxs = maxs + winmax
   end
-  if !isendtimeorigin && !isstarttimeorigin
-    startt = starttimes
-    endt = endtimes
+  if !ismaxzero && !isminzero
+    winmins = mins
+    winmaxs = maxs
   end
-  sts,stn,sis,wins = subtps(tps,startt,endt,isstarttimeorigin=isstarttimeorigin,isendtimeorigin=isendtimeorigin)
-  response = stn ./ ((endt-startt)*0.001)
+  ys,ns,ws,is = subrv(rv,winmins,winmaxs)
+  isfiringrate?ns ./ ((winmaxs-winmins)*SecondPerUnit):ns
 end

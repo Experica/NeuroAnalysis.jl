@@ -1,35 +1,34 @@
 module NAVisualization
-
 using NeuroAnalysis.NACore, NeuroAnalysis.NABase
 
 include("Plot.jl")
 
 export savefig
 
-function savefig(fig,fname::String;path::String="",format::String="svg")
-  fn = joinpath(path,"$fname.$format")
+function savefig(fig,filename::String;path::String="",format::String="svg")
+  f = joinpath(path,"$filename.$format")
   if !ispath(path)
     mkpath(path)
   end
   if format=="svg"
     format = "$format+xml"
   end
-  open(fn, "w") do io
+  open(f, "w") do io
     writemime(io,"image/$format",fig)
   end
 end
 
-function savefig(fig::Plot,fname::String;path::String="",format::String="svg",width=22cm,height=13cm)
-  fn = joinpath(path,"$fname.$format")
+function savefig(fig::Plot,filename::String;path::String="",format::String="svg",width=22cm,height=13cm,dpi=300)
+  f = joinpath(path,"$filename.$format")
   if !ispath(path)
     mkpath(path)
   end
   if format=="svg"
-    format = SVG(fn,width,height)
+    format = SVG(f,width,height)
   elseif format=="png"
-    format = PNG(fn,width,height)
+    format = PNG(f,width,height,dpi=dpi)
   elseif format=="pdf"
-    format = PDF(fn,width,height)
+    format = PDF(f,width,height,dpi=dpi)
   end
   draw(format,fig)
 end

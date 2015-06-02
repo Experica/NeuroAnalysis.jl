@@ -1,15 +1,18 @@
-export TimePoints,TPsVector,TPVVector,Spike,SpikeTrain,Cell,CellAssembly,
+export RealVector,RVVector,RVVVector,SecondPerUnit,Spike,SpikeTrain,Cell,CellAssembly,
 Block,Segment,Subject,Experiment
 
-# Time Unit is Millisecond
-typealias TimePoints{T<:Real} AbstractArray{T,1}
-typealias TPsVector{T<:TimePoints} AbstractArray{T,1}
-typealias TPVVector{T<:TPsVector} AbstractArray{T,1}
+
+typealias RealVector{T<:Real} AbstractArray{T,1}
+typealias RVVector{T<:RealVector} AbstractArray{T,1}
+typealias RVVVector{T<:RVVector} AbstractArray{T,1}
+
+# Time Unit is millisecond by default.
+global const SecondPerUnit = 0.001
 
 type Spike
-  value::AbstractVector{Real}
+  value::RealVector
   time::Real
-  delay::Real
+  delay
   sort
 end
 
