@@ -38,9 +38,11 @@ function plotspiketrain(rvs::RVVector;timemark=[],theme=Theme(),sorttrial::Bool=
   end
 end
 
-function plotpsth(rvs::RVVector,binedges::RealVector;theme=Theme())
+function plotpsth(rvs::RVVector,binedges::RealVector;theme=Theme(),timemark=[0])
   m,sd,n,x = psth(rvs,binedges)
-  plot(y=m,x=x,theme,Geom.line,Guide.xlabel("Time (ms)"),Guide.ylabel("Response (spike/s)"))
+  plot(y=m,x=x,ymin=m-sd/sqrt(n),ymax=m+sd/sqrt(n),xintercept=timemark,theme,
+    Geom.line,Geom.ribbon,Geom.vline(color="gray",size=1pt),Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),
+    Guide.xlabel("Time (ms)"),Guide.ylabel("Response (spike/s)"))
 end
 
 function plotpsth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};theme=Theme(),timemark=[0])
