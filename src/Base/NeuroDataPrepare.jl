@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 export isi,flatrv,histrv,histmatrix,psth
-=======
-export isi,histrv,histmatrix,psth
->>>>>>> 107f77da1a310ca40b52df72ae4d71ec825ec5d1
 using DataFrames
 
 
@@ -10,7 +6,6 @@ function isi(rv::RealVector)
   diff(sort(rv))
 end
 
-<<<<<<< HEAD
 function flatrv(rvs::RVVector,sortvar=[])
   nrv = length(rvs)
   if isempty(sortvar)
@@ -38,8 +33,6 @@ function flatrv(rvs::RVVector,sortvar=[])
   return x,y,c
 end
 
-=======
->>>>>>> 107f77da1a310ca40b52df72ae4d71ec825ec5d1
 histrv(rv::RealVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false) = subrv(rv,binedges[1:end-1],binedges[2:end],isminzero=isminzero,ismaxzero=ismaxzero)
 function histrv(rv::RealVector,min::Real,max::Real;nbins::Integer=10,binwidth::Real=0.0,isminzero::Bool=false,ismaxzero::Bool=false)
   if binwidth <= 0.0
