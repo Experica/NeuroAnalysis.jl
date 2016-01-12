@@ -98,7 +98,7 @@ function flcond(fl,f1,f2)
   conds = [Any[(f1,l1),(f2,l2)] for l1 in fl[f1],l2 in fl[f2]][:]
 end
 function flcond(fl,f1,f2,f3)
-  conds = [{(f1,l1),(f2,l2),(f3,l3)} for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
+  conds = [Any[(f1,l1),(f2,l2),(f3,l3)] for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
 end
 
 function findcond(df::DataFrame,cond::Vector{Any})
@@ -122,10 +122,13 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}})
   return is,ss
 end
 
+"""
+find levels(except NA) for each factor and repetition for each level/factor
+"""
 function flfln(df::DataFrame,factors)
   fl=Dict();fln=Dict()
   for f in factors
-    ft = df[symbol(f)]
+    ft = dropna(df[symbol(f)])
     fl[f] = sort(unique(ft))
     for l in fl[f]
       fln[(f,l)] = countnz(ft.==l)
@@ -169,15 +172,15 @@ function testfln(fln::Dict,minfln::Dict;showmsg::Bool=true)
   return r
 end
 function testfln(ds::Vector,minfln::Dict;showmsg::Bool=true)
-  vi = map(d->begin
+  vi = find(map(d->begin
              if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
              testfln(d["fln"],minfln,showmsg=showmsg)
-           end,ds)
+           end,ds))
 end
 
-function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};isse::Bool=true)
+function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};normfun=nothing,spike=:spike,isse::Bool=true)
   is,ss = findcond(ds,conds)
-  df = psth(map(x->ds[:spike][x],is),binedges,ss)
+  df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
   if isse
     df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
     df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])

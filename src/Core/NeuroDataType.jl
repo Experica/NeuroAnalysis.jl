@@ -17,60 +17,60 @@ type Spike
 end
 
 type SpikeTrain
-  name::String
+  name::AbstractString
   id
-  channel::Uint
+  channel::UInt
   fs::Real
   spikes::AbstractVector{Spike}
 end
 
 type Channel
-  name::String
-  index::Uint64
+  name::AbstractString
+  index::UInt64
   coordinate::AbstractVector{Float64}
   signal
   spiketrains::AbstractVector{SpikeTrain}
 end
 
 type ChannelGroup
-  name::String
+  name::AbstractString
   channels::AbstractVector{Channel}
 end
 
 type AnalogSignal
-  name::String
+  name::AbstractString
   description
-  channel::Uint64
+  channel::UInt64
   fs::Float64
   value::AbstractVector{Float64}
   startime::Float64
 end
 
 type AnalogSignalArray
-  name::String
+  name::AbstractString
   signals::AbstractVector{AnalogSignal}
 end
 
 type Event
-  name::String
+  name::AbstractString
   value
   time::Float64
 end
 
 type EventArray
-  name::String
+  name::AbstractString
   events::AbstractVector{Event}
 end
 
 type Epoch
-  name::String
+  name::AbstractString
   time::Float64
   duration::Float64
   value
 end
 
 type EpochArray
-  name::String
+  name::AbstractString
   epochs::AbstractVector{Epoch}
 end
 
@@ -84,7 +84,7 @@ type Segment
 end
 
 type Block
-  name::String
+  name::AbstractString
   id
   description
   source
@@ -96,7 +96,7 @@ type Block
 end
 
 type Cell
-  name::String
+  name::AbstractString
   id
   description
   spiketrain
@@ -104,7 +104,7 @@ type Cell
 end
 
 type CellAssembly
-  name::String
+  name::AbstractString
   id
   cells::AbstractVector{Cell}
   projections
@@ -112,16 +112,16 @@ type CellAssembly
 end
 
 type Subject
-  name::String
+  name::AbstractString
   description
   contact
   cellassemblies::AbstractVector{CellAssembly}
 end
 
 type Experiment
-  name::String
+  name::AbstractString
   description
-  designers::AbstractVector{String}
-  experimenters::AbstractVector{String}
+  designers::AbstractVector{AbstractString}
+  experimenters::AbstractVector{AbstractString}
   subjects::AbstractVector{Subject}
 end

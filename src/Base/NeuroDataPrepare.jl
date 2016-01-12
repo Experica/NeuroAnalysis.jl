@@ -1,4 +1,4 @@
-export isi,flatrv,histrv,histmatrix,psth
+export isi,flatrvs,histrv,histmatrix,psth
 using DataFrames
 
 
@@ -6,7 +6,7 @@ function isi(rv::RealVector)
   diff(sort(rv))
 end
 
-function flatrv(rvs::RVVector,sortvar=[])
+function flatrvs(rvs::RVVector,sortvar=[])
   nrv = length(rvs)
   if isempty(sortvar)
     issort=false
@@ -27,8 +27,8 @@ function flatrv(rvs::RVVector,sortvar=[])
   for i in 1:nrv
     rv = srvs[i];n=length(rv)
     if n==0;continue;end
-    x = [x,rv];y = [y,ones(n)*i]
-    if issort;c=[c,fill(ssortvar[i],n)];end
+    x = [x;rv];y = [y;ones(n)*i]
+    if issort;c=[c;fill(ssortvar[i],n)];end
   end
   return x,y,c
 end
@@ -77,32 +77,37 @@ function histmatrix(rvs::RVVector,binedges::RealVector)
   hm,x = histmatrix(ns,ws)
 end
 
-function psth(hm::Matrix{Int},x)
+function psth(hm::Matrix{Int},x;normfun=nothing)
   binwidth = x[2]-x[1]
   hmr = hm / (binwidth*SecondPerUnit)
   n = size(hmr,1)
+  if normfun!=nothing
+    for i=1:n
+      hmr[i,:]=normfun(hmr[i,:])
+    end
+  end
   m = mean(hmr,1)[:]
   sd = std(hmr,1)[:]
   return m,sd,n,x
 end
-function psth(hv::Vector{Vector{Int}},ws::RVVector)
+function psth(hv::Vector{Vector{Int}},ws::RVVector;normfun=nothing)
   hm,x = histmatrix(hv,ws)
-  psth(hm,x)
+  psth(hm,x,normfun=normfun)
 end
-function psth(rvs::RVVector,binedges::RealVector)
+function psth(rvs::RVVector,binedges::RealVector;normfun=nothing)
   hm,x = histmatrix(rvs,binedges)
-  psth(hm,x)
+  psth(hm,x,normfun=normfun)
 end
-function psth(rvs::RVVector,binedges::RealVector,condstr)
-  m,sd,n,x = psth(rvs,binedges)
+function psth(rvs::RVVector,binedges::RealVector,condstr;normfun=nothing)
+  m,sd,n,x = psth(rvs,binedges,normfun=normfun)
   df = DataFrame(x=x,y=m,ysd=sd,n=n,condition=condstr)
 end
-function psth(rvvs::RVVVector,binedges::RealVector,condstrs::Vector{String})
+function psth(rvvs::RVVVector,binedges::RealVector,condstrs::Vector{AbstractString};normfun=nothing)
   n = length(condstrs)
-  dfs = [psth(rvvs[i],binedges,condstrs[i]) for i=1:n]
+  dfs = [psth(rvvs[i],binedges,condstrs[i],normfun=normfun) for i=1:n]
   df=DataFrame()
   for i=1:n
-    df = [df,dfs[i]]
+    df = [df;dfs[i]]
   end
   return df
 end

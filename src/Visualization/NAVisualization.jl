@@ -5,7 +5,7 @@ include("Plot.jl")
 
 export savefig
 
-function savefig(fig,filename::String;path::String="",format::String="svg")
+function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")
   f = joinpath(path,"$filename.$format")
   if !ispath(path)
     mkpath(path)
@@ -18,7 +18,7 @@ function savefig(fig,filename::String;path::String="",format::String="svg")
   end
 end
 
-function savefig(fig::Plot,filename::String;path::String="",format::String="svg",width=22cm,height=13cm,dpi=300)
+function savefig(fig::Plot,filename::AbstractString;path::AbstractString="",format::AbstractString="svg",width=22cm,height=13cm,dpi=300)
   f = joinpath(path,"$filename.$format")
   if !ispath(path)
     mkpath(path)
