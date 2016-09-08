@@ -1,3 +1,4 @@
+__precompile__()
 module NeuroAnalysis
 
 include("Core/NACore.jl")
