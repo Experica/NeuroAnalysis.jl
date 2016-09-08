@@ -1,5 +1,6 @@
-julia
+julia 0.4
 MAT
+GLM
 Gadfly
 PyPlot
-IJulia
+Plots
