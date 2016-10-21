@@ -1,7 +1,6 @@
 export RealVector,RVVector,RVVVector,SecondPerUnit,
 Spike,SpikeTrain,Cell,CellAssembly,Block,Segment,Subject,Experiment
 
-
 typealias RealVector{T<:Real} AbstractArray{T,1}
 typealias RVVector{T<:RealVector} AbstractArray{T,1}
 typealias RVVVector{T<:RVVector} AbstractArray{T,1}

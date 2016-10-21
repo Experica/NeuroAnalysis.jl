@@ -2,8 +2,10 @@ include("NeuroDataType.jl")
 include("Spike.jl")
 
 import Base: convert
-export anscombe,flcond,findcond,flfln,setfln,testfln
-using Distributions
+export sem,anscombe,flcond,findcond,flfln,setfln,testfln
+using Distributions,DataFrames
+
+sem(v) = std(v)/sqrt(length(v))
 
 # function drv(p,n=1,isfreq=false)
 #   d=Categorical(p)

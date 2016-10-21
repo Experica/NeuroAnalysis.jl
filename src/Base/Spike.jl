@@ -1,5 +1,4 @@
-export subrv,isi,flatrvs,histrv,histmatrix,psth
-using DataFrames
+export subrv,subrvr,isi,flatrvs,histrv,histmatrix,psth
 
 function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false)
   if ismaxzero && isminzero
@@ -34,36 +33,40 @@ function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=
   end
   return ys,ns,ws,is
 end
+function subrvr(rv::RealVector,mins::RealVector,maxs::RealVector)
+  ys,ns,ws,is = subrv(rv,mins,maxs,israte=true)
+  return ns
+end
 
 function isi(rv::RealVector)
   diff(sort(rv))
 end
 
-function flatrvs(rvs::RVVector,sortvar=[])
+function flatrvs(rvs::RVVector,sv=[])
   nrv = length(rvs)
-  if isempty(sortvar)
+  if isempty(sv)
     issort=false
-  elseif length(sortvar)==nrv
+  elseif length(sv)==nrv
     issort=true
   else
-    warn("Length of rvs and sortvar do not match, sorting ignored.")
+    warn("Length of rvs and sv do not match, sorting ignored.")
     issort=false
   end
   if issort
-    srvs=rvs[sortperm(sortvar)]
-    ssortvar=sort(sortvar)
+    srvs=rvs[sortperm(sv)]
+    ssv=sort(sv)
   else
     srvs=rvs
-    ssortvar=sortvar
+    ssv=sv
   end
-  x=[];y=[];c=[]
+  x=[];y=[];s=[]
   for i in 1:nrv
     rv = srvs[i];n=length(rv)
     if n==0;continue;end
     x = [x;rv];y = [y;ones(n)*i]
-    if issort;c=[c;fill(ssortvar[i],n)];end
+    if issort;s=[s;fill(ssv[i],n)];end
   end
-  return x,y,c
+  return x,y,s
 end
 
 function histrv(rv::RealVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false)
@@ -80,7 +83,7 @@ end
 histrv(rv::RealVector;nbins::Integer=10,binwidth::Real=0.0,isminzero::Bool=false,ismaxzero::Bool=false) = histrv(rv,minimum(rv),maximum(rv),nbins=nbins,binwidth=binwidth,isminzero=isminzero,ismaxzero=ismaxzero)
 function histrv(rvs::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false)
   yn = length(rvs)
-  yn == 0 && warn("Empty RVVector in histrv(rvs::RVVector, binedges::RealVector)")
+  yn == 0 && error("Empty RVVector in histrv(rvs::RVVector, binedges::RealVector)")
   ys = Array(RVVector,yn)
   ns = Array(Vector{Int},yn)
   ws = []
@@ -107,7 +110,7 @@ function histmatrix(hv::Vector{Vector{Int}},ws::RVVector)
   for i in 1:hn
     hm[i,:] = hv[i]
   end
-  bincenters = [ws[i][1]+binwidth/2.0 for i=1:nbins]
+  bincenters = Float64[ws[i][1]+binwidth/2.0 for i=1:nbins]
   return hm,bincenters
 end
 function histmatrix(rvs::RVVector,binedges::RealVector)

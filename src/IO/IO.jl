@@ -1,16 +1,15 @@
-module NAIO
-using MAT,DataFrames
-
 export readmat,prepare,prepare!,prepare_ripple!,prepare_vlab!,statetime,matchfile
 
-"Read `Matlab` exported data"
-function readmat(f::String;v="dataset")
+using MAT
+
+"Read exported `Matlab` MAT format data"
+function readmat(f::AbstractString,v="dataset")
   d = matread(f)[v]
 end
 
-prepare(f::String)=prepare!(readmat(f))
+prepare(f::AbstractString,v="dataset")=prepare!(readmat(f,v))
 function prepare!(d::Dict)
-    if(haskey(d,"sourceformat"))
+    if haskey(d,"sourceformat")
         sf = d["sourceformat"]
         if(sf=="Ripple")
             d=prepare_ripple!(d)
@@ -19,12 +18,12 @@ function prepare!(d::Dict)
     return d
 end
 function prepare_ripple!(d::Dict)
-    if(haskey(d,"spike"))
+    if haskey(d,"spike")
         d["spike"]["electrodeid"]=collect(Int,d["spike"]["electrodeid"])
         d["spike"]["time"]=map(i->collect(Float64,i),collect(d["spike"]["time"]))
         d["spike"]["unitid"]=map(i->collect(Int,i),collect(d["spike"]["unitid"]))
     end
-    if(haskey(d,"digital"))
+    if haskey(d,"digital")
         dc = i-> begin
             s = split(i)
             c = s[1]=="SMA"?parse(Int,s[2]):s
@@ -33,23 +32,34 @@ function prepare_ripple!(d::Dict)
         d["digital"]["time"]=map(i->collect(Float64,i),collect(d["digital"]["time"]))
         d["digital"]["data"]=map(i->collect(Int,i),collect(d["digital"]["data"]))
     end
-    if(haskey(d,"analog1k"))
+    if haskey(d,"analog1k")
         d["analog1k"]["electrodeid"]=collect(Int,d["analog1k"]["electrodeid"])
         d["analog1k"]["time"]=collect(Float64,d["analog1k"]["time"])
     end
-    if(haskey(d,"ex"))
+    if haskey(d,"ex")
         d["ex"]=prepare_vlab!(d["ex"])
     end
     return d
 end
 function prepare_vlab!(d::Dict)
-    if(haskey(d["CondTest"],"CONDSTATE"))
-        d["CondTest"]["CONDSTATE"]= map(i->collect(i),collect(d["CondTest"]["CONDSTATE"]))
+    if haskey(d,"CondTest")
+        if haskey(d["CondTest"],"CONDSTATE")
+            d["CondTest"]["CONDSTATE"]= map(i->collect(i),collect(d["CondTest"]["CONDSTATE"]))
+        end
+        if haskey(d["CondTest"],"CondIndex")
+            d["CondTest"]["CondIndex"] = collect(Int,d["CondTest"]["CondIndex"])+1
+            d["CondTest"]["CondRepeat"] = collect(Int,d["CondTest"]["CondRepeat"])
+        end
+    end
+    if (haskey(d,"Cond") && length(d["Cond"])>0)
+        for f in keys(d["Cond"])
+            d["Cond"][f] = collect(d["Cond"][f])
+        end
     end
     return d
 end
 function statetime(ct::Dict;statetype::AbstractString="CONDSTATE",state::AbstractString="COND")
-    if(haskey(ct,statetype))
+    if haskey(ct,statetype)
         filter!(l->!isempty(l),map(i->begin
         t = filter!(k->!isempty(k),map(j->haskey(j,state)?j[state]:[],i))
             length(t)==1?t[1]:t
