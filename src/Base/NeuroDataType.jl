@@ -5,7 +5,7 @@ typealias RealVector{T<:Real} AbstractArray{T,1}
 typealias RVVector{T<:RealVector} AbstractArray{T,1}
 typealias RVVVector{T<:RVVector} AbstractArray{T,1}
 
-# Time Unit is millisecond by default.
+"Time Unit is millisecond by default."
 const SecondPerUnit = 0.001
 
 type Spike

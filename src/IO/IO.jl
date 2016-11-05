@@ -1,73 +1,124 @@
-export readmat,prepare,prepare!,prepare_ripple!,prepare_vlab!,statetime,matchfile
+export readmat,mat2julia!,prepare,prepare!,prepare_ripple!,prepare_vlab!,statetime,
+condfactor,condtest,aligntime,matchfile
 
-using MAT
+using MAT,DataFrames
 
 "Read exported `Matlab` MAT format data"
 function readmat(f::AbstractString,v="dataset")
   d = matread(f)[v]
 end
 
+mat2julia!(a)=mat2julia!(nothing,a)
+function mat2julia!(t,a)
+  da = ndims(a)
+  if da==0
+  elseif da==1
+    t!=nothing && (t=Array{t,1})
+  else
+    sa = size(a)
+    if sa[1]==1 && sa[2]==1
+      a=a[1,1]
+    elseif sa[1]==1 && sa[2]>1
+      a=squeeze(a,1)
+      t!=nothing &&  ( t=Array{t,1})
+    elseif sa[2]==1 && sa[1]>1
+      a=squeeze(a,2)
+      t!=nothing && ( t=Array{t,1})
+    else
+      t!=nothing &&( t = Array{t,da})
+    end
+  end
+  t!=nothing &&( a=convert(t,a))
+  return a
+end
+
 prepare(f::AbstractString,v="dataset")=prepare!(readmat(f,v))
 function prepare!(d::Dict)
-    if haskey(d,"sourceformat")
-        sf = d["sourceformat"]
-        if(sf=="Ripple")
-            d=prepare_ripple!(d)
-        end
+  if haskey(d,"sourceformat")
+    sf = d["sourceformat"]
+    if(sf=="Ripple")
+      d=prepare_ripple!(d)
     end
-    return d
+  end
+  if haskey(d,"ex")
+    d["ex"]=prepare_vlab!(d["ex"])
+  end
+  return d
 end
 function prepare_ripple!(d::Dict)
-    if haskey(d,"spike")
-        d["spike"]["electrodeid"]=collect(Int,d["spike"]["electrodeid"])
-        d["spike"]["time"]=map(i->collect(Float64,i),collect(d["spike"]["time"]))
-        d["spike"]["unitid"]=map(i->collect(Int,i),collect(d["spike"]["unitid"]))
-    end
-    if haskey(d,"digital")
-        dc = i-> begin
-            s = split(i)
-            c = s[1]=="SMA"?parse(Int,s[2]):s
-        end
-        d["digital"]["channel"]=map(i->dc(i[1,1]),collect(d["digital"]["channel"]))
-        d["digital"]["time"]=map(i->collect(Float64,i),collect(d["digital"]["time"]))
-        d["digital"]["data"]=map(i->collect(Int,i),collect(d["digital"]["data"]))
-    end
-    if haskey(d,"analog1k")
-        d["analog1k"]["electrodeid"]=collect(Int,d["analog1k"]["electrodeid"])
-        d["analog1k"]["time"]=collect(Float64,d["analog1k"]["time"])
-    end
-    if haskey(d,"ex")
-        d["ex"]=prepare_vlab!(d["ex"])
-    end
-    return d
+  if haskey(d,"spike")
+    d["spike"]["electrodeid"]=mat2julia!(Int,d["spike"]["electrodeid"])
+    d["spike"]["time"]=map(i->mat2julia!(Float64,i),mat2julia!(d["spike"]["time"]))
+    d["spike"]["unitid"]=map(i->mat2julia!(Int,i),mat2julia!(d["spike"]["unitid"]))
+  end
+  if haskey(d,"digital")
+    dc = i-> begin
+    s = split(i)
+    c = s[1]=="SMA"?parse(Int,s[2]):i
+  end
+  d["digital"]["channel"]=map(i->dc(mat2julia!(i)),mat2julia!(d["digital"]["channel"]))
+  d["digital"]["time"]=map(i->mat2julia!(Float64,i),mat2julia!(d["digital"]["time"]))
+  d["digital"]["data"]=map(i->mat2julia!(Int,i),mat2julia!(d["digital"]["data"]))
+  d["ex"]["t0"]=d["digital"]["time"][2]
+end
+if haskey(d,"analog1k")
+  d["analog1k"]["electrodeid"]=mat2julia!(Int,d["analog1k"]["electrodeid"])
+  d["analog1k"]["time"]=mat2julia!(Float64,d["analog1k"]["time"])
+  d["analog1k"]["data"]=mat2julia!(Float64,d["analog1k"]["data"])
+end
+return d
 end
 function prepare_vlab!(d::Dict)
-    if haskey(d,"CondTest")
-        if haskey(d["CondTest"],"CONDSTATE")
-            d["CondTest"]["CONDSTATE"]= map(i->collect(i),collect(d["CondTest"]["CONDSTATE"]))
-        end
-        if haskey(d["CondTest"],"CondIndex")
-            d["CondTest"]["CondIndex"] = collect(Int,d["CondTest"]["CondIndex"])+1
-            d["CondTest"]["CondRepeat"] = collect(Int,d["CondTest"]["CondRepeat"])
-        end
+  if haskey(d,"CondTest")
+    if haskey(d["CondTest"],"CONDSTATE")
+      d["CondTest"]["CONDSTATE"]= map(i->mat2julia!(i),mat2julia!(d["CondTest"]["CONDSTATE"]))
     end
-    if (haskey(d,"Cond") && length(d["Cond"])>0)
-        for f in keys(d["Cond"])
-            d["Cond"][f] = collect(d["Cond"][f])
-        end
+    if haskey(d["CondTest"],"CondIndex")
+      d["CondTest"]["CondIndex"] = mat2julia!(Int,d["CondTest"]["CondIndex"])+1
+      d["CondTest"]["CondRepeat"] = mat2julia!(Int,d["CondTest"]["CondRepeat"])
     end
-    return d
+  end
+  if (haskey(d,"Cond") && length(d["Cond"])>0)
+    for f in keys(d["Cond"])
+      d["Cond"][f] = mat2julia!(d["Cond"][f])
+    end
+  end
+  return d
 end
 function statetime(ct::Dict;statetype::AbstractString="CONDSTATE",state::AbstractString="COND")
-    if haskey(ct,statetype)
-        filter!(l->!isempty(l),map(i->begin
-        t = filter!(k->!isempty(k),map(j->haskey(j,state)?j[state]:[],i))
-            length(t)==1?t[1]:t
-            end,ct[statetype]))
-    else
-        []
-    end
+  if haskey(ct,statetype)
+    filter!(l->!isempty(l),map(i->begin
+    t = filter!(k->!isempty(k),map(j->haskey(j,state)?j[state]:[],i))
+    length(t)==1?t[1]:t
+  end,ct[statetype]))
+  else
+  []
+  end
 end
+
+function condfactor(cond::Dict)
+  df = DataFrame(cond)
+  return df
+end
+function condtest(ctd::Dict,cond::DataFrame)
+  ctd["preiciontime"]= Array{Float64}(statetime(ctd,statetype="CONDSTATE",state="PREICI"))
+  ctd["condontime"]= Array{Float64}(statetime(ctd,statetype="CONDSTATE",state="COND"))
+  ctd["suficiontime"]= Array{Float64}(statetime(ctd,statetype="CONDSTATE",state="SUFICI"))
+  ct = DataFrame(ctd)
+
+  ctcond = cond[ct[:CondIndex],:]
+  [ct ctcond]
+end
+condtest(ctd::Dict,cond::Dict) = condtest(ctd,condfactor(cond))
+
+function aligntime(x,ex::Dict;addlatency=true)
+  t=(x+ex["t0"])*(1+ex["TimerDriftSpeed"])
+  if addlatency
+    t+=ex["Latency"]
+  end
+return t
+end
+
 
 "convert `Matlab` struct of array to `DataFrame`"
 matdictarray2df(d) = DataFrame(Any[squeeze(v,2) for v in values(d)],[Symbol(k) for k in keys(d)])
@@ -84,7 +135,7 @@ function getdatafile(testtype;subject="[0-9]",path="./data")
 end
 
 function matchfile(pattern::Regex;path="")
-    fs = readdir(path)
-    mi = map(f->ismatch(pattern,f),fs)
-    mfs = fs[mi]
+  fs = readdir(path)
+  mi = map(f->ismatch(pattern,f),fs)
+  mfs = fs[mi]
 end
