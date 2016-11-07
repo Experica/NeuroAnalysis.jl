@@ -110,6 +110,14 @@ function condtest(ctd::Dict,cond::DataFrame)
   [ct ctcond]
 end
 condtest(ctd::Dict,cond::Dict) = condtest(ctd,condfactor(cond))
+function condtest(ctd::Dict,cond::DataFrame,ex::Dict;addlatency=true)
+  ct = condtest(ctd,cond)
+  ct[:preiciontime]=aligntime(ct[:preiciontime],ex,addlatency=addlatency)
+  ct[:condontime]=aligntime(ct[:condontime],ex,addlatency=addlatency)
+  ct[:suficiontime]=aligntime(ct[:suficiontime],ex,addlatency=addlatency)
+  return ct
+end
+condtest(ex::Dict;addlatency=true) = condtest(ex["CondTest"],condfactor(ex["Cond"]),ex,addlatency=addlatency)
 
 function aligntime(x,ex::Dict;addlatency=true)
   t=(x+ex["t0"])*(1+ex["TimerDriftSpeed"])
