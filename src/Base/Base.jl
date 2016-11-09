@@ -2,7 +2,7 @@ include("NeuroDataType.jl")
 include("Spike.jl")
 
 import Base: convert
-export sem,anscombe,flcond,findcond,flfln,setfln,testfln
+export sem,anscombe,flcond,findcond,flfln,setfln,testfln,condmean
 using Distributions,DataFrames
 
 sem(v) = std(v)/sqrt(length(v))
@@ -90,14 +90,14 @@ end
 #   end
 #   eval(ex)
 # end
-function flcond(fl,f)
-  conds = [Any[(f,l)] for l in fl[f]]
+function flcond(fl,f1)
+    conds = [Any[(f1,l1)] for l1 in fl[f1]]
 end
 function flcond(fl,f1,f2)
-  conds = [Any[(f1,l1),(f2,l2)] for l1 in fl[f1],l2 in fl[f2]][:]
+    conds = [Any[(f1,l1),(f2,l2)] for l1 in fl[f1],l2 in fl[f2]][:]
 end
 function flcond(fl,f1,f2,f3)
-  conds = [Any[(f1,l1),(f2,l2),(f3,l3)] for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
+    conds = [Any[(f1,l1),(f2,l2),(f3,l3)] for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
 end
 
 function findcond(df::DataFrame,cond::Vector{Any})
@@ -106,7 +106,7 @@ function findcond(df::DataFrame,cond::Vector{Any})
   for fl in cond
     f = fl[1]
     l = fl[2]
-    i &= df[symbol(f)].==l
+    i &= df[Symbol(f)].==l
     condstr = "$condstr, $f=$l"
   end
   return find(i),condstr[3:end]
@@ -122,18 +122,17 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}})
 end
 
 """
-find levels(except NA) for each factor and repetition for each level/factor
+find levels(except NA) for each factor and repetition for each level
 """
 function flfln(df::DataFrame,factors)
-  fl=Dict();fln=Dict()
+    fl=Dict();fln=Dict()
   for f in factors
-    ft = dropna(df[symbol(f)])
-    fl[f] = sort(unique(ft))
-    for l in fl[f]
-      fln[(f,l)] = countnz(ft.==l)
-    end
+    vft = dropna(df[Symbol(f)])
+        ls = sort(unique(vft))
+        ln = Int[countnz(vft.==l) for l in ls]
+        fl[f]=ls;fln[f]=ln
   end
-  return fl,fln
+    return fl,fln
 end
 
 function setfln(fl::Dict,n::Int)
@@ -175,6 +174,27 @@ function testfln(ds::Vector,minfln::Dict;showmsg::Bool=true)
              if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
              testfln(d["fln"],minfln,showmsg=showmsg)
            end,ds))
+end
+
+function condmean(rs,ridx,conds)
+    nc = length(conds)
+    m = Array(Float64,nc)
+    sd = similar(m)
+    n = Array(Int,nc)
+    for i=1:nc
+        r=rs[ridx[i]]
+        m[i]=mean(r)
+        sd[i]=std(r)
+        n[i]=length(r)
+    end
+    return m,sd,n
+end
+function condmean(rs,us,ridx,conds)
+    msdn = map(i->condmean(i,ridx,conds),rs)
+    m= map(i->i[1],msdn)
+    sd = map(i->i[2],msdn)
+    n=map(i->i[3],msdn)
+    return m,hcat(sd...),hcat(n...)
 end
 
 function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};normfun=nothing,spike=:spike,isse::Bool=true)

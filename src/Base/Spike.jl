@@ -29,7 +29,7 @@ function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=
     ys[i],ns[i],ws[i],is[i] = subrv(rv,mins[i],maxs[i],isminzero=isminzero,ismaxzero=ismaxzero)
   end
   if israte
-    ns ./=(maxs-mins)*SecondPerUnit
+    ns = ns./((maxs-mins)*SecondPerUnit)
   end
   return ys,ns,ws,is
 end
@@ -143,6 +143,11 @@ end
 function psth(rvs::RVVector,binedges::RealVector,cond;normfun=nothing)
   m,sd,n,x = psth(rvs,binedges,normfun=normfun)
   df = DataFrame(x=x,y=m,ysd=sd,n=n,condition=cond)
+end
+function psth(rvs::RVVector,binedges::RealVector,rvsidx,condstr;normfun=nothing)
+    nc = length(condstr)
+    dfs=[psth(rvs[rvsidx[i]],binedges,condstr[i],normfun=normfun) for i=1:nc]
+    return vcat(dfs)
 end
 function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
   n = length(rvvs)

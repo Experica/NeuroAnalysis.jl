@@ -8,8 +8,8 @@ function readmat(f::AbstractString,v="dataset")
   d = matread(f)[v]
 end
 
-mat2julia!(a)=mat2julia!(nothing,a)
-function mat2julia!(t,a)
+mat2julia!(a;isscaler=false)=mat2julia!(nothing,a,isscaler=isscaler)
+function mat2julia!(t,a;isscaler=false)
   da = ndims(a)
   if da==0
   elseif da==1
@@ -17,7 +17,12 @@ function mat2julia!(t,a)
   else
     sa = size(a)
     if sa[1]==1 && sa[2]==1
+      if isscaler
       a=a[1,1]
+    else
+      a=squeeze(a,1)
+      t!=nothing &&  ( t=Array{t,1})
+    end
     elseif sa[1]==1 && sa[2]>1
       a=squeeze(a,1)
       t!=nothing &&  ( t=Array{t,1})
@@ -50,13 +55,18 @@ function prepare_ripple!(d::Dict)
     d["spike"]["electrodeid"]=mat2julia!(Int,d["spike"]["electrodeid"])
     d["spike"]["time"]=map(i->mat2julia!(Float64,i),mat2julia!(d["spike"]["time"]))
     d["spike"]["unitid"]=map(i->mat2julia!(Int,i),mat2julia!(d["spike"]["unitid"]))
+    if ndims(d["spike"]["electrodeid"])==0
+      d["spike"]["electrodeid"]=[d["spike"]["electrodeid"]]
+      d["spike"]["time"]=[d["spike"]["time"]]
+      d["spike"]["unitid"]=[d["spike"]["unitid"]]
+    end
   end
   if haskey(d,"digital")
     dc = i-> begin
     s = split(i)
     c = s[1]=="SMA"?parse(Int,s[2]):i
   end
-  d["digital"]["channel"]=map(i->dc(mat2julia!(i)),mat2julia!(d["digital"]["channel"]))
+  d["digital"]["channel"]=map(i->dc(mat2julia!(i,isscaler=true)),mat2julia!(d["digital"]["channel"]))
   d["digital"]["time"]=map(i->mat2julia!(Float64,i),mat2julia!(d["digital"]["time"]))
   d["digital"]["data"]=map(i->mat2julia!(Int,i),mat2julia!(d["digital"]["data"]))
   d["ex"]["t0"]=d["digital"]["time"][2]
