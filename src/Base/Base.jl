@@ -1,8 +1,9 @@
 include("NeuroDataType.jl")
 include("Spike.jl")
+include("Image.jl")
 
 import Base: convert
-export sem,anscombe,flcond,findcond,flfln,setfln,testfln,condmean
+export sem,anscombe,flcond,subcond,findcond,flfln,setfln,testfln,condmean
 using Distributions,DataFrames
 
 sem(v) = std(v)/sqrt(length(v))
@@ -99,26 +100,36 @@ end
 function flcond(fl,f1,f2,f3)
     conds = [Any[(f1,l1),(f2,l2),(f3,l3)] for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
 end
+function subcond(conds,sc...)
+    sci = map(i->issubset(sc,i),conds)
+    return conds[sci]
+end
 
-function findcond(df::DataFrame,cond::Vector{Any})
+function findcond(df::DataFrame,cond::Vector{Any};roundingdigit=3)
   i = trues(size(df,1))
   condstr = ""
   for fl in cond
     f = fl[1]
     l = fl[2]
     i &= df[Symbol(f)].==l
-    condstr = "$condstr, $f=$l"
+    if typeof(l)<:Real
+      lv=round(l,roundingdigit)
+    else
+      lv=l
+    end
+    condstr = "$condstr, $f=$lv"
   end
   return find(i),condstr[3:end]
 end
-function findcond(df::DataFrame,conds::Vector{Vector{Any}})
+function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
   n = length(conds)
   is = Array(Vector{Int},n)
   ss = Array(String,n)
   for i in 1:n
-    is[i],ss[i] = findcond(df,conds[i])
+    is[i],ss[i] = findcond(df,conds[i],roundingdigit=roundingdigit)
   end
-  return is,ss
+    vi = map(i->!isempty(i),is)
+  return is[vi],ss[vi],conds[vi]
 end
 
 """

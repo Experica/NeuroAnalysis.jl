@@ -14,9 +14,14 @@ function factorunit(f)
     return fu
 end
 
-function unitcolor(;n=5,alpha=0.8,saturation=1,brightness=1)
-    [HSVA(0,0,0,alpha) [HSVA(((i-1)/n)*360,saturation,brightness,alpha) for j=1:1, i=1:n]]
+function unitcolor(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
+    uc=[HSVA(0,0,0,alpha) [HSVA(((i-1)/n)*360,saturation,brightness,alpha) for j=1:1, i=1:n]]
+    if !isempty(uids)
+      uc=[uc[i] for j=1:1,i=uids+1]
+    end
+    return uc
 end
+
 function plotspiketrain(x,y,g::Vector=[];timeline=[0],colorseq=unitcolor(),title=title)
     xl="Time (ms)";yl="Trial"
     if isempty(g)
@@ -25,7 +30,7 @@ function plotspiketrain(x,y,g::Vector=[];timeline=[0],colorseq=unitcolor(),title
        scatter(x,y,group=g,markershape=:vline,markersize=1,markerstrokewidth = 1,
         markerstrokecolor=colorseq)
     end
-        vline!(timeline,line=(:gray),label="TimeLine",xaxis=(xl),yaxis=(yl),title=(title))
+        vline!(timeline,line=(:grey),label="TimeLine",xaxis=(xl),yaxis=(yl),title=(title))
 end
 plotspiketrain(sts::RVVector;sv=[],timeline=[0],colorseq=unitcolor(),title="")=plotspiketrain(flatrvs(sts,sv)...,timeline=timeline,colorseq=colorseq,title=title)
 plotspiketrain(sts::RVVector,uids::RVVector;sv=[],timeline=[0],colorseq=unitcolor(),title="")=plotspiketrain(flatrvs(sts,sv)[1:2]...,map(i->"U$i",flatrvs(uids,sv)[1]),timeline=timeline,colorseq=colorseq,title=title)
@@ -102,7 +107,7 @@ function plottuning(rs,ridx,conds;title="")
         Plots.plot(x,m,yerror=sd./sqrt(n),xaxis=(xl),yaxis=(yl),title=(title))
     end
 end
-function plottuning(rs,us,ridx,conds;title="")
+function plottuning(rs,us,ridx,conds;title="",colorseq=unitcolor(us))
     m,sd,n=condmean(rs,us,ridx,conds)
     nf = length(conds[1])
     if nf==1
@@ -110,7 +115,8 @@ function plottuning(rs,us,ridx,conds;title="")
         xl="$f ($(factorunit(f)))"
         yl="Response (spike/s)"
         x=map(i->i[1][2],conds)
-        Plots.plot(x,m,yerror=sd./sqrt(n),xaxis=(xl),yaxis=(yl),title=(title))
+        Plots.plot(x,m,yerror=sd./sqrt(n),color=colorseq,
+        label=map(i->"U$i",us'),xaxis=(xl),yaxis=(yl),title=(title))
     end
 end
 

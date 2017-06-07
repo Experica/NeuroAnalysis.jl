@@ -1,5 +1,13 @@
-julia 0.4
+julia 0.5
 MAT
+JLD
+DataFrames
+FileIO
+Colors
+Images
+ImageFiltering
+Distributions
+ProgressMeter
 GLM
 Gadfly
 PyPlot
