@@ -1,5 +1,5 @@
 export alphablend,alphamask,alphamask_disk,alphamask_gaussian,alphamask_diskfade,
-clampscale,oiframeresponse,oiresponse,oicomplexmap,anglemode
+clampscale,oiframeresponse,oiresponse,oicomplexmap,anglemode,angleabs
 
 using Colors,Images,ImageFiltering,DataFrames
 
@@ -64,14 +64,18 @@ function clampscale(x,sdfactor)
     m=mean(x);sd=std(x)
     clampscale(x,m-sdfactor*sd,m+sdfactor*sd)
 end
-function oiframeresponse(frames;filter=Kernel.gaussian(2),frameindex=nothing)
+function oiframeresponse(frames;filter=nothing,frameindex=nothing)
     if frameindex==nothing
-    imfilter(squeeze(sum(frames,3),3),filter)
+      r = squeeze(sum(frames,3),3)
     else
         b = squeeze(sum(frames[:,:,frameindex[1]],3),3)
         r = squeeze(sum(frames[:,:,frameindex[2]],3),3)
-        imfilter((r-b)./b,filter)
+        r = (r-b)./b
     end
+    if filter!=nothing
+      r = imfilter(r,filter)
+    end
+    return r
 end
 function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli=0,ustimuliindexgroup=Any[find(ustimuli[ustimuli.!=blankstimuli])],sdfactor=3)
     if sdfactor==nothing
@@ -93,15 +97,19 @@ function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli
     oimap[:cocktailmap]=cocktailmap
     return blank,cocktail,oimap
 end
-function oicomplexmap(maps,stimuli,cond;filter=Kernel.gaussian(4),sdfactor=3)
+function oicomplexmap(maps,stimuli,cond;filter=Kernel.DoG((3,30)),sdfactor=3)
     if haskey(cond,"Ori")
         fl = cond["Ori"]
         theta=deg2rad.(fl[stimuli])*2
     end
     cmap=squeeze(sum(cat(3,map((m,a)->Complex(cos(a),sin(a)).*(1-clampscale(imfilter(m,filter),sdfactor)),maps,theta)...),3),3)
-    amap = angle.(cmap);amap[amap.<0]=amap[amap.<0]+2pi
-    mmap = clampscale(abs.(cmap))
-    return amap,mmap,theta[sortperm(stimuli)],fl[sort(stimuli)]
+    amap,mmap = angleabs(cmap)
+    return cmap,amap,mmap,theta[sortperm(stimuli)],fl[sort(stimuli)]
+end
+function angleabs(cmap)
+  amap = angle.(cmap);amap[amap.<0]=amap[amap.<0]+2pi
+  mmap = clampscale(abs.(cmap))
+  return amap,mmap
 end
 function anglemode(a,theta,ctheta)
     theta[findmin(abs(angle.(Complex(cos(a),sin(a))./ctheta)))[2]]
