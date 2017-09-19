@@ -27,7 +27,7 @@ function alphamask_disk(src,radius)
         if d>=0
             dst[i,j]=coloralpha(color(dst[i,j]),0)
         else
-          didx=[didx;sub2ind(dim,i,j)]
+          push!(didx,sub2ind(dim,i,j))
         end
     end
     return dst,didx
@@ -38,7 +38,7 @@ function alphamask_gaussian(src,sigma)
     for i=1:dim1,j=1:dim2
         d = ((i-mh)^2+(j-mw)^2)/(0.5*mindim)^2
         dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*exp(-d/(2*sigma^2)))
-        didx=[didx;sub2ind(dim,i,j)]
+        push!(didx,sub2ind(dim,i,j))
     end
     return dst,didx
 end
@@ -50,7 +50,7 @@ function alphamask_diskfade(src,radius,sigma)
         if d>=0
             dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*erfc(sigma*d))
         else
-          didx=[didx;sub2ind(dim,i,j)]
+            push!(didx,sub2ind(dim,i,j))
         end
     end
     return dst,didx
@@ -112,5 +112,5 @@ function angleabs(cmap)
   return amap,mmap
 end
 function anglemode(a,theta,ctheta)
-    theta[findmin(abs(angle.(Complex(cos(a),sin(a))./ctheta)))[2]]
+    theta[findmin(abs.(angle.(Complex(cos(a),sin(a))./ctheta)))[2]]
 end

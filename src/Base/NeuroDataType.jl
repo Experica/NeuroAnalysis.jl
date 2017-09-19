@@ -1,9 +1,9 @@
 export RealVector,RVVector,RVVVector,SecondPerUnit,
 Spike,SpikeTrain,Cell,CellAssembly,Block,Segment,Subject,Experiment
 
-typealias RealVector{T<:Real} AbstractArray{T,1}
-typealias RVVector{T<:RealVector} AbstractArray{T,1}
-typealias RVVVector{T<:RVVector} AbstractArray{T,1}
+RealVector{T} = AbstractArray{T,1} where T<:Real
+RVVector{T} = AbstractArray{T,1} where T<:RealVector
+RVVVector{T} = AbstractArray{T,1} where T<:RVVector
 
 "Time Unit is millisecond by default."
 const SecondPerUnit = 0.001

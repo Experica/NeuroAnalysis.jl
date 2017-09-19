@@ -1,5 +1,4 @@
 __precompile__(true)
-
 module NeuroAnalysis
 
 include("Base/Base.jl")

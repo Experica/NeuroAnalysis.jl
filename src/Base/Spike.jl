@@ -21,10 +21,10 @@ function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=
   if yn != length(maxs)
     error("Length of mins and maxs do not match.")
   end
-  ys = Array(RealVector,yn)
+  ys = Array{RealVector}(yn)
   ns = zeros(Int,yn)
-  ws = Array(RealVector,yn)
-  is = Array(Vector{Int},yn)
+  ws = Array{RealVector}(yn)
+  is = Array{Vector{Int}}(yn)
   for i in 1:yn
     ys[i],ns[i],ws[i],is[i] = subrv(rv,mins[i],maxs[i],isminzero=isminzero,ismaxzero=ismaxzero)
   end

@@ -41,12 +41,16 @@ function mat2julia!(t,a;isscaler=false)
 end
 
 "Load images in path"
-function loadimageset(path;n=Inf,alpha=false)
+function loadimageset(path;name=[],n=Inf,alpha=false)
     isdir(path) || error("Invalid Directory Path")
     n<=0 && error("n <= 0")
     for (root, dirs, files) in walkdir(path)
-        n = Int(min(n,length(files)))
-        imgs=load.(joinpath.([root],string.(1:n).*splitext(files[1])[2]))
+        if isempty(name)
+            n = Int(min(n,length(files)))
+            imgs=load.(joinpath.([root],string.(1:n).*splitext(files[1])[2]))
+        else
+            imgs=load.(joinpath.([root],string.(Int.(name)).*splitext(files[1])[2]))
+        end
         if alpha
             imgs = map(i->coloralpha.(i),imgs)
         end
@@ -226,9 +230,9 @@ function oifileregex(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="
   Regex("^$subject+_$session*_?E$experimentid+B[0-9]+[.]$format")
 end
 
-"Get Optical Imaging `VDAQ` matched files in path"
-function getoifile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="[0-9]",format="mat",path="")
-  matchfile(oifileregex(subject=subject,session=session,experimentid=experimentid,format=format),path=path)
+"Get Optical Imaging `VDAQ` matched files path in path"
+function getoifile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="[0-9]",format="mat",dir="",path=true)
+  matchfile(oifileregex(subject=subject,session=session,experimentid=experimentid,format=format),dir=dir,path=path)
 end
 
 "Regular Expression to match `VLab` data file name"
@@ -237,12 +241,16 @@ function vlabfileregex(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-
   Regex("^$subject+_$session*_?$site*_?$test+_[0-$d2]?[0-$d1][.]$format")
 end
 
-"Get `VLab` matched files in path"
-function getvlabfile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0-9]",test="[A-Za-z0-9]",maxrepeat=5,format="mat",path="")
-  matchfile(vlabfileregex(subject=subject,session=session,site=site,test=test,maxrepeat=maxrepeat,format=format),path=path)
+"Get matched `VLab` files in directory"
+function getvlabfile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0-9]",test="[A-Za-z0-9]",maxrepeat=5,format="mat",dir="",path=false)
+  matchfile(vlabfileregex(subject=subject,session=session,site=site,test=test,maxrepeat=maxrepeat,format=format),dir=dir,path=path)
 end
 
-"Get matched files in path"
-function matchfile(pattern::Regex;path="")
-  joinpath.([path],filter!(f->ismatch(pattern,f),readdir(path)))
+"Get matched files in directory, optionally return file path"
+function matchfile(pattern::Regex;dir="",path::Bool=false)
+  fs = filter!(f->ismatch(pattern,f),readdir(dir))
+  if path
+      fs=joinpath.(dir,fs)
+  end
+  return fs
 end

@@ -3,10 +3,40 @@ include("Spike.jl")
 include("Image.jl")
 
 import Base: convert
-export sem,anscombe,flcond,subcond,findcond,flfln,setfln,testfln,condmean
+export MarkMode,ICIMark,NoICIMark,sem,anscombe,repairmark,flcond,subcond,findcond,flfln,setfln,testfln,condmean
 using Distributions,DataFrames
 
+@enum MarkMode ICIMark NoICIMark
 sem(v) = std(v)/sqrt(length(v))
+anscombe(x) = 2*sqrt(x+(3/8))
+
+function repairmark(markon,refon,markoff,refoff;mode::MarkMode=ICIMark)
+    on=nothing;off=nothing
+    if mode==ICIMark
+        if length(markon)==length(refon)
+            on = markon
+        else
+            on = repairmark(markon,refon)
+        end
+        if length(markoff)==length(refoff)
+            off = markoff
+        else
+            off = repairmark(markoff,refoff)
+        end
+    elseif mode==NoICIMark
+        if length(markon)==length(refon)
+            on = markon
+        else
+            on = repairmark(markon,refon)
+        end
+        off = on[2:end]
+        push!(off,on[end]+(on[2]-on[1]))
+    end
+    return on,off
+end
+
+function repairmark(mark,ref)
+end
 
 # function drv(p,n=1,isfreq=false)
 #   d=Categorical(p)
@@ -75,9 +105,7 @@ function convert(::Type{DataFrame},ct::CoefTable)
   [DataFrame(coefname=ct.rownms) df]
 end
 
-function anscombe(x)
-  2*sqrt(x+(3/8))
-end
+
 
 # function flcond(fl,fs...)
 #   if length(fs)==0
