@@ -180,10 +180,11 @@ function condfactor(cond::Dict)
 end
 "Get condtest DataFrame, extract state time"
 function condtest(ctd::Dict,cond::DataFrame)
+  ctd = trim(ctd)
   ctd["preiciontime"]= Array{Float64}(statetime(ctd,statetype="CONDSTATE",state="PREICI"))
   ctd["condontime"]= Array{Float64}(statetime(ctd,statetype="CONDSTATE",state="COND"))
   ctd["suficiontime"]= Array{Float64}(statetime(ctd,statetype="CONDSTATE",state="SUFICI"))
-  ct = DataFrame(trim(ctd))
+  ct = DataFrame(ctd)
 
   ctcond = cond[ct[:CondIndex],:]
   [ct ctcond]
@@ -203,7 +204,7 @@ condtest(ex::Dict;maptime=true) = condtest(ex["CondTest"],condfactor(ex["Cond"])
 
 "Map time to data timeline, optionally add latency."
 function maptodatatime(x,ex::Dict;addlatency=true)
-  t=(x+ex["t0"])*(1+ex["TimerDriftSpeed"])
+  t=x*(1+ex["TimerDriftSpeed"])+ex["t0"]
   if addlatency
     t+=ex["Latency"]
   end
