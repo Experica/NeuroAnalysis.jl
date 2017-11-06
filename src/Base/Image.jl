@@ -61,16 +61,20 @@ function clampscale(x,min::Real,max::Real)
 end
 clampscale(x) = clampscale(x,extrema(x)...)
 function clampscale(x,sdfactor)
+    sdfactor <= 0 && return clampscale(x)
     m=mean(x);sd=std(x)
     clampscale(x,m-sdfactor*sd,m+sdfactor*sd)
 end
-function oiframeresponse(frames;filter=nothing,frameindex=nothing)
+function oiframeresponse(frames;filter=nothing,frameindex=nothing,isdividebaseframes=true)
     if frameindex==nothing
       r = squeeze(sum(frames,3),3)
     else
         b = squeeze(sum(frames[:,:,frameindex[1]],3),3)
         r = squeeze(sum(frames[:,:,frameindex[2]],3),3)
-        r = (r-b)./b
+        r-=b
+        if isdividebaseframes
+            r=r./b
+        end
     end
     if filter!=nothing
       r = imfilter(r,filter)
@@ -97,12 +101,19 @@ function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli
     oimap[:cocktailmap]=cocktailmap
     return blank,cocktail,oimap
 end
-function oicomplexmap(maps,stimuli,cond;filter=Kernel.DoG((3,30)),sdfactor=3)
+function oicomplexmap(maps,stimuli,cond;presdfactor=nothing,filter=Kernel.DoG((3,30)),sufsdfactor=3)
     if haskey(cond,"Ori")
         fl = cond["Ori"]
         theta=deg2rad.(fl[stimuli])*2
     end
-    cmap=squeeze(sum(cat(3,map((m,a)->Complex(cos(a),sin(a)).*(1-clampscale(imfilter(m,filter),sdfactor)),maps,theta)...),3),3)
+    if presdfactor!=nothing
+        map!(i->clampscale(i,presdfactor),maps,maps)
+    end
+    if filter != nothing
+        map!(i->imfilter(i,filter),maps,maps)
+    end
+
+    cmap=squeeze(sum(cat(3,map((m,a)->Complex(cos(a),sin(a)).*clampscale(-m,sufsdfactor),maps,theta)...),3),3)
     amap,mmap = angleabs(cmap)
     return cmap,amap,mmap,theta[sortperm(stimuli)],fl[sort(stimuli)]
 end
