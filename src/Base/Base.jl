@@ -3,40 +3,12 @@ include("Spike.jl")
 include("Image.jl")
 
 import Base: convert
-export MarkMode,ICIMark,NoICIMark,sem,anscombe,repairmark,flcond,subcond,findcond,flfln,setfln,testfln,condmean
+export sem,anscombe,flcond,subcond,findcond,flfln,setfln,testfln,condmean
 using Distributions,DataFrames
 
-@enum MarkMode ICIMark NoICIMark
 sem(v) = std(v)/sqrt(length(v))
 anscombe(x) = 2*sqrt(x+(3/8))
 
-function repairmark(markon,refon,markoff,refoff;mode::MarkMode=ICIMark)
-    on=nothing;off=nothing
-    if mode==ICIMark
-        if length(markon)==length(refon)
-            on = markon
-        else
-            on = repairmark(markon,refon)
-        end
-        if length(markoff)==length(refoff)
-            off = markoff
-        else
-            off = repairmark(markoff,refoff)
-        end
-    elseif mode==NoICIMark
-        if length(markon)==length(refon)
-            on = markon
-        else
-            on = repairmark(markon,refon)
-        end
-        off = on[2:end]
-        push!(off,on[end]+(on[2]-on[1]))
-    end
-    return on,off
-end
-
-function repairmark(mark,ref)
-end
 
 # function drv(p,n=1,isfreq=false)
 #   d=Categorical(p)
@@ -100,9 +72,9 @@ end
 # end
 
 function convert(::Type{DataFrame},ct::CoefTable)
-  df = convert(DataFrame,ct.mat)
-  names!(df,map(symbol,ct.colnms))
-  [DataFrame(coefname=ct.rownms) df]
+    df = convert(DataFrame,ct.mat)
+    names!(df,map(symbol,ct.colnms))
+    [DataFrame(coefname=ct.rownms) df]
 end
 
 
@@ -134,85 +106,85 @@ function subcond(conds,sc...)
 end
 
 function findcond(df::DataFrame,cond::Vector{Any};roundingdigit=3)
-  i = trues(size(df,1))
-  condstr = ""
-  for fl in cond
-    f = fl[1]
-    l = fl[2]
-    i &= df[Symbol(f)].==l
-    if typeof(l)<:Real
-      lv=round(l,roundingdigit)
-    else
-      lv=l
+    i = trues(size(df,1))
+    condstr = ""
+    for fl in cond
+        f = fl[1]
+        l = fl[2]
+        i &= df[Symbol(f)].==l
+        if typeof(l)<:Real
+            lv=round(l,roundingdigit)
+        else
+            lv=l
+        end
+        condstr = "$condstr, $f=$lv"
     end
-    condstr = "$condstr, $f=$lv"
-  end
-  return find(i),condstr[3:end]
+    return find(i),condstr[3:end]
 end
 function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
-  n = length(conds)
-  is = Array(Vector{Int},n)
-  ss = Array(String,n)
-  for i in 1:n
-    is[i],ss[i] = findcond(df,conds[i],roundingdigit=roundingdigit)
-  end
+    n = length(conds)
+    is = Array(Vector{Int},n)
+    ss = Array(String,n)
+    for i in 1:n
+        is[i],ss[i] = findcond(df,conds[i],roundingdigit=roundingdigit)
+    end
     vi = map(i->!isempty(i),is)
-  return is[vi],ss[vi],conds[vi]
+    return is[vi],ss[vi],conds[vi]
 end
 
 """
-find levels(except NA) for each factor and repetition for each level
+find levels(except missing) for each factor and repetition for each level
 """
-function flfln(df::DataFrame,factors)
+function flfln(ctc::DataFrame)
     fl=Dict();fln=Dict()
-  for f in factors
-    vft = dropna(df[Symbol(f)])
-        ls = sort(unique(vft))
-        ln = Int[countnz(vft.==l) for l in ls]
+    for f in names(ctc)
+        fv = dropna(ctc[f])
+        ls = sort(unique(fv))
+        ln = Int[countnz(fv.==l) for l in ls]
         fl[f]=ls;fln[f]=ln
-  end
+    end
     return fl,fln
 end
 
 function setfln(fl::Dict,n::Int)
-  fln=Dict()
-  for f in keys(fl)
-    for l in fl[f]
-      fln[(f,l)] = n
+    fln=Dict()
+    for f in keys(fl)
+        for l in fl[f]
+            fln[(f,l)] = n
+        end
     end
-  end
-  return fln
+    return fln
 end
 function setfln(fl::Dict,fn::Dict)
-  fln=Dict()
-  for f in keys(fl)
-    for i=1:length(fl[f])
-      fln[(f,fl[f][i])] = fn[f][i]
+    fln=Dict()
+    for f in keys(fl)
+        for i=1:length(fl[f])
+            fln[(f,fl[f][i])] = fn[f][i]
+        end
     end
-  end
-  return fln
+    return fln
 end
 
 function testfln(fln::Dict,minfln::Dict;showmsg::Bool=true)
-  r=true
-  for mkey in keys(minfln)
-    if haskey(fln,mkey)
-      if fln[mkey] < minfln[mkey]
-        if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" repeats $(fln[mkey]) < $(minfln[mkey]).\n");end
-        r=false
-      end
-    else
-      if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" is missing.\n");end
-      r=false
+    r=true
+    for mkey in keys(minfln)
+        if haskey(fln,mkey)
+            if fln[mkey] < minfln[mkey]
+                if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" repeats $(fln[mkey]) < $(minfln[mkey]).\n");end
+                r=false
+            end
+        else
+            if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" is missing.\n");end
+            r=false
+        end
     end
-  end
-  return r
+    return r
 end
 function testfln(ds::Vector,minfln::Dict;showmsg::Bool=true)
-  vi = find(map(d->begin
-             if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
-             testfln(d["fln"],minfln,showmsg=showmsg)
-           end,ds))
+    vi = find(map(d->begin
+    if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
+    testfln(d["fln"],minfln,showmsg=showmsg)
+end,ds))
 end
 
 function condmean(rs,ridx,conds)
@@ -237,11 +209,11 @@ function condmean(rs,us,ridx,conds)
 end
 
 function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};normfun=nothing,spike=:spike,isse::Bool=true)
-  is,ss = findcond(ds,conds)
-  df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
-  if isse
-    df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
-    df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
-  end
-  return df,ss
+    is,ss = findcond(ds,conds)
+    df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
+    if isse
+        df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
+        df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
+    end
+    return df,ss
 end

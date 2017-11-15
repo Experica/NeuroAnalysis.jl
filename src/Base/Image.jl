@@ -24,10 +24,10 @@ function alphamask_disk(src,radius)
     mh = dim1/2;mw = dim2/2;dst = copy(src);didx=[]
     for i=1:dim1,j=1:dim2
         d = sqrt((i-mh)^2+(j-mw)^2)-radius*mindim
-        if d>=0
+        if d>0
             dst[i,j]=coloralpha(color(dst[i,j]),0)
         else
-          push!(didx,sub2ind(dim,i,j))
+            push!(didx,sub2ind(dim,i,j))
         end
     end
     return dst,didx
@@ -47,7 +47,7 @@ function alphamask_diskfade(src,radius,sigma)
     mh = dim1/2;mw = dim2/2;dst = copy(src);didx=[]
     for i=1:dim1,j=1:dim2
         d = sqrt((i-mh)^2+(j-mw)^2)/mindim-radius
-        if d>=0
+        if d>0
             dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*erfc(sigma*d))
         else
             push!(didx,sub2ind(dim,i,j))
@@ -67,7 +67,7 @@ function clampscale(x,sdfactor)
 end
 function oiframeresponse(frames;filter=nothing,frameindex=nothing,isdividebaseframes=true)
     if frameindex==nothing
-      r = squeeze(sum(frames,3),3)
+        r = squeeze(sum(frames,3),3)
     else
         b = squeeze(sum(frames[:,:,frameindex[1]],3),3)
         r = squeeze(sum(frames[:,:,frameindex[2]],3),3)
@@ -77,7 +77,7 @@ function oiframeresponse(frames;filter=nothing,frameindex=nothing,isdividebasefr
         end
     end
     if filter!=nothing
-      r = imfilter(r,filter)
+        r = imfilter(r,filter)
     end
     return r
 end
@@ -118,9 +118,9 @@ function oicomplexmap(maps,stimuli,cond;presdfactor=nothing,filter=Kernel.DoG((3
     return cmap,amap,mmap,theta[sortperm(stimuli)],fl[sort(stimuli)]
 end
 function angleabs(cmap)
-  amap = angle.(cmap);amap[amap.<0]=amap[amap.<0]+2pi
-  mmap = clampscale(abs.(cmap))
-  return amap,mmap
+    amap = angle.(cmap);amap[amap.<0]=amap[amap.<0]+2pi
+    mmap = clampscale(abs.(cmap))
+    return amap,mmap
 end
 function anglemode(a,theta,ctheta)
     theta[findmin(abs.(angle.(Complex(cos(a),sin(a))./ctheta)))[2]]
