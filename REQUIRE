@@ -7,7 +7,6 @@ FileIO
 Colors
 Images
 ImageFiltering
-Distributions
 ProgressMeter
 GLM
 Gadfly

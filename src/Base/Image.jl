@@ -17,11 +17,13 @@ function alphamask(src;radius=0.5,sigma=0.15,masktype="Disk")
         alphamask_gaussian(src,sigma)
     elseif masktype=="DiskFade"
         alphamask_diskfade(src,radius,sigma)
+    else
+        copy(src)
     end
 end
 function alphamask_disk(src,radius)
     dim = size(src);dim1=dim[1];dim2=dim[2];mindim=min(dim1,dim2)
-    mh = dim1/2;mw = dim2/2;dst = copy(src);didx=[]
+    mh = dim1/2;mw = dim2/2;dst = copy(src);didx=Int[]
     for i=1:dim1,j=1:dim2
         d = sqrt((i-mh)^2+(j-mw)^2)-radius*mindim
         if d>0
@@ -34,7 +36,7 @@ function alphamask_disk(src,radius)
 end
 function alphamask_gaussian(src,sigma)
     dim = size(src);dim1=dim[1];dim2=dim[2];mindim=min(dim1,dim2)
-    mh = dim1/2;mw = dim2/2;dst = copy(src);didx=[]
+    mh = dim1/2;mw = dim2/2;dst = copy(src);didx=Int[]
     for i=1:dim1,j=1:dim2
         d = ((i-mh)^2+(j-mw)^2)/(0.5*mindim)^2
         dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*exp(-d/(2*sigma^2)))
@@ -44,7 +46,7 @@ function alphamask_gaussian(src,sigma)
 end
 function alphamask_diskfade(src,radius,sigma)
     dim = size(src);dim1=dim[1];dim2=dim[2];mindim=min(dim1,dim2)
-    mh = dim1/2;mw = dim2/2;dst = copy(src);didx=[]
+    mh = dim1/2;mw = dim2/2;dst = copy(src);didx=Int[]
     for i=1:dim1,j=1:dim2
         d = sqrt((i-mh)^2+(j-mw)^2)/mindim-radius
         if d>0

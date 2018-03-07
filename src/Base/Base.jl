@@ -133,7 +133,7 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
 end
 
 """
-find levels(except missing) for each factor and repetition for each level
+Find levels(except missing) for each factor and repetition for each level
 """
 function flfln(ctc::DataFrame)
     fl=Dict();fln=Dict()

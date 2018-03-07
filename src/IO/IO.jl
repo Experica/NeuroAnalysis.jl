@@ -5,12 +5,12 @@ oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile
 
 using MAT,DataFrames,FileIO,Colors
 
-"Read exported `Matlab` MAT format data"
+"Read `Matlab` MAT format data"
 function readmat(f::AbstractString,v="dataset")
     d = mat2julia!(matread(f)[v])
 end
 
-"Convert Matlab variable to Julia type with proper dimention"
+"Convert `Matlab` variable to `Julia` type with proper dimention"
 function mat2julia!(x;isscaler = true)
     if x isa Dict
         for k in keys(x)
@@ -123,12 +123,12 @@ function condtestfactor(ctcd::Dict)
     ctc = DataFrame(ctcd)
     return ctc
 end
-"Get condtest DataFrame"
+"Get `condtest` DataFrame"
 function condtest(ctd::Dict)
     ct = DataFrame(ctd)
     return ct
 end
-"Get condtest and condtestcond DataFrame"
+"Get `condtest` and `condtestcond` DataFrame"
 function ctctc(ctd::Dict,ctcd::Dict)
     return condtest(ctd),condtestfactor(ctcd)
 end
@@ -165,9 +165,9 @@ function oifileregex(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="
     Regex("^$subject+_$session*_?E$experimentid+B[0-9]+[.]$format")
 end
 
-"Get Optical Imaging `VDAQ` matched files path in path"
-function getoifile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="[0-9]",format="mat",dir="",path=true)
-    matchfile(oifileregex(subject=subject,session=session,experimentid=experimentid,format=format),dir=dir,path=path)
+"Get Optical Imaging `VDAQ` matched files in directory"
+function getoifile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="[0-9]",format="mat",dir="",adddir=true)
+    matchfile(oifileregex(subject=subject,session=session,experimentid=experimentid,format=format),dir=dir,adddir=adddir)
 end
 
 "Regular Expression to match `VLab` data file name"
@@ -181,7 +181,7 @@ function getvlabfile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0
     matchfile(vlabfileregex(subject=subject,session=session,site=site,test=test,maxrepeat=maxrepeat,format=format),dir=dir,adddir=adddir)
 end
 
-"Get matched files in directory, optionally add directory"
+"Get matched files in directory, optionally add directory to get file path"
 function matchfile(pattern::Regex;dir="",adddir::Bool=false)
     fs = filter!(f->ismatch(pattern,f),readdir(dir))
     if adddir
