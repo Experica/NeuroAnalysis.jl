@@ -67,46 +67,59 @@ function clampscale(x,sdfactor)
     m=mean(x);sd=std(x)
     clampscale(x,m-sdfactor*sd,m+sdfactor*sd)
 end
-function oiframeresponse(frames;filter=nothing,frameindex=nothing,isdividebaseframes=true)
+function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     if frameindex==nothing
         r = squeeze(sum(frames,3),3)
     else
-        b = squeeze(sum(frames[:,:,frameindex[1]],3),3)
-        r = squeeze(sum(frames[:,:,frameindex[2]],3),3)
-        r-=b
-        if isdividebaseframes
-            r=r./b
-        end
+        r = squeeze(sum(frames[:,:,frameindex],3),3)
     end
-    if filter!=nothing
-        r = imfilter(r,filter)
+    if baseframeindex!=nothing
+        r./=squeeze(sum(frames[:,:,baseframeindex],3),3)
+        r-=1
     end
     return r
 end
-function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli=0,ustimuliindexgroup=Any[find(ustimuli[ustimuli.!=blankstimuli])],sdfactor=3)
-    if sdfactor==nothing
-        meanresponse = map(i->squeeze(mean(cat(3,response[stimuli.==i]...),3),3),ustimuli)
+function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli=0,
+    stimuligroup=Any[find(ustimuli[ustimuli.!=blankstimuli])],filter=nothing,sdfactor=nothing)
+    if filter==nothing
+        if sdfactor==nothing
+            rs = map(i->cat(3,response[stimuli.==i]...),ustimuli)
+        else
+            rs = map(i->cat(3,clampscale.(response[stimuli.==i],sdfactor)...),ustimuli)
+        end
     else
-        meanresponse = map(i->squeeze(mean(cat(3,clampscale.(response[stimuli.==i],sdfactor)...),3),3),ustimuli)
+        if sdfactor==nothing
+            rs = map(i->cat(3,imfilter.(response[stimuli.==i],[filter])...),ustimuli)
+        else
+            rs = map(i->cat(3,clampscale.(imfilter.(response[stimuli.==i],[filter]),sdfactor)...),ustimuli)
+        end
     end
-    blank = meanresponse[ustimuli.==blankstimuli][1]
-    oimap = DataFrame(stimuli=ustimuli[ustimuli.!=blankstimuli])
-    oimap[:map] = meanresponse[ustimuli.!=blankstimuli]
-    oimap[:blankmap]=map(i->i./blank,oimap[:map])
+    responsemean = map(i->squeeze(mean(i,3),3),rs)
+    responsesd = map(i->squeeze(std(i,3),3),rs)
+    responsen = map(i->size(i,3),rs)
+
+    blank = responsemean[ustimuli.==blankstimuli][1]
+    rindex = ustimuli.!=blankstimuli
+    rmap=responsemean[rindex]
     cocktail=Any[];cocktailmap=Any[]
-    for ig in ustimuliindexgroup
-        c = squeeze(mean(cat(3,oimap[:map][ig]...),3),3)
-        cm = map(i->i./c,oimap[:map][ig])
+    for ig in stimuligroup
+        c = squeeze(mean(cat(3,rmap[ig]...),3),3)
+        cm = map(i->i./c,rmap[ig])
         cocktail=cat(1,cocktail,Any[c])
         cocktailmap=cat(1,cocktailmap,cm)
     end
-    oimap[:cocktailmap]=cocktailmap
-    return blank,cocktail,oimap
+    return blank,cocktail,DataFrame(stimuli=ustimuli[rindex],map=rmap,blankmap=map(i->i./blank,rmap),cocktailmap=cocktailmap),
+    DataFrame(stimuli=ustimuli,map=responsemean,mapsd=responsesd,mapn=responsen)
 end
-function oicomplexmap(maps,stimuli,cond;presdfactor=nothing,filter=Kernel.DoG((3,30)),sufsdfactor=3)
-    if haskey(cond,"Ori")
-        fl = cond["Ori"]
-        theta=deg2rad.(fl[stimuli])*2
+function oicomplexmap(maps,angles;isangledegree=true,isangleinpi=true,presdfactor=3,filter=Kernel.DoG((3,30)),sufsdfactor=3)
+    if isangledegree
+        angledegree = sort(angles)
+        angles = deg2rad.(angles)
+    else
+        angledegree = sort(rad2deg.(angles))
+    end
+    if isangleinpi
+        angles *=2
     end
     if presdfactor!=nothing
         map!(i->clampscale(i,presdfactor),maps,maps)
@@ -114,16 +127,19 @@ function oicomplexmap(maps,stimuli,cond;presdfactor=nothing,filter=Kernel.DoG((3
     if filter != nothing
         map!(i->imfilter(i,filter),maps,maps)
     end
+    if sufsdfactor!=nothing
+        map!(i->clampscale(i,sufsdfactor),maps,maps)
+    end
 
-    cmap=squeeze(sum(cat(3,map((m,a)->Complex(cos(a),sin(a)).*clampscale(-m,sufsdfactor),maps,theta)...),3),3)
+    cmap=squeeze(sum(cat(3,map((m,a)->Complex(cos(a),sin(a)).*-m,maps,angles)...),3),3)
     amap,mmap = angleabs(cmap)
-    return cmap,amap,mmap,theta[sortperm(stimuli)],fl[sort(stimuli)]
+    return Dict("complex"=>cmap,"angle"=>amap,"abs"=>mmap,"rad"=>sort(angles),"deg"=>angledegree)
 end
 function angleabs(cmap)
     amap = angle.(cmap);amap[amap.<0]=amap[amap.<0]+2pi
     mmap = clampscale(abs.(cmap))
     return amap,mmap
 end
-function anglemode(a,theta,ctheta)
-    theta[findmin(abs.(angle.(Complex(cos(a),sin(a))./ctheta)))[2]]
+function anglemode(a,theta)
+    theta[findmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))[2]]
 end
