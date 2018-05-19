@@ -7,33 +7,33 @@ using MAT,DataFrames,FileIO,Colors
 
 "Read `Matlab` MAT format data"
 function readmat(f::AbstractString,v="dataset")
-    d = mat2julia!(matread(f)[v])
+    d = matread(f)[v]
 end
 
 "Convert `Matlab` variable to `Julia` type with proper dimention"
-function mat2julia!(x;isscaler = true)
+function mat2julia!(x;isscaler = true,isvector = true)
     if x isa Dict
         for k in keys(x)
-            x[k]=mat2julia!(x[k])
+            x[k]=mat2julia!(x[k],isscaler=isscaler,isvector=isvector)
         end
     elseif x isa Array
         if ndims(x)==2
             s = size(x)
             if s[1]==1 && s[2]==1
-                x = isscaler?x[1,1]:squeeze(x,2)
+                x = isscaler?x[1,1]:isvector?squeeze(x,2):x
             elseif s[1]==1 && s[2]>1
-                x = squeeze(x,1)
+                x = isvector?squeeze(x,1):x
             elseif s[1]>1 && s[2]==1
-                x = squeeze(x,2)
+                x = isvector?squeeze(x,2):x
             end
         end
         if x isa Array{Any} || x isa Array{Array} || x isa Array{Dict}
             for i in 1:length(x)
-                x[i]=mat2julia!(x[i])
+                x[i]=mat2julia!(x[i],isscaler=isscaler,isvector=isvector)
             end
         elseif x isa Dict
             for k in keys(x)
-                x[k]=mat2julia!(x[k])
+                x[k]=mat2julia!(x[k],isscaler=isscaler,isvector=isvector)
             end
         end
     end
@@ -89,14 +89,27 @@ function prepare!(d::Dict)
 end
 "Prepare Ripple Data"
 function prepare_ripple!(d::Dict)
+    mat2julia!(d)
+    if haskey(d,"spike")
+        st=d["spike"]["time"]
+        su=d["spike"]["unitid"]
+        for i in 1:length(st)
+            if ndims(st[i])==0
+                st[i]=[st[i]]
+                su[i]=[su[i]]
+            end
+        end
+    end
     return d
 end
 "Prepare Optical Imaging Block Data"
 function prepare_oi!(d::Dict)
+    mat2julia!(d)
     return d
 end
 "Prepare VLab Experiment Data"
 function prepare_vlab!(d::Dict)
+    mat2julia!(d)
     return d
 end
 

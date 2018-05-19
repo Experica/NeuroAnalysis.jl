@@ -18,7 +18,7 @@ function alphamask(src;radius=0.5,sigma=0.15,masktype="Disk")
     elseif masktype=="DiskFade"
         alphamask_diskfade(src,radius,sigma)
     else
-        copy(src)
+        return copy(src),Int[]
     end
 end
 function alphamask_disk(src,radius)

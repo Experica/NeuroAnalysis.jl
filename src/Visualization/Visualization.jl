@@ -1,21 +1,33 @@
-export factorunit,unitcolors,plotspiketrain,plotpsth,plottuning,savefig
+export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,savefig
 
-using Gadfly,Plots
+using Gadfly,Plots,StatPlots
 
-function factorunit(f)
-    fu=""
-    if f=="Ori"
-        fu="Deg"
-    elseif f=="SpatialFreq"
-        fu="Cycle/Deg"
-    elseif f=="TemporalFreq"
-        fu = "Cycle/Sec"
+function factorunit(f::Symbol;timeunit=SecondPerUnit)
+    fu=String(f)
+    if contains(fu,"Ori")
+        fu="$fu (deg)"
+    elseif fu=="Diameter"
+        fu="$fu (deg)"
+    elseif fu=="SpatialFreq"
+        fu="$fu (cycle/deg)"
+    elseif fu=="TemporalFreq"
+        fu = "$fu (cycle/sec)"
+    elseif fu=="Time"
+        if timeunit ==1
+            fu="$fu (s)"
+        elseif timeunit == 0.001
+            fu="$fu (ms)"
+        end
+    elseif fu=="Response"
+        fu="$fu (spike/s)"
     end
     return fu
 end
 
+huecolors(n::Int;alpha=0.8,saturation=1,brightness=1)=[HSVA(((i-1)/n)*360,saturation,brightness,alpha) for i=1:n]
+
 function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
-    uc = [HSVA(((i-1)/n)*360,saturation,brightness,alpha) for i=1:n]
+    uc = huecolors(n,alpha=alpha,saturation=saturation,brightness=brightness)
     insert!(uc,1,HSVA(0,0,0,alpha))
     if !isempty(uids)
         uc=uc[uids+1]
@@ -24,15 +36,14 @@ function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
 end
 
 function plotspiketrain(x,y;group::Vector=[],timeline=[],colors=unitcolors(),title="")
-    xl="Time (ms)";yl="Trial"
     if isempty(group)
         scatter(x,y,label="SpikeTrain",markershape=:vline,markersize=1,markerstrokecolor=RGBA(0.0,0.1,0.2,0.8),markerstrokewidth = 1)
     else
         scatter(x,y,group=group,markershape=:vline,markersize=1,markerstrokewidth = 1,markerstrokecolor=reshape(colors,1,:))
     end
-    vline!(timeline,line=(:grey),label="TimeLine",xaxis=(xl),yaxis=(yl),title=(title))
+    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title))
 end
-function plotspiketrain(sts::RVVector;uids::RVVector=[],sortvalues=[],timeline=[],colors=unitcolors(),title="")
+function plotspiketrain(sts::RVVector;uids::RVVector=RealVector[],sortvalues=[],timeline=[0],colors=unitcolors(),title="")
     if isempty(uids)
         g=uids;uc=colors
     else
@@ -73,7 +84,7 @@ function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xma
 end
 plotspiketrain1(rvs::RVVector;sortvar=[],xgroup::Vector=[],timemark=[0],theme=Theme(),colorkey="",colorfun=Scale.lab_gradient(colorant"white",colorant"red"),colorminv=[],colormaxv=[]) = plotspiketrain1(flatrvs(rvs,sortvar)...,xgroup=xgroup,timemark=timemark,theme=theme,colorkey=colorkey,colorfun=colorfun,colorminv=colorminv,colormaxv=colormaxv)
 
-function plotpsth(rvs::RVVector,binedges::RealVector;theme=Theme(),timeline=[0],title="")
+function plotpsth1(rvs::RVVector,binedges::RealVector;theme=Theme(),timeline=[0],title="")
     m,sd,n,x = psth(rvs,binedges)
     xl = "Time (ms)";yl = "Response (spike/s)"
     if n>1
@@ -85,7 +96,7 @@ function plotpsth(rvs::RVVector,binedges::RealVector;theme=Theme(),timeline=[0],
         Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl),Guide.title(title))
     end
 end
-function plotpsth(rvs::RVVector,binedges::RealVector,rvsidx,condstr;theme=Theme(),timeline=[0],title="")
+function plotpsth1(rvs::RVVector,binedges::RealVector,rvsidx,condstr;theme=Theme(),timeline=[0],title="")
     df = psth(rvs,binedges,rvsidx,condstr)
     df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
     df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
@@ -95,7 +106,7 @@ function plotpsth(rvs::RVVector,binedges::RealVector,rvsidx,condstr;theme=Theme(
     Guide.xlabel(xl),Guide.ylabel(yl),Guide.title(title))
 end
 
-function plotpsth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};spike=:spike,theme=Theme(),timeline=[0])
+function plotpsth1(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};spike=:spike,theme=Theme(),timeline=[0])
     df,ss = psth(ds,binedges,conds,spike=spike)
     xl = "Time (ms)";yl = "Response (spike/s)"
     Gadfly.plot(df,x=:x,y=:y,ymin=:ymin,ymax=:ymax,color=:condition,xintercept=timeline,
@@ -103,31 +114,20 @@ function plotpsth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};
     Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl))
 end
 
-function plottuning(rs,ridx,conds;title="")
-    m,sd,n=condmean(rs,ridx,conds)
-    nf = length(conds[1])
-    if nf==1
-        f=conds[1][1][1]
-        xl="$f ($(factorunit(f)))"
-        yl="Response (spike/s)"
-        x=map(i->i[1][2],conds)
-        Plots.plot(x,m,yerror=sd./sqrt(n),xaxis=(xl),yaxis=(yl),title=(title))
-    end
-end
-function plottuning(rs,us,ridx,conds;title="",colorseq=unitcolor(us))
-    m,sd,n=condmean(rs,us,ridx,conds)
-    nf = length(conds[1])
-    if nf==1
-        f=conds[1][1][1]
-        xl="$f ($(factorunit(f)))"
-        yl="Response (spike/s)"
-        x=map(i->i[1][2],conds)
-        Plots.plot(x,m,yerror=sd./sqrt(n),color=colorseq,
-        label=map(i->"U$i",us'),xaxis=(xl),yaxis=(yl),title=(title))
-    end
+plotcondresponse(rs,cond;title="")=plotcondresponse(Dict(0=>rs),cond,title=title)
+function plotcondresponse(urs::Dict,cond;colors=unitcolors(collect(keys(urs))),title="")
+    umse = condresponse(urs,cond)
+    f = finalfactor(cond)[1]
+    @df umse Plots.plot(cols(f),:m,yerror=:se,group=:u,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
+        grid=false,xaxis=(factorunit(f)),yaxis=(factorunit(:Response)),title=(title))
 end
 
-
+plotpsth(rvs::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvs,binedges,DataFrame(Factor="Value",i=[1:length(rvs)]),timeline=timeline,colors=colors,title=title)
+function plotpsth(rvs::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=huecolors(nrow(cond)),title="")
+    cmse = psth(rvs,binedges,cond)
+    @df cmse Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
+    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
+end
 
 function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")
     f = joinpath(path,"$filename.$format")

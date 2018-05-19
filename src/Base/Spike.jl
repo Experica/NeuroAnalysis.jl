@@ -1,4 +1,4 @@
-export subrv,subrvr,isi,flatrvv,histrv,histmatrix,psth
+export subrv,subrvr,isi,poissonspike,flatrvv,histrv,histmatrix,psth
 
 function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false)
     if ismaxzero && isminzero
@@ -42,6 +42,31 @@ function isi(rv::RealVector)
     diff(sort(rv))
 end
 
+function poissonspike(r::Real,dur::Real;t0::Real=0.0,rp::Real=2.0)
+    isid = Exponential(1000/r)
+    st = Float64[-rp]
+    while true
+        i = rand(isid)
+        if i > rp
+            s = i + st[end]
+            if s <= dur
+                push!(st,s)
+            else
+                break
+            end
+        end
+    end
+    return length(st)>1?st[2:end]+t0:Float64[]
+end
+
+function poissonspike(r::Function,dur::Real;t0::Real=0.0,rp::Real=2.0)
+    st=Float64[-rp]
+    for t in 0.05:0.1:dur
+        rand()<=r(t)/10000 && (t-st[end])>rp && push!(st,t)
+    end
+    return length(st)>1?st[2:end]+t0:Float64[]
+end
+
 function flatrvv(rvv::RVVector,sv=[])
     nrv = length(rvv)
     if isempty(sv)
@@ -83,11 +108,11 @@ end
 histrv(rv::RealVector;nbins::Integer=10,binwidth::Real=0.0,isminzero::Bool=false,ismaxzero::Bool=false) = histrv(rv,minimum(rv),maximum(rv),nbins=nbins,binwidth=binwidth,isminzero=isminzero,ismaxzero=ismaxzero)
 function histrv(rvs::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false)
     yn = length(rvs)
-    yn == 0 && error("Empty RVVector in histrv(rvs::RVVector, binedges::RealVector)")
-    ys = Array(RVVector,yn)
-    ns = Array(Vector{Int},yn)
+    yn == 0 && error("Empty RVVector")
+    ys = Array{RVVector}(yn)
+    ns = Array{Vector{Int}}(yn)
     ws = []
-    is = Array(Vector{Vector{Int}},yn)
+    is = Array{Vector{Vector{Int}}}(yn)
     for i in 1:yn
         ys[i],ns[i],ws,is[i] = histrv(rvs[i],binedges,isminzero=isminzero,ismaxzero=ismaxzero)
     end
@@ -104,9 +129,9 @@ function histmatrix(hv::Vector{Vector{Int}},ws::RVVector)
     hn = length(hv)
     nbins = length(ws)
     ((hn == 0) || (nbins == 0)) && error("Arguments Empty.")
-    hn!=0 && nbins!=0 && nbins!=length(hv[1]) && error("nbins does not match.")
+    hn>0 && nbins>0 && nbins!=length(hv[1]) && error("nbins does not match.")
     binwidth = ws[1][2]-ws[1][1]
-    hm = Array(Int,hn,nbins)
+    hm = Array{Int}(hn,nbins)
     for i in 1:hn
         hm[i,:] = hv[i]
     end
@@ -122,15 +147,14 @@ function psth(hm::Matrix{Int},x::RealVector;normfun=nothing)
     binwidth = x[2]-x[1]
     hmr = hm / (binwidth*SecondPerUnit)
     n = size(hmr,1)
-    if normfun==nothing
-        m = mean(hmr,1)[:]
-        sd = std(hmr,1)[:]
-    else
+    if normfun!=nothing
         for i=1:n
             hmr[i,:]=normfun(hmr[i,:])
         end
     end
-    return m,sd,n,x
+    m = mean(hmr,1)[:]
+    se = std(hmr,1)[:]/sqrt(n)
+    return m,se,x
 end
 function psth(hv::Vector{Vector{Int}},ws::RVVector;normfun=nothing)
     hm,x = histmatrix(hv,ws)
@@ -139,19 +163,4 @@ end
 function psth(rvs::RVVector,binedges::RealVector;normfun=nothing)
     hm,x = histmatrix(rvs,binedges)
     psth(hm,x,normfun=normfun)
-end
-function psth(rvs::RVVector,binedges::RealVector,cond;normfun=nothing)
-    m,sd,n,x = psth(rvs,binedges,normfun=normfun)
-    df = DataFrame(x=x,y=m,ysd=sd,n=n,condition=cond)
-end
-function psth(rvs::RVVector,binedges::RealVector,rvsidx,condstr;normfun=nothing)
-    nc = length(condstr)
-    dfs=[psth(rvs[rvsidx[i]],binedges,condstr[i],normfun=normfun) for i=1:nc]
-    return vcat(dfs)
-end
-function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
-    n = length(rvvs)
-    n!=length(conds) && error("Length of rvvs and conds don't match.")
-    dfs = [psth(rvvs[i],binedges,conds[i],normfun=normfun) for i=1:n]
-    return cat(1,dfs)
 end

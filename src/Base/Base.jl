@@ -1,12 +1,13 @@
+import Base: convert
+using Distributions,DataFrames
+
 include("NeuroDataType.jl")
 include("Spike.jl")
 include("Image.jl")
 
-import Base: convert
-export sem,anscombe,flcond,subcond,findcond,flfln,setfln,testfln,condmean
-using Distributions,DataFrames
+export anscombe,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
+setfln,testfln,condmean
 
-sem(v) = std(v)/sqrt(length(v))
 anscombe(x) = 2*sqrt(x+(3/8))
 
 
@@ -132,18 +133,61 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
     return is[vi],ss[vi],conds[vi]
 end
 
+flni(cond::Dict)=flni(DataFrame(cond))
 """
-Find levels(except missing) for each factor and repetition for each level
+Find levels(except missing) for each factor and repetition, indices for each level
 """
-function flfln(ctc::DataFrame)
-    fl=Dict();fln=Dict()
+function flni(ctc::DataFrame)
+    fl=Dict();fln=Dict();fli=Dict()
     for f in names(ctc)
         fv = dropna(ctc[f])
-        ls = sort(unique(fv))
-        ln = Int[countnz(fv.==l) for l in ls]
-        fl[f]=ls;fln[f]=ln
+        ul = sort(unique(fv))
+        uls = [fv.==l for l in ul]
+        fl[f]=ul;fln[f]=countnz.(uls);fli[f]=find.(uls)
     end
-    return fl,fln
+    return fl,fln,fli
+end
+
+condni(cond::Dict)=condni(DataFrame(cond))
+"""
+Find unique condition and repetition, indices for each
+"""
+function condni(ctc::DataFrame)
+    t = [ctc DataFrame(i=1:size(ctc,1))]
+    sort(by(t, names(ctc),g->DataFrame(n=size(g,1), i=[g[:i]])))
+end
+
+condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])
+
+function finalfactor(cond::DataFrame)
+    fs = String.(condfactor(cond))
+    for i in length(fs):-1:1
+        if !endswith(fs[i],"_Final") && any(fs.=="$(fs[i])_Final")
+            deleteat!(fs,i)
+        end
+    end
+    Symbol.(fs)
+end
+
+function condstring(cond::DataFrameRow,fs)
+    join(["$f=$(cond[f])" for f in fs],", ")
+end
+
+function condresponse(rs,cond,u=0)
+    crs = [rs[r[:i]] for r in eachrow(cond)]
+    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs))) cond[condfactor(cond)]]
+end
+function condresponse(urs::Dict,cond)
+    vcat([condresponse(v,cond,k) for (k,v) in urs]...)
+end
+
+function psth(rvs::RVVector,binedges::RealVector,c;normfun=nothing)
+    m,se,x = psth(rvs,binedges,normfun=normfun)
+    df = DataFrame(x=x,m=m,se=se,c=[c for _ in 1:length(x)])
+end
+function psth(rvs::RVVector,binedges::RealVector,cond::DataFrame;normfun=nothing)
+    fs = finalfactor(cond)
+    vcat([psth(rvs[r[:i]],binedges,condstring(r,fs),normfun=normfun) for r in eachrow(cond)])
 end
 
 function setfln(fl::Dict,n::Int)
@@ -216,4 +260,11 @@ function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};norm
         df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
     end
     return df,ss
+end
+
+function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
+    n = length(rvvs)
+    n!=length(conds) && error("Length of rvvs and conds don't match.")
+    dfs = [psth(rvvs[i],binedges,conds[i],normfun=normfun) for i=1:n]
+    return cat(1,dfs)
 end

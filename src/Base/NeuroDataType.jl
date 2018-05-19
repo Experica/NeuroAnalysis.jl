@@ -6,7 +6,7 @@ RVVector{T} = AbstractArray{T,1} where T<:RealVector
 RVVVector{T} = AbstractArray{T,1} where T<:RVVector
 
 "Time Unit is millisecond by default."
-const SecondPerUnit = 0.001
+SecondPerUnit = 0.001
 
 type Spike
   value::RealVector
