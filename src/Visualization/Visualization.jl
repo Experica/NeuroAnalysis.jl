@@ -118,7 +118,7 @@ plotcondresponse(rs,cond;title="")=plotcondresponse(Dict(0=>rs),cond,title=title
 function plotcondresponse(urs::Dict,cond;colors=unitcolors(collect(keys(urs))),title="")
     umse = condresponse(urs,cond)
     f = finalfactor(cond)[1]
-    @df umse Plots.plot(cols(f),:m,yerror=:se,group=:u,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
+    @df umse Plots.plot(cols(f),:m,yerror=:se,group=:u,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
         grid=false,xaxis=(factorunit(f)),yaxis=(factorunit(:Response)),title=(title))
 end
 
