@@ -6,8 +6,24 @@ oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile
 using MAT,DataFrames,FileIO,Colors
 
 "Read `Matlab` MAT format data"
-function readmat(f::AbstractString,v="dataset")
-    d = matread(f)[v]
+function readmat(f::AbstractString,vars...)
+    datavars=["spike","lfp","digital","analog1k","image"]
+    if isempty(vars)
+        d=matread(f)
+    else
+        d=Dict()
+        matopen(f) do file
+            fvs = names(file)
+            basevars=setdiff(fvs,datavars)
+            vs=union(basevars,intersect(datavars,vars))
+            if !isempty(vs)
+                for v in vs
+                    d[v]=read(file,v)
+                end
+            end
+        end
+    end
+    return d
 end
 
 "Convert `Matlab` variable to `Julia` type with proper dimention"
@@ -72,8 +88,8 @@ function digitaldata(dataset::Dict,ch)
         return [],[]
     end
 end
-"Prepare exported `Matlab` dataset file"
-prepare(f::AbstractString,v="dataset")=prepare!(readmat(f,v))
+"Prepare exported `Matlab` dataset"
+prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...))
 function prepare!(d::Dict)
     if haskey(d,"sourceformat")
         sf = d["sourceformat"]
