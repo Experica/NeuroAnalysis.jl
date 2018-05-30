@@ -5,11 +5,20 @@ include("NeuroDataType.jl")
 include("Spike.jl")
 include("Image.jl")
 
-export anscombe,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
+export anscombe,circvar,circr,statsori,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
+circvar(α::AbstractVector,w=ones(length(α))) = 1-circr(α,w)
+function circr(α::AbstractVector,w=ones(length(α)))
+    abs(sum(w.*exp.(im*α)))/sum(w)
+end
+
+function statsori(m,ori)
+    
+    Dict(:cv=>circvar(deg2rad.(ori),m))
+end
 
 # function drv(p,n=1,isfreq=false)
 #   d=Categorical(p)
@@ -173,11 +182,15 @@ function condstring(cond::DataFrameRow,fs)
     join(["$f=$(cond[f])" for f in fs],", ")
 end
 
-function condresponse(rs,cond,u=0)
+function condresponse(rs,is)
+    grs = [rs[i] for i in is]
+    DataFrame(m=mean.(grs),se=sem.(grs))
+end
+function condresponse(rs,cond::DataFrame,u=0)
     crs = [rs[r[:i]] for r in eachrow(cond)]
     df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs))) cond[condfactor(cond)]]
 end
-function condresponse(urs::Dict,cond)
+function condresponse(urs::Dict,cond::DataFrame)
     vcat([condresponse(v,cond,k) for (k,v) in urs]...)
 end
 

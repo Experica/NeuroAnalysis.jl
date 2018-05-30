@@ -1,9 +1,9 @@
-export readmat,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,digitaldata,
+export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,digitaldata,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_vlab!,
 statetime,getparam,condtestfactor,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile
 
-using MAT,DataFrames,FileIO,Colors
+using MAT,DataFrames,Query,FileIO,Colors
 
 "Read `Matlab` MAT format data"
 function readmat(f::AbstractString,vars...)
@@ -24,6 +24,13 @@ function readmat(f::AbstractString,vars...)
         end
     end
     return d
+end
+
+"Read Metadata MAT file"
+function readmeta(f::AbstractString)
+    d = readmat(f)["Tests"]
+    mat2julia!(d)
+    DataFrame(d)
 end
 
 "Convert `Matlab` variable to `Julia` type with proper dimention"
