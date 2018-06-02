@@ -1,7 +1,7 @@
 export alphablend,alphamask,alphamask_disk,alphamask_gaussian,alphamask_diskfade,
 clampscale,oiframeresponse,oiresponse,oicomplexmap,anglemode,angleabs
 
-using Colors,Images,ImageFiltering,DataFrames
+using Colors,Images,ImageFiltering
 
 function alphablend(src,dst,srcfactor,dstfactor=1-srcfactor)
     srcfactor.*src+dstfactor.*dst

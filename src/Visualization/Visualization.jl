@@ -1,6 +1,7 @@
 export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,savefig
 
-using Gadfly,Plots,StatPlots
+using Gadfly,Plots,StatPlots,Rsvg
+plotlyjs()
 
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
@@ -114,7 +115,7 @@ function plotpsth1(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}}
     Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl))
 end
 
-plotcondresponse(rs,cond;title="")=plotcondresponse(Dict(0=>rs),cond,title=title)
+plotcondresponse(rs,cond,u=0;title="")=plotcondresponse(Dict(u=>rs),cond,title=title)
 function plotcondresponse(urs::Dict,cond;colors=unitcolors(collect(keys(urs))),title="")
     umse = condresponse(urs,cond)
     f = finalfactor(cond)[1]

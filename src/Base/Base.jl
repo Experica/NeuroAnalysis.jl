@@ -1,14 +1,17 @@
 import Base: convert
-using Distributions,DataFrames
+using Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests
 
 include("NeuroDataType.jl")
 include("Spike.jl")
 include("Image.jl")
 
-export anscombe,circvar,circr,statsori,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
+export anscombe,vmf,gvmf,circvar,circr,statsori,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean
 
 anscombe(x) = 2*sqrt(x+(3/8))
+
+vmf(α,β=1,μ=0.0,κ=1.0,n=1) = β*exp(κ*(cos(n*(α-μ))-1))
+gvmf(α,β=1,μ₁=0.0,κ₁=1.0,μ₂=0.0,κ₂=1.0) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2*(α-μ₂))-1))
 
 circvar(α::AbstractVector,w=ones(length(α))) = 1-circr(α,w)
 function circr(α::AbstractVector,w=ones(length(α)))
@@ -16,8 +19,21 @@ function circr(α::AbstractVector,w=ones(length(α)))
 end
 
 function statsori(m,ori)
+    a = deg2rad.(ori)
+    dcv = circvar(a,m)
+    dtf = curve_fit((x,p)->gvmf.(x,p...),a,m,Float64[1,0,0,0,0])
+
+    # 1deg = 0.017rad, 0.01rad = 0.57deg
+    x = collect(0:0.01:2pi)
+    pdir = rad2deg(x[indmax(gvmf.(x,dtf.param...))])
     
-    Dict(:cv=>circvar(deg2rad.(ori),m))
+    o = a.%pi
+    ocv = circvar(2o,m)
+    otf = curve_fit((x,p)->vmf.(x,p...,2),o,m,Float64[1,0,0])
+    x = collect(0:0.01:pi)
+    pori = rad2deg(x[indmax(vmf.(x,otf.param...,2))])
+
+    Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori)
 end
 
 # function drv(p,n=1,isfreq=false)
@@ -81,11 +97,11 @@ end
 #   end
 # end
 
-function convert(::Type{DataFrame},ct::CoefTable)
-    df = convert(DataFrame,ct.mat)
-    names!(df,map(symbol,ct.colnms))
-    [DataFrame(coefname=ct.rownms) df]
-end
+# function convert(::Type{DataFrame},ct::CoefTable)
+#    df = convert(DataFrame,ct.mat)
+#    names!(df,map(symbol,ct.colnms))
+#    [DataFrame(coefname=ct.rownms) df]
+#end
 
 
 
@@ -149,7 +165,7 @@ Find levels(except missing) for each factor and repetition, indices for each lev
 function flni(ctc::DataFrame)
     fl=Dict();fln=Dict();fli=Dict()
     for f in names(ctc)
-        fv = dropna(ctc[f])
+        fv = skipmissing(ctc[f])
         ul = sort(unique(fv))
         uls = [fv.==l for l in ul]
         fl[f]=ul;fln[f]=countnz.(uls);fli[f]=find.(uls)
