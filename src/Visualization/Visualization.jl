@@ -115,12 +115,12 @@ function plotpsth1(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}}
     Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl))
 end
 
-plotcondresponse(rs,cond,u=0;title="")=plotcondresponse(Dict(u=>rs),cond,title=title)
-function plotcondresponse(urs::Dict,cond;colors=unitcolors(collect(keys(urs))),title="")
+plotcondresponse(rs,cond,u=0;title="",legend=:best)=plotcondresponse(Dict(u=>rs),cond,title=title,legend=legend)
+function plotcondresponse(urs::Dict,cond;colors=unitcolors(collect(keys(urs))),title="",legend=:best)
     umse = condresponse(urs,cond)
     f = finalfactor(cond)[1]
     @df umse Plots.plot(cols(f),:m,yerror=:se,group=:u,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
-        grid=false,xaxis=(factorunit(f)),yaxis=(factorunit(:Response)),title=(title))
+        grid=false,legend=legend,xaxis=(factorunit(f)),yaxis=(factorunit(:Response)),title=(title))
 end
 
 plotpsth(rvs::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvs,binedges,DataFrame(Factor="Value",i=[1:length(rvs)]),timeline=timeline,colors=colors,title=title)

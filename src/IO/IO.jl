@@ -1,7 +1,7 @@
 export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,digitaldata,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_vlab!,
 statetime,getparam,condtestfactor,condtest,ctctc,maptodatatime,
-oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile
+oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile,querymeta
 
 using MAT,DataFrames,Query,FileIO,Colors
 
@@ -224,4 +224,14 @@ function matchfile(pattern::Regex;dir="",adddir::Bool=false)
         fs=joinpath.(dir,fs)
     end
     return fs
+end
+
+function querymeta(meta::DataFrame;test="",sourceformat="Ripple",species="C")
+    @from i in meta begin
+    @where startswith(get(i.Subject_ID),species)
+    @where i.ID==test
+    @where i.sourceformat==sourceformat
+    @select {i.UUID,i.files}
+    @collect DataFrame
+    end
 end

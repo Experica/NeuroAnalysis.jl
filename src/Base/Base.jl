@@ -5,10 +5,13 @@ include("NeuroDataType.jl")
 include("Spike.jl")
 include("Image.jl")
 
-export anscombe,vmf,gvmf,circvar,circr,statsori,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
+export anscombe,isresponsive,vmf,gvmf,circvar,circr,statsori,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean
 
 anscombe(x) = 2*sqrt(x+(3/8))
+
+isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
+isresponsive(baseline,response,is;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),is))
 
 vmf(α,β=1,μ=0.0,κ=1.0,n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 gvmf(α,β=1,μ₁=0.0,κ₁=1.0,μ₂=0.0,κ₂=1.0) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2*(α-μ₂))-1))
