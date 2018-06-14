@@ -219,7 +219,7 @@ function psth(rvs::RVVector,binedges::RealVector,c;normfun=nothing)
 end
 function psth(rvs::RVVector,binedges::RealVector,cond::DataFrame;normfun=nothing)
     fs = finalfactor(cond)
-    vcat([psth(rvs[r[:i]],binedges,condstring(r,fs),normfun=normfun) for r in eachrow(cond)])
+    vcat([psth(rvs[r[:i]],binedges,condstring(r,fs),normfun=normfun) for r in eachrow(cond)]...)
 end
 
 function setfln(fl::Dict,n::Int)
