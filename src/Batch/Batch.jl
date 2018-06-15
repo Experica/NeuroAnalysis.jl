@@ -26,7 +26,7 @@ function processtest(dataset::Dict,resultroot;uuid="",condroot=Dict{String,Any}(
     end
 end
 
-function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="",delay=20,binwidth=10,minpredur=10,
+function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="",delay=20,binwidth=10,minpredur=10,mincondtest=12000,
     nscale=2,downsample=2,sigma=1.5,pixelscale=255,isplot=true)
     ex = dataset["ex"];envparam = ex["EnvParam"];preicidur = ex["PreICI"];conddur = ex["CondDur"];suficidur = ex["SufICI"]
     bgcolor=RGBA(getparam(envparam,"BGColor")...)
@@ -35,8 +35,7 @@ function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="
     imagemaskradius = getparam(envparam,"MaskRadius","ImageQuad")
     imagemasksigma = getparam(envparam,"Sigma","ImageQuad")
     ct,ctc=ctctc(ex)
-    fl,fln,fli=flni(ctc)
-    cond=condni(ctc)
+    nrow(ct) < mincondtest && return [],[]
 
     if !haskey(condroot,imagesetname) && haskey(condroot,"rootdir") && isdir(condroot["rootdir"])
         pyramid = Dict{Symbol,Any}(:pyramid => map(i->gaussian_pyramid(i, nscale-1, downsample, sigma),
@@ -85,8 +84,7 @@ function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="
         end
     end
 
-    cond[:UUID]=uuid
-    return vcat(udf...),cond
+    return vcat(udf...),[]
 end
 
 function processori(dataset::Dict,resultroot;uuid="",delay=20,binwidth=10,minpredur=100,isplot=true)
