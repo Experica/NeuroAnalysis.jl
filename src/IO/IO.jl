@@ -1,6 +1,6 @@
 export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,digitaldata,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_vlab!,
-statetime,getparam,condtestfactor,condtest,ctctc,maptodatatime,
+statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile,querymeta
 
 using MAT,DataFrames,Query,FileIO,Colors
@@ -155,7 +155,7 @@ function getparam(d::Dict,name,fromobject="")
 end
 
 "Get condition test factor DataFrame"
-function condtestfactor(ctcd::Dict)
+function condtestcond(ctcd::Dict)
     ctc = DataFrame(ctcd)
     return ctc
 end
@@ -166,7 +166,9 @@ function condtest(ctd::Dict)
 end
 "Get `condtest` and `condtestcond` DataFrame"
 function ctctc(ctd::Dict,ctcd::Dict)
-    return condtest(ctd),condtestfactor(ctcd)
+    ct = condtest(ctd)
+    ctc = condtestcond(ctcd)
+    return ct,ctc
 end
 function ctctc(ex::Dict)
     return ctctc(ex["CondTest"],ex["CondTestCond"])
@@ -226,9 +228,9 @@ function matchfile(pattern::Regex;dir="",adddir::Bool=false)
     return fs
 end
 
-function querymeta(meta::DataFrame;test="",sourceformat="Ripple",species="C")
+function querymeta(meta::DataFrame;test="",sourceformat="Ripple",subject="C")
     @from i in meta begin
-    @where startswith(get(i.Subject_ID),species)
+    @where startswith(get(i.Subject_ID),subject)
     @where i.ID==test
     @where i.sourceformat==sourceformat
     @select {i.UUID,i.files}

@@ -5,7 +5,7 @@ include("NeuroDataType.jl")
 include("Spike.jl")
 include("Image.jl")
 
-export anscombe,isresponsive,vmf,gvmf,circvar,circr,statsori,flcond,subcond,findcond,flni,condni,condfactor,finalfactor,condstring,condresponse,
+export anscombe,isresponsive,vmf,gvmf,circvar,circr,statsori,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean
 
 anscombe(x) = 2*sqrt(x+(3/8))
@@ -161,28 +161,31 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
     return is[vi],ss[vi],conds[vi]
 end
 
-flni(cond::Dict)=flni(DataFrame(cond))
+flin(cond::Dict)=flin(DataFrame(cond))
 """
-Find levels(except missing) for each factor and repetition, indices for each level
+Find levels(except missing) for each factor and indices, repetition for each level
 """
-function flni(ctc::DataFrame)
-    fl=Dict();fln=Dict();fli=Dict()
+function flin(ctc::DataFrame;isindex=true)
+    fl=Dict();fli=Dict();fln=Dict()
     for f in names(ctc)
-        fv = skipmissing(ctc[f])
-        ul = sort(unique(fv))
-        uls = [fv.==l for l in ul]
-        fl[f]=ul;fln[f]=countnz.(uls);fli[f]=find.(uls)
+        ls = levels(ctc[f])
+        fl[f]=ls
+        if isindex
+            lsi = [find(ctc[f].==l) for l in ls]
+            fli[f]=lsi
+            fln[f]=length.(lsi)
+        end
     end
-    return fl,fln,fli
+    return fl,fli,fln
 end
 
-condni(cond::Dict)=condni(DataFrame(cond))
+condin(cond::Dict)=condin(DataFrame(cond))
 """
-Find unique condition and repetition, indices for each
+Find unique condition and indices, repetition for each
 """
-function condni(ctc::DataFrame)
-    t = [ctc DataFrame(i=1:size(ctc,1))]
-    sort(by(t, names(ctc),g->DataFrame(n=size(g,1), i=[g[:i]])))
+function condin(ctc::DataFrame)
+    t = [ctc DataFrame(i=1:nrow(ctc))]
+    sort(by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:i]])))
 end
 
 condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])

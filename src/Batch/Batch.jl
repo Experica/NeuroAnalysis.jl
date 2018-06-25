@@ -1,4 +1,4 @@
-export batchtests,processtest,processori
+export batchtests,processtest,processori,processimage,processlaserimage
 
 using ProgressMeter,ePPR
 
@@ -22,8 +22,80 @@ function processtest(dataset::Dict,resultroot;uuid="",condroot=Dict{String,Any}(
             processori(dataset,resultroot,uuid=uuid,delay=delay,binwidth=binwidth,isplot=isplot)
         elseif testid=="Image"
             processimage(dataset,condroot,resultroot,uuid=uuid,delay=delay,binwidth=binwidth,isplot=isplot)
+        elseif testid=="LaserImage"
+            processlaserimage(dataset,condroot,resultroot,uuid=uuid,delay=delay,binwidth=binwidth,isplot=isplot)
         end
     end
+end
+
+function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="",delay=20,binwidth=10,minpredur=10,mincondtest=12000,
+    nscale=2,downsample=2,sigma=1.5,pixelscale=255,isplot=true)
+    ex = dataset["ex"];envparam = ex["EnvParam"];preicidur = ex["PreICI"];conddur = ex["CondDur"];suficidur = ex["SufICI"]
+    bgcolor=RGBA(getparam(envparam,"BGColor")...)
+    imagesetname = replace(getparam(envparam,"ImageSet","ImageQuad"),"Ã—","_")
+    imagemasktype = getparam(envparam,"MaskType","ImageQuad")
+    imagemaskradius = getparam(envparam,"MaskRadius","ImageQuad")
+    imagemasksigma = getparam(envparam,"Sigma","ImageQuad")
+    ct,ctc=ctctc(ex)
+    lfactor = filter(f->f!=:Image,names(ctc))
+    lcond = condin(ctc[:,lfactor])
+    all(length.(lcond[:i]) .< mincondtest) && return [],[]
+
+    if !haskey(condroot,imagesetname) && haskey(condroot,"rootdir") && isdir(condroot["rootdir"])
+        pyramid = Dict{Symbol,Any}(:pyramid => map(i->gaussian_pyramid(i, nscale-1, downsample, sigma),
+        loadimageset(joinpath(condroot["rootdir"],imagesetname),alpha=true)))
+        pyramid[:size] = map(i->size(i),pyramid[:pyramid][1])
+        condroot[imagesetname] = pyramid
+    end
+    imageset = condroot[imagesetname]
+    bgimagecolor = oftype(imageset[:pyramid][1][1][1],bgcolor)
+    unmaskindex = map(i->alphamask(i,radius=imagemaskradius,sigma=imagemasksigma,masktype=imagemasktype)[2],imageset[:pyramid][1])
+    imagestimuli = map(s->map(i->alphablend.(alphamask(i[s],radius=imagemaskradius,sigma=imagemasksigma,masktype=imagemasktype)[1],[bgimagecolor]),imageset[:pyramid]),1:nscale)
+    
+    s = 2
+    ximagesize = imageset[:size][s]
+    xi = unmaskindex[s]
+    imagestimulimatrix = Array{Float64}(length(imagestimuli[s]),prod(ximagesize))
+    for i in 1:size(imagestimulimatrix,1)
+        imagestimulimatrix[i,:] = vec(gray.(imagestimuli[s][i]))
+    end
+    x = imagestimulimatrix[Int.(ctc[:Image]),:]*pixelscale;
+
+    predur = max(preicidur,minpredur)
+    resultroot=abspath(resultroot,ex["ID"])
+    !isdir(resultroot) && mkpath(resultroot)
+    
+    udf = []
+    if haskey(dataset,"spike")
+        spike = dataset["spike"];spikeeid = spike["electrodeid"];spikeuuid = spike["uuid"];spikeuid = spike["unitid"];spiketime = spike["time"]
+        for e in spikeeid
+            ei = findfirst(spikeeid.==e);est = spiketime[ei];esu = spikeuid[ei];euuid = spikeuuid[ei]
+            for u in euuid
+                preurs = subrvr(est[esu.==u],ct[:CondOn]+delay-predur,ct[:CondOn]+delay)
+                y = subrvr(est[esu.==u],ct[:CondOn]+delay,ct[:CondOff]+delay)
+                !isresponsive(preurs,y) && continue
+
+                plotdir = isplot?joinpath(resultroot,"$(uuid)_E$(e)_U$(u)"):nothing
+                ms = []
+                for l in eachrow(lcond)
+                    debug = isplot?ePPRDebugOptions(level=DebugVisual,logdir=joinpath(plotdir,condstring(l,lfactor))):ePPRDebugOptions()
+                    hp = ePPRHyperParams(ximagesize...,xindex=xi,ndelay=1,blankcolor=gray(bgimagecolor)*pixelscale)
+                    hp.nft = [6]
+                    hp.lambda = 30000
+                    model,models = epprcv(x[l[:i],:],y[l[:i]],hp,debug)
+
+                    if isplot && model!=nothing
+                        debug(plotmodel(model,hp),log="Model_Final")
+                    end
+                    push!(ms,(model,models,hp))
+                end
+
+                push!(udf,DataFrame(UUID=uuid,e=e,u=u,modelresults=ms))
+            end
+        end
+    end
+
+    return vcat(udf...),[]
 end
 
 function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="",delay=20,binwidth=10,minpredur=10,mincondtest=12000,
