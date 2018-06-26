@@ -3,6 +3,7 @@ export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,
 using Gadfly,Plots,StatPlots,Rsvg
 plotlyjs()
 
+factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
     if contains(fu,"Ori")
@@ -115,17 +116,19 @@ function plotpsth1(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}}
     Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl))
 end
 
-plotcondresponse(rs,cond,u=0;title="",legend=:best)=plotcondresponse(Dict(u=>rs),cond,title=title,legend=legend)
-function plotcondresponse(urs::Dict,cond;colors=unitcolors(collect(keys(urs))),title="",legend=:best)
-    umse = condresponse(urs,cond)
-    f = finalfactor(cond)[1]
-    @df umse Plots.plot(cols(f),:m,yerror=:se,group=:u,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
-        grid=false,legend=legend,xaxis=(factorunit(f)),yaxis=(factorunit(:Response)),title=(title))
+plotcondresponse(rs,ctc,u=0;factor=finalfactor(ctc)[1],title="",legend=:best)=plotcondresponse(Dict(u=>rs),cond,factor=factor,title=title,legend=legend)
+function plotcondresponse(urs::Dict,ctc;factor=finalfactor(ctc)[1],colors=unitcolors(collect(keys(urs))),title="",legend=:best)
+    umse = condresponse(urs,ctc,factor)
+    @df umse Plots.plot(cols(factor),:m,yerror=:se,group=:u,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
+        grid=false,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title))
 end
 
 plotpsth(rvs::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvs,binedges,DataFrame(Factor="Value",i=[1:length(rvs)]),timeline=timeline,colors=colors,title=title)
-function plotpsth(rvs::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=huecolors(nrow(cond)),title="")
-    cmse = psth(rvs,binedges,cond)
+function plotpsth(rvs::RVVector,binedges::RealVector,ctc::DataFrame;factor=finalfactor(ctc)[1],timeline=[0],colors=[:auto],title="")
+    cmse = psth(rvs,binedges,ctc,factor)
+    if colors==:hue
+        colors=huecolors(length(levels(cmse[:c])))
+    end
     @df cmse Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
 end

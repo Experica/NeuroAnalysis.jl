@@ -215,6 +215,9 @@ end
 function condresponse(urs::Dict,cond::DataFrame)
     vcat([condresponse(v,cond,k) for (k,v) in urs]...)
 end
+function condresponse(urs::Dict,ctc::DataFrame,factor)
+    condresponse(urs,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]))
+end
 
 function psth(rvs::RVVector,binedges::RealVector,c;normfun=nothing)
     m,se,x = psth(rvs,binedges,normfun=normfun)
@@ -223,6 +226,9 @@ end
 function psth(rvs::RVVector,binedges::RealVector,cond::DataFrame;normfun=nothing)
     fs = finalfactor(cond)
     vcat([psth(rvs[r[:i]],binedges,condstring(r,fs),normfun=normfun) for r in eachrow(cond)]...)
+end
+function psth(rvs::RVVector,binedges::RealVector,ctc::DataFrame,factor;normfun=nothing)
+    psth(rvs,binedges,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]),normfun=normfun)
 end
 
 function setfln(fl::Dict,n::Int)
