@@ -1,4 +1,4 @@
-export batchtests,processtest,processori,processimage,processlaserimage
+export batchtests,processtest,processori,processlaser,processimage,processlaserimage
 
 using ProgressMeter,ePPR
 
@@ -6,10 +6,15 @@ function batchtests(tests::DataFrame,dataroot,resultroot,datatype...;condroot=Di
     udf=[];cdf=[]
     p = ProgressMeter.Progress(nrow(tests),1,"Batch Tests ",50)
     for t in eachrow(tests)
-        u,c=processtest(prepare(abspath(dataroot,t[:files]),datatype...),resultroot,
-        uuid=t[:UUID],condroot=condroot,delay=delay,binwidth=binwidth,isplot=isplot)
-        push!(udf,u)
-        push!(cdf,c)
+        try
+            u,c=processtest(prepare(abspath(dataroot,t[:files]),datatype...),resultroot,
+            uuid=t[:UUID],condroot=condroot,delay=delay,binwidth=binwidth,isplot=isplot)
+            push!(udf,u)
+            push!(cdf,c)
+        catch exc
+            display(exc)
+            display.(catch_stacktrace())
+        end
         next!(p)
     end
     return vcat(udf...),vcat(cdf...)
@@ -20,6 +25,8 @@ function processtest(dataset::Dict,resultroot;uuid="",condroot=Dict{String,Any}(
         testid = dataset["ex"]["ID"]
         if testid=="OriGrating"
             processori(dataset,resultroot,uuid=uuid,delay=delay,binwidth=binwidth,isplot=isplot)
+        elseif testid=="Laser"
+                processlaser(dataset,resultroot,uuid=uuid,delay=delay,binwidth=binwidth,isplot=isplot)
         elseif testid=="Image"
             processimage(dataset,condroot,resultroot,uuid=uuid,delay=delay,binwidth=binwidth,isplot=isplot)
         elseif testid=="LaserImage"
@@ -37,9 +44,10 @@ function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;u
     imagemaskradius = getparam(envparam,"MaskRadius","ImageQuad")
     imagemasksigma = getparam(envparam,"Sigma","ImageQuad")
     ct,ctc=ctctc(ex)
+
     lfactor = filter(f->f!=:Image,names(ctc))
     lcond = condin(ctc[:,lfactor])
-    all(length.(lcond[:i]) .< mincondtest) && return [],[]
+    all(lcond[:n] .< mincondtest) && return [],[]
 
     if !haskey(condroot,imagesetname) && haskey(condroot,"rootdir") && isdir(condroot["rootdir"])
         pyramid = Dict{Symbol,Any}(:pyramid => map(i->gaussian_pyramid(i, nscale-1, downsample, sigma),
@@ -59,7 +67,6 @@ function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;u
     for i in 1:size(imagestimulimatrix,1)
         imagestimulimatrix[i,:] = vec(gray.(imagestimuli[s][i]))
     end
-    x = imagestimulimatrix[Int.(ctc[:Image]),:]*pixelscale;
 
     predur = max(preicidur,minpredur)
     resultroot=abspath(resultroot,ex["ID"])
@@ -73,24 +80,24 @@ function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;u
             for u in euuid
                 preurs = subrvr(est[esu.==u],ct[:CondOn]+delay-predur,ct[:CondOn]+delay)
                 y = subrvr(est[esu.==u],ct[:CondOn]+delay,ct[:CondOff]+delay)
-                !isresponsive(preurs,y) && continue
+                !isresponsive(preurs,y,lcond[:i]) && continue
 
                 plotdir = isplot?joinpath(resultroot,"$(uuid)_E$(e)_U$(u)"):nothing
-                ms = []
+                mrs = []
                 for l in eachrow(lcond)
                     debug = isplot?ePPRDebugOptions(level=DebugVisual,logdir=joinpath(plotdir,condstring(l,lfactor))):ePPRDebugOptions()
                     hp = ePPRHyperParams(ximagesize...,xindex=xi,ndelay=1,blankcolor=gray(bgimagecolor)*pixelscale)
                     hp.nft = [6]
                     hp.lambda = 30000
-                    model,models = epprcv(x[l[:i],:],y[l[:i]],hp,debug)
+                    model,models = epprcv(imagestimulimatrix[Int.(ctc[:Image][l[:i]]),:]*pixelscale,y[l[:i]],hp,debug)
 
                     if isplot && model!=nothing
                         debug(plotmodel(model,hp),log="Model_Final")
                     end
-                    push!(ms,(model,models,hp))
+                    push!(mrs,(model,models,hp,l))
                 end
 
-                push!(udf,DataFrame(UUID=uuid,e=e,u=u,modelresults=ms))
+                push!(udf,DataFrame(UUID=uuid,e=e,u=u,modelresults=mrs))
             end
         end
     end
@@ -190,6 +197,43 @@ function processori(dataset::Dict,resultroot;uuid="",delay=20,binwidth=10,minpre
                 stats = statsori(urs,oris)
 
                 push!(udf,DataFrame(UUID=uuid,e=e,u=u,dcv=stats[:dcv],pdir=stats[:pdir],ocv=stats[:ocv],pori=stats[:pori]))
+            end
+        end
+    end
+
+    cond[:UUID]=uuid
+    return vcat(udf...),cond
+end
+
+function processlaser(dataset::Dict,resultroot;uuid="",delay=20,binwidth=10,minpredur=100,isplot=true)
+    ex = dataset["ex"];envparam = ex["EnvParam"];preicidur = ex["PreICI"];conddur = ex["CondDur"];suficidur = ex["SufICI"]
+    ct,ctc=ctctc(ex)
+    cond=condin(ctc)
+
+    predur = max(preicidur,minpredur)
+    resultroot=abspath(resultroot,ex["ID"])
+    !isdir(resultroot) && mkpath(resultroot)
+    
+    udf = []
+    if haskey(dataset,"spike")
+        spike = dataset["spike"];spikeeid = spike["electrodeid"];spikeuuid = spike["uuid"];spikeuid = spike["unitid"];spiketime = spike["time"]
+        for e in spikeeid
+            ei = findfirst(spikeeid.==e);est = spiketime[ei];esu = spikeuid[ei];euuid = spikeuuid[ei]
+            for u in euuid
+                preurs = subrvr(est[esu.==u],ct[:CondOn]+delay-predur,ct[:CondOn]+delay)
+                urs = subrvr(est[esu.==u],ct[:CondOn]+delay,ct[:CondOff]+delay)
+                !isresponsive(preurs,urs,cond[:i]) && continue
+                ksadp = pvalue(KSampleADTest(getindex.([urs],cond[:i])...))
+
+                if isplot
+                    for f in finalfactor(ctc)
+                        plotname = "$(uuid)_E$(e)_U$(u)_$f"
+                        plotcondresponse(urs,ctc,u,factor=f,title=plotname,legend=:none)
+                        png(joinpath(resultroot,plotname))
+                    end
+                end
+
+                push!(udf,DataFrame(UUID=uuid,e=e,u=u,ksadp=ksadp))
             end
         end
     end
