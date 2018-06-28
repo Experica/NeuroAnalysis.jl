@@ -35,7 +35,7 @@ function processtest(dataset::Dict,resultroot;uuid="",condroot=Dict{String,Any}(
 end
 
 function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="",delay=20,binwidth=10,minpredur=10,mincondtest=12000,
-    nscale=2,downsample=2,sigma=1.5,pixelscale=255,isplot=true)
+    nscale=2,downsample=2,sigma=1.5,pixelscale=255,isplot=true,forceprocess=true)
     ex = dataset["ex"];envparam = ex["EnvParam"];preicidur = ex["PreICI"];conddur = ex["CondDur"];suficidur = ex["SufICI"]
     bgcolor=RGBA(getparam(envparam,"BGColor")...)
     imagesetname = replace(getparam(envparam,"ImageSet","ImageQuad"),"Ã—","_")
@@ -81,7 +81,9 @@ function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;u
                 y = subrvr(est[esu.==u],ct[:CondOn]+delay,ct[:CondOff]+delay)
                 !isresponsive(preurs,y,lcond[:i]) && continue
 
-                plotdir = isplot?joinpath(resultroot,"$(uuid)_E$(e)_U$(u)"):nothing
+                udir = joinpath(resultroot,"$(uuid)_E$(e)_U$(u)")
+                !forceprocess && isdir(udir) && continue
+                plotdir = isplot?udir:nothing
                 mrs = []
                 for l in eachrow(lcond)
                     debug = isplot?ePPRDebugOptions(level=DebugVisual,logdir=joinpath(plotdir,condstring(l,lfactor))):ePPRDebugOptions()
@@ -105,7 +107,7 @@ function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;u
 end
 
 function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="",delay=20,binwidth=10,minpredur=10,mincondtest=12000,
-    nscale=2,downsample=2,sigma=1.5,pixelscale=255,isplot=true)
+    nscale=2,downsample=2,sigma=1.5,pixelscale=255,isplot=true,forceprocess=true)
     ex = dataset["ex"];envparam = ex["EnvParam"];preicidur = ex["PreICI"];conddur = ex["CondDur"];suficidur = ex["SufICI"]
     bgcolor=RGBA(getparam(envparam,"BGColor")...)
     imagesetname = replace(getparam(envparam,"ImageSet","ImageQuad"),"Ã—","_")
@@ -129,7 +131,10 @@ function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="
     s = 2
     ximagesize = imageset[:size][s]
     xi = unmaskindex[s]
-    imagestimulimatrix=cat(2,map(i->vec(gray.(i)),imagestimuli[s])...)'
+    imagestimulimatrix = Array{Float64}(length(imagestimuli[s]),prod(ximagesize))
+    for i in 1:size(imagestimulimatrix,1)
+        imagestimulimatrix[i,:] = vec(gray.(imagestimuli[s][i]))
+    end
     x = imagestimulimatrix[Int.(ctc[:Image]),:]*pixelscale;
 
     predur = max(preicidur,minpredur)
@@ -146,10 +151,12 @@ function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="
                 y = subrvr(est[esu.==u],ct[:CondOn]+delay,ct[:CondOff]+delay)
                 !isresponsive(preurs,y) && continue
 
-                plotdir = isplot?joinpath(resultroot,"$(uuid)_E$(e)_U$(u)"):nothing
+                udir = joinpath(resultroot,"$(uuid)_E$(e)_U$(u)")
+                !forceprocess && isdir(udir) && continue
+                plotdir = isplot?udir:nothing
                 debug = isplot?ePPRDebugOptions(level=DebugVisual,logdir=plotdir):ePPRDebugOptions()
-                hp = ePPRHyperParams(ximagesize...,xindex=xi,ndelay=3,blankcolor=gray(bgimagecolor)*pixelscale)
-                hp.nft = [6]
+                hp = ePPRHyperParams(ximagesize...,xindex=xi,ndelay=1,blankcolor=gray(bgimagecolor)*pixelscale)
+                hp.nft = [3,3,3]
                 hp.lambda = 30000
                 model,models = epprcv(x,y,hp,debug)
 
@@ -157,7 +164,7 @@ function processimage(dataset::Dict,condroot::Dict{String,Any},resultroot;uuid="
                     debug(plotmodel(model,hp),log="Model_Final")
                 end
 
-                push!(udf,DataFrame(UUID=uuid,e=e,u=u,model=model,models=models,hp=hp))
+                push!(udf,DataFrame(UUID=uuid,e=e,u=u,model=clean(model),models=clean.(models),hp=hp))
             end
         end
     end
