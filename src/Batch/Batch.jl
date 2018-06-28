@@ -12,7 +12,6 @@ function batchtests(tests::DataFrame,dataroot,resultroot,datatype...;condroot=Di
             push!(udf,u)
             push!(cdf,c)
         catch exc
-            display(exc)
             display.(catch_stacktrace())
         end
         next!(p)
@@ -94,7 +93,7 @@ function processlaserimage(dataset::Dict,condroot::Dict{String,Any},resultroot;u
                     if isplot && model!=nothing
                         debug(plotmodel(model,hp),log="Model_Final")
                     end
-                    push!(mrs,(model,models,hp,l))
+                    push!(mrs,(clean(model),clean.(models),hp,l))
                 end
 
                 push!(udf,DataFrame(UUID=uuid,e=e,u=u,modelresults=mrs))
