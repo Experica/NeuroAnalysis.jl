@@ -1,6 +1,6 @@
-export batchtests,processtest,processori,processlaser,processimage,processlaserimage
-
 using ProgressMeter,ePPR
+
+export batchtests,processtest,processori,processlaser,processimage,processlaserimage
 
 function batchtests(tests::DataFrame,dataroot,resultroot,datatype...;condroot=Dict{String,Any}("rootdir"=>""),delay=20,binwidth=10,isplot=true)
     udf=[];cdf=[]

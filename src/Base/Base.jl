@@ -1,5 +1,4 @@
-import Base: convert
-using Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests
+using Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering
 
 include("NeuroDataType.jl")
 include("Spike.jl")

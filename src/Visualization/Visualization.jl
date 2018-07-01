@@ -1,6 +1,7 @@
+using Gadfly,Plots,StatPlots,Rsvg
+
 export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,savefig
 
-using Gadfly,Plots,StatPlots,Rsvg
 plotlyjs()
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")

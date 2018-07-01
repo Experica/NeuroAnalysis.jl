@@ -1,9 +1,9 @@
+using MAT,Query,FileIO
+
 export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,digitaldata,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_vlab!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile,querymeta
-
-using MAT,DataFrames,Query,FileIO,Colors
 
 "Read `Matlab` MAT format data"
 function readmat(f::AbstractString,vars...)
