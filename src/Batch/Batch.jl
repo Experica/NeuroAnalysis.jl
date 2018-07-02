@@ -175,7 +175,6 @@ end
 function processori(dataset::Dict,resultroot;uuid="",delay=20,binwidth=10,minpredur=100,isplot=true)
     ex = dataset["ex"];envparam = ex["EnvParam"];preicidur = ex["PreICI"];conddur = ex["CondDur"];suficidur = ex["SufICI"]
     ct,ctc=ctctc(ex)
-    fl,fln,fli=flin(ctc)
     cond=condin(ctc)
 
     ff = finalfactor(cond)[1]
@@ -196,7 +195,7 @@ function processori(dataset::Dict,resultroot;uuid="",delay=20,binwidth=10,minpre
 
                 if isplot
                     plotname = "$(uuid)_E$(e)_U$(u)"
-                    plotcondresponse(urs,cond,u,title=plotname,legend=:none)
+                    plotcondresponse(urs,ctc,u,factor=ff,title=plotname,legend=:none)
                     png(joinpath(resultroot,plotname))
                 end
 
