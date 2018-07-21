@@ -184,7 +184,7 @@ Find unique condition and indices, repetition for each
 """
 function condin(ctc::DataFrame)
     t = [ctc DataFrame(i=1:nrow(ctc))]
-    sort(by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:i]])))
+    by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:i]]))
 end
 
 condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])
@@ -199,8 +199,13 @@ function finalfactor(cond::DataFrame)
     Symbol.(fs)
 end
 
+condstring(cond::DataFrameRow)=condstring(cond,names(cond))
 function condstring(cond::DataFrameRow,fs)
     join(["$f=$(cond[f])" for f in fs],", ")
+end
+condstring(cond::DataFrame)=condstring(cond,names(cond))
+function condstring(cond::DataFrame,fs)
+    [condstring(r,fs) for r in eachrow(cond)]
 end
 
 function condresponse(rs,is)

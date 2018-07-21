@@ -117,16 +117,36 @@ function plotpsth1(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}}
     Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl))
 end
 
-plotcondresponse(rs,ctc,u=0;factor=finalfactor(ctc)[1],title="",legend=:best)=plotcondresponse(Dict(u=>rs),ctc,factor=factor,title=title,legend=legend)
-function plotcondresponse(urs::Dict,ctc;factor=finalfactor(ctc)[1],colors=unitcolors(collect(keys(urs))),title="",legend=:best)
-    umse = condresponse(urs,ctc,factor)
-    @df umse Plots.plot(cols(factor),:m,yerror=:se,group=:u,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
+plotcondresponse(rs,ctc,factor,u=0;style=:path,title="",legend=:best)=plotcondresponse(Dict(u=>rs),ctc,factor,style=style,title=title,legend=legend)
+function plotcondresponse(urs::Dict,ctc::DataFrame,factor;colors=unitcolors(collect(keys(urs))),style=:path,title="",legend=:best)
+    plotcondresponse(urs,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]),colors=colors,style=style,title=title,legend=legend)
+end
+function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,title="",legend=:best)
+    factor=finalfactor(cond)
+    mseuc = condresponse(urs,cond)
+    nfactor=length(factor)
+    if nfactor==1
+        factor=factor[1]
+        if typeof(mseuc[factor][1]) <: Array
+            map!(string,mseuc[factor],mseuc[factor])
+            style=:bar
+        end
+    else
+        mseuc[:Condition]=condstring(mseuc[:,factor])
+        factor=:Condition
+        style=:bar
+    end
+    sort!(mseuc,factor)
+    @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
         grid=false,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title))
 end
 
 plotpsth(rvs::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvs,binedges,DataFrame(Factor="Value",i=[1:length(rvs)]),timeline=timeline,colors=colors,title=title)
-function plotpsth(rvs::RVVector,binedges::RealVector,ctc::DataFrame;factor=finalfactor(ctc)[1],timeline=[0],colors=:hue,title="")
-    cmse = psth(rvs,binedges,ctc,factor)
+function plotpsth(rvs::RVVector,binedges::RealVector,ctc::DataFrame,factor;timeline=[0],colors=:hue,title="")
+    plotpsth(rvs,binedges,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]),timeline=timeline,colors=colors,title=title)
+end
+function plotpsth(rvs::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=:hue,title="")
+    cmse = psth(rvs,binedges,cond)
     if colors==:hue
         colors=huecolors(length(levels(cmse[:c])))
     end

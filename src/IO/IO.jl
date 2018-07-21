@@ -1,6 +1,6 @@
 using MAT,Query,FileIO
 
-export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,digitaldata,
+export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,Bits16DCh,digitaldata,digitalbit,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_vlab!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile,querymeta
@@ -86,14 +86,43 @@ const CondDCh=1
 const MarkDCh=2
 const StartDCh=3
 const StopDCh=4
+const Bits16DCh=5
 "Get digital channel time and value."
 function digitaldata(dataset::Dict,ch)
-    chidx = find(dataset["digital"]["channel"].==ch)
+    chidx = findfirst(dataset["digital"]["channel"].==ch)
     if !isempty(chidx)
-        return dataset["digital"]["time"][chidx[1]],dataset["digital"]["data"][chidx[1]]
+        return dataset["digital"]["time"][chidx],dataset["digital"]["data"][chidx]
     else
         return [],[]
     end
+end
+"Parse bit event time and value."
+function digitalbit(dt,dv,bits...)
+    n = length(dt)
+    maxbit = maximum(bits)
+    bn = length(bits)
+    bt = [zeros(Float64,n+1) for _ in 1:bn]
+    bv = [zeros(UInt8,n+1) for _ in 1:bn]
+    j=ones(Int,bn)
+    for i in 1:n
+        ds = digits(UInt8,dv[i],2,maxbit)
+        for b in 1:bn
+            v=ds[bits[b]]
+            if v != bv[b][j[b]]
+                j[b]=j[b]+1
+                bt[b][j[b]]=dt[i]
+                bv[b][j[b]]=v
+            end
+        end
+    end
+    for b in 1:bn
+        bt[b]=bt[b][2:j[b]]
+        bv[b]=bv[b][2:j[b]]
+    end
+    if bn==1
+        return bt[1],bv[1]
+    end
+    return bt,bv
 end
 "Prepare exported `Matlab` dataset"
 prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...))
