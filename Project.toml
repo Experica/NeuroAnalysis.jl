@@ -1,0 +1,6 @@
+authors = ["Li Alex Zhang <fff008@gmail.com>"]
+name = "NeuroAnalysis"
+uuid = "088af2c0-9cce-11e8-35da-81725c7f79e6"
+version = "0.1.0"
+
+[deps]
