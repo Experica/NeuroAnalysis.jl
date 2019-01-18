@@ -1,9 +1,8 @@
-__precompile__(false)
+__precompile__(true)
 module NeuroAnalysis
 
 include("Base/Base.jl")
 include("Visualization/Visualization.jl")
 include("IO/IO.jl")
-include("Batch/Batch.jl")
 
 end # module

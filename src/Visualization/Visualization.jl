@@ -1,13 +1,13 @@
 using Gadfly,Plots,StatPlots,Rsvg
 
-export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,savefig
+export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,savefig
 
 plotlyjs()
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
-    if contains(fu,"Ori")
+    if occursin("Ori",fu)
         fu="$fu (deg)"
     elseif fu=="Diameter"
         fu="$fu (deg)"
@@ -33,7 +33,7 @@ function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
     uc = huecolors(n,alpha=alpha,saturation=saturation,brightness=brightness)
     insert!(uc,1,HSVA(0,0,0,alpha))
     if !isempty(uids)
-        uc=uc[uids+1]
+        uc=uc[sort(unique(uids)).+1]
     end
     return uc
 end
@@ -51,7 +51,7 @@ function plotspiketrain(sts::RVVector;uids::RVVector=RealVector[],sortvalues=[],
         g=uids;uc=colors
     else
         fuids = flatrvv(uids,sortvalues)[1]
-        g=map(i->"U$i",fuids);uc=colors[unique(fuids)+1]
+        g=map(i->"U$i",fuids);uc=colors[sort(unique(fuids)).+1]
     end
     plotspiketrain(flatrvv(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title)
 end
@@ -117,13 +117,18 @@ function plotpsth1(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}}
     Coord.Cartesian(xmin=binedges[1],xmax=binedges[end],ymin=0),Guide.xlabel(xl),Guide.ylabel(yl))
 end
 
-plotcondresponse(rs,ctc,factor,u=0;style=:path,title="",legend=:best)=plotcondresponse(Dict(u=>rs),ctc,factor,style=style,title=title,legend=legend)
-function plotcondresponse(urs::Dict,ctc::DataFrame,factor;colors=unitcolors(collect(keys(urs))),style=:path,title="",legend=:best)
-    plotcondresponse(urs,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]),colors=colors,style=style,title=title,legend=legend)
+plotcondresponse(rs,ctc,factor;u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best)=plotcondresponse(Dict(u=>rs),ctc,factor,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend)
+function plotcondresponse(urs::Dict,ctc::DataFrame,factor;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best)
+    mseuc = condresponse(urs,ctc,factor)
+    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend)
 end
-function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,title="",legend=:best)
-    factor=finalfactor(cond)
+function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best)
     mseuc = condresponse(urs,cond)
+    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend)
+end
+function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best)
+    us = sort(unique(mseuc[:u]))
+    factor=setdiff(names(mseuc),[:m,:se,:u])
     nfactor=length(factor)
     if nfactor==1
         factor=factor[1]
@@ -136,22 +141,45 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
         factor=:Condition
         style=:bar
     end
+    if projection==:polar
+        c0 = mseuc[mseuc[factor].==0,:]
+        c0[factor]=360
+        mseuc = [mseuc;c0]
+        mseuc[factor]=deg2rad.(mseuc[factor])
+    end
     sort!(mseuc,factor)
-    @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in keys(urs)],1,:),
-        grid=false,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title))
+    if projection==:polar
+        @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+        grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+    else
+        @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+        grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+    end
 end
 
-plotpsth(rvs::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvs,binedges,DataFrame(Factor="Value",i=[1:length(rvs)]),timeline=timeline,colors=colors,title=title)
-function plotpsth(rvs::RVVector,binedges::RealVector,ctc::DataFrame,factor;timeline=[0],colors=:hue,title="")
-    plotpsth(rvs,binedges,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]),timeline=timeline,colors=colors,title=title)
+plotpsth(rvv::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvv,binedges,DataFrame(Factor="Value",i=[1:length(rvv)]),timeline=timeline,colors=colors,title=title)
+function plotpsth(rvv::RVVector,binedges::RealVector,ctc::DataFrame,factor;timeline=[0],colors=nothing,title="")
+    msexc = psth(rvv,binedges,ctc,factor)
+    plotpsth(msexc,timeline=timeline,colors=colors==nothing ? huecolors(length(levels(msexc[:c]))) : colors,title=title)
 end
-function plotpsth(rvs::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=:hue,title="")
-    cmse = psth(rvs,binedges,cond)
-    if colors==:hue
-        colors=huecolors(length(levels(cmse[:c])))
-    end
-    @df cmse Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
+function plotpsth(rvv::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=huecolors(nrow(cond)),title="")
+    msexc = psth(rvv,binedges,cond)
+    plotpsth(msexc,timeline=timeLine,colors=colors,title=title)
+end
+function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
+    @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
+end
+
+function plotsta(α;delay=nothing,decor=false,savedir=nothing)
+    ds = delay==nothing ? "" : "_$(delay)ms"
+    t = (decor ? "d" : "") * "STA$ds"
+    p=Plots.plot(α,seriestype=:heatmap,color=:fire,ratio=:equal,yflip=true,leg=false,framestyle=:none,title=t)
+    if savedir!=nothing
+        !isdir(savedir) && mkpath(savedir)
+        png(p,joinpath(savedir,t))
+    end
+    p
 end
 
 function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")

@@ -1,41 +1,56 @@
-using Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering
+using Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions
 
+include("CircStats.jl")
 include("NeuroDataType.jl")
 include("Spike.jl")
 include("Image.jl")
 
-export anscombe,isresponsive,vmf,gvmf,circvar,circr,statsori,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
+export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
+"Check if `response` is significently different to `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
-isresponsive(baseline,response,is;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),is))
+"Check if any `group of response` is significently different to `baseline` by `Wilcoxon Signed Rank Test`"
+isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
 
-vmf(α,β=1,μ=0.0,κ=1.0,n=1) = β*exp(κ*(cos(n*(α-μ))-1))
+"`von Mises` function"
+vmf(α,β=1,μ=0.0,κ=1.0;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
+"`Generalized von Mises` function"
 gvmf(α,β=1,μ₁=0.0,κ₁=1.0,μ₂=0.0,κ₂=1.0) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2*(α-μ₂))-1))
 
-circvar(α::AbstractVector,w=ones(length(α))) = 1-circr(α,w)
-function circr(α::AbstractVector,w=ones(length(α)))
-    abs(sum(w.*exp.(im*α)))/sum(w)
-end
-
-function statsori(m,ori)
+function statsori(ori::Vector{Float64},m::Vector{Float64})
+    # Circular Statistics
+    d=deg2rad(filter(x->x!=0,unique(diff(sort(ori))))[1])
     a = deg2rad.(ori)
-    dcv = circvar(a,m)
-    dtf = curve_fit((x,p)->gvmf.(x,p...),a,m,Float64[1,0,0,0,0])
+    dcv = circvar(a,m,d)
+    aa=circaxial.(a)
+    ad=circaxial(d)
+    ocv = circvar(aa,m,ad)
 
+    # Generalized von Mises and von Mises model fitting
+    gvmfit = curve_fit((x,p)->gvmf.(x,p...),a,m,Float64[1,0,0,0,0])
+    vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),a,m,Float64[1,0,0])
     # 1deg = 0.017rad, 0.01rad = 0.57deg
     x = collect(0:0.01:2pi)
-    pdir = rad2deg(x[indmax(gvmf.(x,dtf.param...))])
-    
-    o = a.%pi
-    ocv = circvar(2o,m)
-    otf = curve_fit((x,p)->vmf.(x,p...,2),o,m,Float64[1,0,0])
-    x = collect(0:0.01:pi)
-    pori = rad2deg(x[indmax(vmf.(x,otf.param...,2))])
+    pdir = x[argmax(gvmf.(x,gvmfit.param...))]
+    pori = x[argmax(vmf.(x,vmfit.param...,n=2))]%pi
 
-    Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori)
+    Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori,:gvm=>[gvmfit.param],:vm=>[vmfit.param])
+end
+
+"Spike Triggered Average"
+function sta(x::AbstractMatrix,y::AbstractVector,xsize;decor=false)
+    r=dropdims(sum(x.*y,dims=1),dims=1)/sum(y)
+    if decor
+        try
+            r=length(y)*inv(cov(x,dims=1))*r
+        catch
+            r=zeros(xsize)
+        end
+    end
+    reshape(r,xsize)
 end
 
 # function drv(p,n=1,isfreq=false)
@@ -160,79 +175,63 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
     return is[vi],ss[vi],conds[vi]
 end
 
-flin(cond::Dict)=flin(DataFrame(cond))
+flin(ctc::Dict)=flin(DataFrame(ctc))
 """
 Find levels(except missing) for each factor and indices, repetition for each level
 """
-function flin(ctc::DataFrame;isindex=true)
+function flin(ctc::DataFrame)
     fl=Dict();fli=Dict();fln=Dict()
     for f in names(ctc)
         ls = levels(ctc[f])
         fl[f]=ls
-        if isindex
-            lsi = [find(ctc[f].==l) for l in ls]
-            fli[f]=lsi
-            fln[f]=length.(lsi)
-        end
+        lsi = [findall(ctc[f].==l) for l in ls]
+        fli[f]=lsi
+        fln[f]=length.(lsi)
     end
     return fl,fli,fln
 end
 
-condin(cond::Dict)=condin(DataFrame(cond))
+condin(ctc::Dict)=condin(DataFrame(ctc))
 """
 Find unique condition and indices, repetition for each
 """
 function condin(ctc::DataFrame)
     t = [ctc DataFrame(i=1:nrow(ctc))]
-    by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:i]]))
+    by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:,:i]]))
 end
 
 condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])
 
 function finalfactor(cond::DataFrame)
     fs = String.(condfactor(cond))
-    for i in length(fs):-1:1
-        if !endswith(fs[i],"_Final") && any(fs.=="$(fs[i])_Final")
-            deleteat!(fs,i)
-        end
-    end
+    fs = filter(f->endswith(f,"_Final") || ∉("$(f)_Final",fs),fs)
     Symbol.(fs)
 end
 
-condstring(cond::DataFrameRow)=condstring(cond,names(cond))
-function condstring(cond::DataFrameRow,fs)
+"Condition in String"
+function condstring(cond::DataFrameRow,fs=names(cond))
     join(["$f=$(cond[f])" for f in fs],", ")
 end
-condstring(cond::DataFrame)=condstring(cond,names(cond))
-function condstring(cond::DataFrame,fs)
+function condstring(cond::DataFrame,fs=names(cond))
     [condstring(r,fs) for r in eachrow(cond)]
 end
 
-function condresponse(rs,is)
-    grs = [rs[i] for i in is]
+"Group repeats of Conditions, get `Mean` and `SEM`"
+function condresponse(rs,gi)
+    grs = [rs[i] for i in gi]
     DataFrame(m=mean.(grs),se=sem.(grs))
 end
-function condresponse(rs,cond::DataFrame,u=0)
+function condresponse(rs,cond::DataFrame;u=0)
     crs = [rs[r[:i]] for r in eachrow(cond)]
     df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs))) cond[condfactor(cond)]]
 end
 function condresponse(urs::Dict,cond::DataFrame)
-    vcat([condresponse(v,cond,k) for (k,v) in urs]...)
+    vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
 end
 function condresponse(urs::Dict,ctc::DataFrame,factor)
-    condresponse(urs,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]))
-end
-
-function psth(rvs::RVVector,binedges::RealVector,c;normfun=nothing)
-    m,se,x = psth(rvs,binedges,normfun=normfun)
-    df = DataFrame(x=x,m=m,se=se,c=[c for _ in 1:length(x)])
-end
-function psth(rvs::RVVector,binedges::RealVector,cond::DataFrame;normfun=nothing)
-    fs = finalfactor(cond)
-    vcat([psth(rvs[r[:i]],binedges,condstring(r,fs),normfun=normfun) for r in eachrow(cond)]...)
-end
-function psth(rvs::RVVector,binedges::RealVector,ctc::DataFrame,factor;normfun=nothing)
-    psth(rvs,binedges,condin(ctc[:,filter(f->any(f.==factor),names(ctc))]),normfun=normfun)
+    vf = filter(f->any(f.==factor),names(ctc))
+    isempty(vf) && error("No Valid Factor Found.")
+    condresponse(urs,condin(ctc[:,vf]))
 end
 
 function setfln(fl::Dict,n::Int)
@@ -297,6 +296,20 @@ function condmean(rs,us,ridx,conds)
     return m,hcat(sd...),hcat(n...)
 end
 
+function psth(rvv::RVVector,binedges::RealVector,c;israte::Bool=true,normfun=nothing)
+    m,se,x = psth(rvv,binedges,israte=israte,normfun=normfun)
+    df = DataFrame(x=x,m=m,se=se,c=fill(c,length(x)))
+end
+function psth(rvv::RVVector,binedges::RealVector,cond::DataFrame;israte::Bool=true,normfun=nothing)
+    fs = finalfactor(cond)
+    vcat([psth(rvv[r[:i]],binedges,condstring(r,fs),israte=israte,normfun=normfun) for r in eachrow(cond)]...)
+end
+function psth(rvv::RVVector,binedges::RealVector,ctc::DataFrame,factor;israte::Bool=true,normfun=nothing)
+    vf = filter(f->any(f.==factor),names(ctc))
+    isempty(vf) && error("No Valid Factor Found.")
+    psth(rvv,binedges,condin(ctc[:,vf]),israte=israte,normfun=normfun)
+end
+
 function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};normfun=nothing,spike=:spike,isse::Bool=true)
     is,ss = findcond(ds,conds)
     df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
@@ -306,7 +319,6 @@ function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};norm
     end
     return df,ss
 end
-
 function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
     n = length(rvvs)
     n!=length(conds) && error("Length of rvvs and conds don't match.")

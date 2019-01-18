@@ -1,21 +1,24 @@
 using MAT,Query,FileIO
 
 export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,Bits16DCh,digitaldata,digitalbit,
-prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_vlab!,
+prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
-oifileregex,getoifile,vlabfileregex,getvlabfile,matchfile,querymeta
+oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta
 
-"Read `Matlab` MAT format data"
-function readmat(f::AbstractString,vars...)
-    datavars=["spike","lfp","digital","analog1k","image"]
+"Read variables in `Matlab` MAT format data"
+function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
     if isempty(vars)
         d=matread(f)
     else
         d=Dict()
         matopen(f) do file
             fvs = names(file)
-            basevars=setdiff(fvs,datavars)
-            vs=union(basevars,intersect(datavars,vars))
+            reqvars=setdiff(fvs,optvars)
+            ovs = intersect(optvars,vars)
+            for ivov in setdiff(ovs,fvs)
+                @warn """variable "$ivov" not found."""
+            end
+            vs=union(reqvars,intersect(fvs,ovs))
             if !isempty(vs)
                 for v in vs
                     d[v]=read(file,v)
@@ -33,7 +36,7 @@ function readmeta(f::AbstractString)
     DataFrame(d)
 end
 
-"Convert `Matlab` variable to `Julia` type with proper dimention"
+"Convert `Matlab` type to `Julia` type with proper dimention"
 function mat2julia!(x;isscaler = true,isvector = true)
     if x isa Dict
         for k in keys(x)
@@ -43,11 +46,11 @@ function mat2julia!(x;isscaler = true,isvector = true)
         if ndims(x)==2
             s = size(x)
             if s[1]==1 && s[2]==1
-                x = isscaler?x[1,1]:isvector?squeeze(x,2):x
+                x = isscaler ? x[1,1] : isvector ? dropdims(x,dims=2) : x
             elseif s[1]==1 && s[2]>1
-                x = isvector?squeeze(x,1):x
+                x = isvector ? dropdims(x,dims=1) : x
             elseif s[1]>1 && s[2]==1
-                x = isvector?squeeze(x,2):x
+                x = isvector ? dropdims(x,dims=2) : x
             end
         end
         if x isa Array{Any} || x isa Array{Array} || x isa Array{Dict}
@@ -124,7 +127,8 @@ function digitalbit(dt,dv,bits...)
     end
     return bt,bv
 end
-"Prepare exported `Matlab` dataset"
+
+"Prepare Dataset"
 prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...))
 function prepare!(d::Dict)
     if haskey(d,"sourceformat")
@@ -133,13 +137,13 @@ function prepare!(d::Dict)
             d=prepare_ripple!(d)
         elseif sf=="OI"
             d=prepare_oi!(d)
-        elseif sf=="VLab"
-            d=prepare_vlab!(d)
+        elseif sf=="Experica"
+            d=prepare_experica!(d)
         end
     end
     return d
 end
-"Prepare Ripple Data"
+"Prepare `Ripple` Data"
 function prepare_ripple!(d::Dict)
     mat2julia!(d)
     if haskey(d,"spike")
@@ -154,13 +158,13 @@ function prepare_ripple!(d::Dict)
     end
     return d
 end
-"Prepare Optical Imaging Block Data"
+"Prepare `Optical Imaging` Block Data"
 function prepare_oi!(d::Dict)
     mat2julia!(d)
     return d
 end
-"Prepare VLab Experiment Data"
-function prepare_vlab!(d::Dict)
+"Prepare `Experica` Experiment Data"
+function prepare_experica!(d::Dict)
     mat2julia!(d)
     return d
 end
@@ -169,8 +173,8 @@ end
 function statetime(ct::Dict;statetype::AbstractString="CONDSTATE",state::AbstractString="COND")
     if haskey(ct,statetype)
         filter!(l->!isempty(l),map(i->begin
-        t = filter!(k->!isempty(k),map(j->haskey(j,state)?j[state]:[],i))
-        length(t)==1?t[1]:t
+        t = filter!(k->!isempty(k),map(j->haskey(j,state) ? j[state] : [],i))
+        length(t)==1 ? t[1] : t
     end,ct[statetype]))
 else
     []
@@ -183,17 +187,17 @@ function getparam(d::Dict,name,fromobject="")
     end
 end
 
-"Get condition test factor DataFrame"
+"Get `CondTestCond` DataFrame"
 function condtestcond(ctcd::Dict)
     ctc = DataFrame(ctcd)
     return ctc
 end
-"Get `condtest` DataFrame"
+"Get `CondTest` DataFrame"
 function condtest(ctd::Dict)
     ct = DataFrame(ctd)
     return ct
 end
-"Get `condtest` and `condtestcond` DataFrame"
+"Get `CondTest` and `CondTestCond` DataFrame"
 function ctctc(ctd::Dict,ctcd::Dict)
     ct = condtest(ctd)
     ctc = condtestcond(ctcd)
@@ -233,24 +237,24 @@ function oifileregex(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="
 end
 
 "Get Optical Imaging `VDAQ` matched files in directory"
-function getoifile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="[0-9]",format="mat",dir="",adddir=true)
+function getoifile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",experimentid="[0-9]",format="mat",dir="",adddir=false)
     matchfile(oifileregex(subject=subject,session=session,experimentid=experimentid,format=format),dir=dir,adddir=adddir)
 end
 
-"Regular Expression to match `VLab` data file name"
-function vlabfileregex(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0-9]",test="[A-Za-z0-9]",maxrepeat=10,format="mat")
-    mr = lpad(maxrepeat,2,0);d2=mr[1];d1=parse(Int,d2)>0?9:mr[2]
+"Regular Expression to match `Experica` data file name"
+function expericafileregex(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0-9]",test="[A-Za-z0-9]",maxrepeat=10,format="mat")
+    mr = lpad(maxrepeat,2,"0");d2=mr[1];d1=parse(Int,d2)>0 ? 9 : mr[2]
     Regex("^$subject+_$session*_?$site*_?$test+_[0-$d2]?[0-$d1][.]$format")
 end
 
-"Get matched `VLab` files in directory"
-function getvlabfile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0-9]",test="[A-Za-z0-9]",maxrepeat=10,format="mat",dir="",adddir=false)
-    matchfile(vlabfileregex(subject=subject,session=session,site=site,test=test,maxrepeat=maxrepeat,format=format),dir=dir,adddir=adddir)
+"Get matched `Experica` files in directory"
+function getexpericafile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Za-z0-9]",test="[A-Za-z0-9]",maxrepeat=10,format="mat",dir="",adddir=false)
+    matchfile(expericafileregex(subject=subject,session=session,site=site,test=test,maxrepeat=maxrepeat,format=format),dir=dir,adddir=adddir)
 end
 
 "Get matched files in directory, optionally add directory to get file path"
 function matchfile(pattern::Regex;dir="",adddir::Bool=false)
-    fs = filter!(f->ismatch(pattern,f),readdir(dir))
+    fs = filter!(f->occursin(pattern,f),readdir(dir))
     if adddir
         fs=joinpath.(dir,fs)
     end
