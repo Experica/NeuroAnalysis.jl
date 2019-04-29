@@ -2,8 +2,6 @@ using Plots,StatsPlots
 
 export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta
 
-plotlyjs()
-
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
