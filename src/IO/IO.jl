@@ -1,9 +1,12 @@
 using MAT,Query,FileIO
 
+include("SpikeGLX.jl")
+
 export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,Bits16DCh,digitaldata,digitalbit,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
-oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta
+oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta,
+subrm,getepochlfpcol
 
 "Read variables in `Matlab` MAT format data"
 function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
@@ -129,8 +132,9 @@ function digitalbit(dt,dv,bits...)
 end
 
 "Prepare Dataset"
-prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...))
-function prepare!(d::Dict)
+prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...),true)
+function prepare!(d::Dict,ismat=true)
+    ismat && mat2julia!(d)
     if haskey(d,"sourceformat")
         sf = d["sourceformat"]
         if sf=="Ripple"
@@ -145,7 +149,6 @@ function prepare!(d::Dict)
 end
 "Prepare `Ripple` Data"
 function prepare_ripple!(d::Dict)
-    mat2julia!(d)
     if haskey(d,"spike")
         st=d["spike"]["time"]
         su=d["spike"]["unitid"]
@@ -160,12 +163,10 @@ function prepare_ripple!(d::Dict)
 end
 "Prepare `Optical Imaging` Block Data"
 function prepare_oi!(d::Dict)
-    mat2julia!(d)
     return d
 end
 "Prepare `Experica` Experiment Data"
 function prepare_experica!(d::Dict)
-    mat2julia!(d)
     return d
 end
 
@@ -216,6 +217,41 @@ function maptodatatime(x,ex::Dict;addlatency=true)
     return t
 end
 
+function subrm(rm,fs,epochs;meta=[],chs=1:size(rm,1),bandpass=[1,100])
+    nepoch = size(epochs,1)
+    epochis = Int.(floor.(epochs.*fs))
+    minepochlength = minimum(diff(epochis,dims=2))
+    ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
+    for i in 1:nepoch
+        y = rm[chs,range(epochis[i,1],length=minepochlength)]
+        if !isempty(meta)
+            y=gaincorrectim(y,meta)
+            rmline!(y,fs)
+            y = hlpass(y,low=bandpass[2],high=bandpass[1],fs=fs)
+        end
+        ys[:,:,i] = y
+    end
+    return nepoch==1 ? dropdims(ys,dims=3) : ys
+end
+
+function getepochlfpcol(ys,refmask;cleanref=true)
+    ncol=size(refmask,2)
+    cyss=Array{Array{Float64,3}}(undef,ncol)
+    for c in 1:ncol
+        cys=ys[c:ncol:end,:,:]
+        if cleanref
+            for r in 1:size(cys,1)
+                if refmask[r,c]
+                    for j in 1:size(cys,3)
+                        cys[r,:,j]=(cys[r-1,:,j].+cys[r+1,:,j]) / 2
+                    end
+                end
+            end
+        end
+        cyss[c]=cys
+    end
+    return cyss
+end
 
 "convert `Matlab` struct of array to `DataFrame`"
 matdictarray2df(d) = DataFrame(Any[squeeze(v,2) for v in values(d)],[Symbol(k) for k in keys(d)])

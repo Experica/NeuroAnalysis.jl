@@ -1,6 +1,6 @@
 using Plots,StatsPlots
 
-export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta
+export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
@@ -149,6 +149,37 @@ function plotsta(α;delay=nothing,decor=false,savedir=nothing)
         png(p,joinpath(savedir,t))
     end
     p
+end
+
+function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ichi=20,color=:coolwarm)
+    nd=ndims(y)
+    if nd==1
+        x=1:length(y)
+        if fs>0
+            x = x./fs.-xext
+            if timeunit==:ms
+                x*=1000
+            end
+        end
+        ylim=maximum(abs.(y))
+        plot(x,y,ylims=(-ylim,ylim))
+    elseif nd==2
+        x=1:size(y,2)
+        if fs>0
+            x = x./fs.-xext
+            if timeunit==:ms
+                x*=1000
+            end
+        end
+        ylim=maximum(abs.(y))
+        if plottype==:heatmap
+            chdepth = (0:size(y,1)-1)*ichi
+            heatmap(x,chdepth,y,color=color,clims=(-ylim,ylim))
+        else
+            plot(x,y',legend=false,color_palette=color,ylims=(-ylim,ylim))
+        end
+    end
+    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xlabel="Time ($timeunit)")
 end
 
 # function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")

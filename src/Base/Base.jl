@@ -1,8 +1,9 @@
-using Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,DSP,HCubature
 
-include("CircStats.jl")
 include("NeuroDataType.jl")
+include("CircStats.jl")
 include("Spike.jl")
+include("LFP.jl")
 include("Image.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
