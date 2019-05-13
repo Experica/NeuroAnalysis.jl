@@ -6,7 +6,7 @@ export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta,
-subrm,getepochlfpcol
+subrm,getepochlfpcol,unitfyspike
 
 "Read variables in `Matlab` MAT format data"
 function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
@@ -135,6 +135,9 @@ end
 prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...),true)
 function prepare!(d::Dict,ismat=true)
     ismat && mat2julia!(d)
+    if haskey(d,"secondperunit")
+        global SecondPerUnit = d["secondperunit"]
+    end
     if haskey(d,"sourceformat")
         sf = d["sourceformat"]
         if sf=="Ripple"
@@ -143,6 +146,11 @@ function prepare!(d::Dict,ismat=true)
             d=prepare_oi!(d)
         elseif sf=="Experica"
             d=prepare_experica!(d)
+        end
+    end
+    if !haskey(d,"spike")
+        if haskey(d,"spike_kilosort")
+            d["spike"] = unitfyspike(d["spike_kilosort"])
         end
     end
     return d
@@ -252,6 +260,41 @@ function getepochlfpcol(ys,refmask;cleanref=true)
     end
     return cyss
 end
+
+"get spiking units info"
+function unitfyspike(data::Dict)
+    # kilosort results
+    rawspiketime = data["time"]
+    rawspikeunit = data["template"]
+    rawamplitude = data["amplitude"]
+    templates = data["templates"] # nTemplates x nTimePoints x nChannels
+    chmap = data["chanmap"]
+    chposition = data["channelposition"]
+    good = data["good"].==1
+    whiten = data["whiteningmatrix"]
+    whiteninv = data["whiteningmatrixinv"]
+
+    templatesunwhiten = zeros(size(templates))
+    for t in 1:size(templates,1)
+        templatesunwhiten[t,:,:] = templates[t,:,:]*whiteninv
+    end
+    templatesunwhiten_height = dropdims(map(i->-(-(i...)),extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
+
+    # each unit
+    unitid = unique(rawspikeunit)
+    unitgood = good[unitid]
+    unitindex = [rawspikeunit.==i for i in unitid]
+    unitspike = map(i->rawspiketime[i],unitindex)
+    unitamplitude = map(i->rawamplitude[i],unitindex)
+    unittemplates = map(i->templates[i,:,:],unitid)
+    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],unitid)
+    unittemplatesunwhiten_height = map(i->templatesunwhiten_height[i,:],unitid)
+
+    unitposition = vcat(map(w->sum(w.*chposition,dims=1)/sum(w),unittemplatesunwhiten_height)...) # center of mass from all weighted unit template channel positions
+
+    return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition)
+end
+
 
 "convert `Matlab` struct of array to `DataFrame`"
 matdictarray2df(d) = DataFrame(Any[squeeze(v,2) for v in values(d)],[Symbol(k) for k in keys(d)])

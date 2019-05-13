@@ -1,7 +1,7 @@
 export subrv,subrvr,isi,poissonspike,flatrvv,histrv,histmatrix,psth
 
 "Sub set of `RealVector` V, where `min <= V[i] < max`. KwArgs `isminzero` and `ismaxzero` set subrv zero to min and max."
-function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false,israte::Bool=false)
+function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     if ismaxzero && isminzero
         error("Zero setting conflicts, only one of them is allowed to be true.")
     end
@@ -9,10 +9,10 @@ function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzer
     n = length(i)
     y = rv[i]
     if isminzero
-        y .-= min
+        y .-= min+shift
     end
     if ismaxzero
-        y .-= max
+        y .-= max+shift
     end
     if israte
         n /= ((max-min)*SecondPerUnit)
@@ -20,7 +20,7 @@ function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzer
     w = (min, max)
     return y,n,w,i
 end
-function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,israte::Bool=false)
+function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     yn = length(mins)
     if yn != length(maxs)
         error("Length of mins and maxs do not match.")
@@ -30,23 +30,24 @@ function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=
     ws = Vector{Tuple{Real,Real}}(undef,yn)
     is = Vector{Vector{Int}}(undef,yn)
     for i in 1:yn
-        ys[i],ns[i],ws[i],is[i] = subrv(rv,mins[i],maxs[i],isminzero=isminzero,ismaxzero=ismaxzero,israte=israte)
+        ys[i],ns[i],ws[i],is[i] = subrv(rv,mins[i],maxs[i],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
     end
     return ys,ns,ws,is
 end
+subrv(rv::RealVector,minmaxs::RealMatrix;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false) = subrv(rv,minmaxs[:,1],minmaxs[:,end],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
 "Sub sets of `RealVector` in between binedges"
-function subrv(rv::RealVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,israte::Bool=false)
+function subrv(rv::RealVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     nbinedges = length(binedges);nbinedges<2 && error("Have $nbinedges binedges, need at least two binedges.")
-    subrv(rv,binedges[1:end-1],binedges[2:end],isminzero=isminzero,ismaxzero=ismaxzero,israte=israte)
+    subrv(rv,binedges[1:end-1],binedges[2:end],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
 end
-function subrv(rvv::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,israte::Bool=false)
+function subrv(rvv::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     yn = length(rvv)
     ys = Vector{RVVector}(undef,yn)
     ns = Vector{Vector{Real}}(undef,yn)
     ws = nothing
     is = Vector{Vector{Vector{Int}}}(undef,yn)
     for i in 1:yn
-        ys[i],ns[i],ws,is[i] = subrv(rvv[i],binedges,isminzero=isminzero,ismaxzero=ismaxzero,israte=israte)
+        ys[i],ns[i],ws,is[i] = subrv(rvv[i],binedges,isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
     end
     return ys,ns,ws,is
 end

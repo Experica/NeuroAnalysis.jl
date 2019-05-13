@@ -1,6 +1,6 @@
 using Plots,StatsPlots
 
-export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog
+export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog,plotunitposition
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
@@ -133,11 +133,15 @@ function plotpsth(rvv::RVVector,binedges::RealVector,ctc::DataFrame,factor;timel
 end
 function plotpsth(rvv::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=huecolors(nrow(cond)),title="")
     msexc = psth(rvv,binedges,cond)
-    plotpsth(msexc,timeline=timeLine,colors=colors,title=title)
+    plotpsth(msexc,timeline=timeline,colors=colors,title=title)
 end
 function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
     @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
+end
+function plotpsth(data::RealMatrix,x,y,color=:Reds,timeline=[0])
+    heatmap(x,y,data,color=color)
+    vline!(timeline,color=:gray,label="TimeLine")
 end
 
 function plotsta(α;delay=nothing,decor=false,savedir=nothing)
@@ -182,6 +186,22 @@ function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ic
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xlabel="Time ($timeunit)")
 end
 
+plotunitposition(spike::Dict) = plotunitposition(spike["unitposition"],spike["unitgood"],spike["chposition"],spike["unitid"])
+function plotunitposition(unitposition,unitgood=[],chposition=[],unitid=[])
+    p = plot(legend=false,xlabel="Position_X (um)",ylabel="Position_Y (um)")
+    if !isempty(chposition)
+        scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=2,color=:grey60)
+    end
+    color = :gray30
+    if !isempty(unitgood)
+        color = map(i->i ? :darkgreen : :gray30,unitgood)
+    end
+    if !isempty(unitid)
+        scatter!(p,unitposition[:,1],unitposition[:,2],color=color,alpha=0.6,markerstrokewidth=0,markersize=8,series_annotations=text.(unitid,5,color,:center))
+    else
+        scatter!(p,unitposition[:,1],unitposition[:,2],color=color,alpha=0.6,markerstrokewidth=0,markersize=8)
+    end
+end
 # function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")
 #     f = joinpath(path,"$filename.$format")
 #     if !ispath(path)

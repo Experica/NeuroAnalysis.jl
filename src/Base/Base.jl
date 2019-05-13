@@ -1,4 +1,5 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,DSP,HCubature
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
+DSP,HCubature,Combinatorics
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -7,7 +8,7 @@ include("LFP.jl")
 include("Image.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
-setfln,testfln,condmean
+setfln,testfln,condmean,spacepsth,autocorr,crosscorr
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
@@ -325,4 +326,77 @@ function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
     n!=length(conds) && error("Length of rvvs and conds don't match.")
     dfs = [psth(rvvs[i],binedges,conds[i],normfun=normfun) for i=1:n]
     return cat(1,dfs)
+end
+function spacepsth(unitpsth,unitposition;spacebinedges=range(0,step=40,length=ceil(Int,maximum(unitposition[:,2])/40)))
+    ys,ns,ws,is = subrv(unitposition[:,2],spacebinedges)
+    x = unitpsth[1][3]
+    nbins = length(is)
+    um = map(i->i[1],unitpsth)
+    use = map(i->i[2],unitpsth)
+    spsth = zeros(nbins,length(x))
+    for i in 1:nbins
+        if length(is[i]) > 0
+            spsth[i,:] = mean(hcat(um[is[i]]...),dims=2)
+        end
+    end
+    binwidth = ws[1][2]-ws[1][1]
+    bincenters = [ws[i][1]+binwidth/2.0 for i=1:nbins]
+    return spsth,x,bincenters
+end
+
+function autocorr(unitbinspike;lag=nothing)
+        n = size(unitbinspike[1],1)
+        lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
+        x = 0:lag
+        return map(i->begin
+        t = dropdims(mean(autocov(i,x),dims=2),dims=2)
+        t/=t[1];t[1]=0;t
+        end,unitbinspike),x
+end
+
+function crosscorr(unitbinspike;lag=nothing,maxprojlag=3,minrepeat=10)
+        nunit=length(unitbinspike)
+        n,nepoch = size(unitbinspike[1])
+        lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
+        x = -lag:lag;xn=2lag+1
+        ys=[];yis=[];ps=[];es=[];is=[]
+        for (i,j) in combinations(1:nunit,2)
+            cc = Matrix{Float64}(undef,xn,nepoch)
+            for k in 1:nepoch
+                cc[:,k]=crosscor(unitbinspike[i][:,k],unitbinspike[j][:,k],x)
+            end
+                vi = .!isnan.(cc)
+                cc = reshape(cc[vi],(xn,:))
+                size(cc,2) < minrepeat && continue
+                cc = dropdims(mean(cc,dims=2),dims=2)
+
+                ccp,cce,cci = projectionfromcrosscorr(cc,i,j,maxprojlag=maxprojlag)
+                if !isempty(ccp)
+                        push!(ys,cc);push!(yis,(i,j))
+                        append!(ps,ccp);append!(es,cce);append!(is,cci)
+                end
+        end
+        return ys,x,yis,ps,es,is
+end
+
+function projectionfromcrosscorr(cc,i,j;maxprojlag=3,sdfactor=4)
+        mc,sdc = mean_and_std(cc);hl = mc + sdfactor*sdc;ll = mc - sdfactor*sdc
+        midi = Int((length(cc)+1)/2)
+        forwardlags = midi+1:midi+maxprojlag
+        backwardlags = midi-maxprojlag:midi-1
+        fcc = cc[forwardlags]
+        bcc = cc[backwardlags]
+        ps=[];ei=[];ii=[]
+
+        if any(fcc .> hl)
+                push!(ps,(i,j));push!(ei,i)
+        elseif any(fcc .< ll)
+                push!(ps,(i,j));push!(ii,i)
+        end
+        if any(bcc .> hl)
+                push!(ps,(j,i));push!(ei,j)
+        elseif any(bcc .< ll)
+                push!(ps,(j,i));push!(ii,j)
+        end
+        return ps,ei,ii
 end
