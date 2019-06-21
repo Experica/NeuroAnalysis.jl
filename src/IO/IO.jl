@@ -32,7 +32,7 @@ function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","ana
     return d
 end
 
-"Read Metadata MAT file"
+"Read Metadata MAT File"
 function readmeta(f::AbstractString)
     d = readmat(f)["Tests"]
     mat2julia!(d)
@@ -136,7 +136,7 @@ prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...),true)
 function prepare!(d::Dict,ismat=true)
     ismat && mat2julia!(d)
     if haskey(d,"secondperunit")
-        global SecondPerUnit = d["secondperunit"]
+        settimeunit(d["secondperunit"])
     end
     if haskey(d,"sourceformat")
         sf = d["sourceformat"]
@@ -227,11 +227,11 @@ end
 
 function subrm(rm,fs,epochs;meta=[],chs=1:size(rm,1),bandpass=[1,100])
     nepoch = size(epochs,1)
-    epochis = Int.(floor.(epochs.*fs))
+    epochis = floor.(Int,epochs.*fs)
     minepochlength = minimum(diff(epochis,dims=2))
     ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
     for i in 1:nepoch
-        y = rm[chs,range(epochis[i,1],length=minepochlength)]
+        y = rm[chs,range(max(1,epochis[i,1]),length=minepochlength)]
         if !isempty(meta)
             y=gaincorrectim(y,meta)
             rmline!(y,fs)
@@ -251,7 +251,7 @@ function getepochlfpcol(ys,refmask;cleanref=true)
             for r in 1:size(cys,1)
                 if refmask[r,c]
                     for j in 1:size(cys,3)
-                        cys[r,:,j]=(cys[r-1,:,j].+cys[r+1,:,j]) / 2
+                        cys[r,:,j]=(cys[r-1,:,j].+cys[r+1,:,j]) / 2 # Local Average
                     end
                 end
             end
@@ -265,13 +265,12 @@ end
 function unitfyspike(data::Dict)
     # kilosort results
     rawspiketime = data["time"]
-    rawspikeunit = data["template"]
+    rawspiketemplate = data["template"]
+    rawspikecluster = data["cluster"]
     rawamplitude = data["amplitude"]
+
     templates = data["templates"] # nTemplates x nTimePoints x nChannels
-    chmap = data["chanmap"]
     chposition = data["channelposition"]
-    good = data["good"].==1
-    whiten = data["whiteningmatrix"]
     whiteninv = data["whiteningmatrixinv"]
 
     templatesunwhiten = zeros(size(templates))
@@ -281,14 +280,15 @@ function unitfyspike(data::Dict)
     templatesunwhiten_height = dropdims(map(i->-(-(i...)),extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
 
     # each unit
-    unitid = unique(rawspikeunit)
-    unitgood = good[unitid]
-    unitindex = [rawspikeunit.==i for i in unitid]
+    unitid = data["clusterid"]
+    unitgood = data["good"].==1
+    unitindex = [rawspikecluster.==i for i in unitid]
     unitspike = map(i->rawspiketime[i],unitindex)
     unitamplitude = map(i->rawamplitude[i],unitindex)
-    unittemplates = map(i->templates[i,:,:],unitid)
-    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],unitid)
-    unittemplatesunwhiten_height = map(i->templatesunwhiten_height[i,:],unitid)
+    unittemplate = map(i->rawspiketemplate[i][1],unitindex)
+    unittemplates = map(i->templates[i,:,:],unittemplate)
+    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],unittemplate)
+    unittemplatesunwhiten_height = map(i->templatesunwhiten_height[i,:],unittemplate)
 
     unitposition = vcat(map(w->sum(w.*chposition,dims=1)/sum(w),unittemplatesunwhiten_height)...) # center of mass from all weighted unit template channel positions
 
@@ -340,12 +340,12 @@ function matchfile(pattern::Regex;dir="",adddir::Bool=false)
     return fs
 end
 
-function querymeta(meta::DataFrame;test="",sourceformat="Ripple",subject="C")
+function querymeta(meta::DataFrame;test="",sourceformat="",subject="")
     @from i in meta begin
     @where startswith(get(i.Subject_ID),subject)
     @where i.ID==test
     @where i.sourceformat==sourceformat
-    @select {i.UUID,i.files}
+    @select {i.ID,i.UUID,i.files}
     @collect DataFrame
     end
 end

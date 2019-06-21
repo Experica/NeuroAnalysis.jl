@@ -52,6 +52,7 @@ function subrv(rvv::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzer
     return ys,ns,ws,is
 end
 
+subrvr(rv::RealVector,minmaxs::RealMatrix) = subrvr(rv,minmaxs[:,1],minmaxs[:,end])
 function subrvr(rv::RealVector,mins::RealVector,maxs::RealVector)
     _,ns,_,_ = subrv(rv,mins,maxs,israte=true)
     return ns

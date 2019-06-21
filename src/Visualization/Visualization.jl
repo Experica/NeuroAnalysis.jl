@@ -1,6 +1,7 @@
 using Plots,StatsPlots
 
-export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog,plotunitposition
+export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog,plotunitposition,
+plotcircuit
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
@@ -36,22 +37,23 @@ function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
     return uc
 end
 
-function plotspiketrain(x,y;group::Vector=[],timeline=[],colors=unitcolors(),title="")
+function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
+    s = min(size[2]/maximum(y),1)
     if isempty(group)
-        scatter(x,y,label="SpikeTrain",markershape=:vline,markersize=1,markerstrokecolor=RGBA(0.0,0.1,0.2,0.8),markerstrokewidth = 1)
+        scatter(x,y,label="SpikeTrain",markershape=:vline,size=size,markersize=s,markerstrokewidth = s,markerstrokecolor=RGBA(0.1,0.1,0.3,0.8),legend=false)
     else
-        scatter(x,y,group=group,markershape=:vline,markersize=1,markerstrokewidth = 1,markerstrokecolor=reshape(colors,1,:))
+        scatter(x,y,group=group,markershape=:vline,size=size,markersize=s,markerstrokewidth = s,markerstrokecolor=reshape(colors,1,:))
     end
-    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title))
+    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title),legend=false)
 end
-function plotspiketrain(sts::RVVector;uids::RVVector=RealVector[],sortvalues=[],timeline=[0],colors=unitcolors(),title="")
+function plotspiketrain(sts::RVVector;uids::RVVector=RealVector[],sortvalues=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
     if isempty(uids)
         g=uids;uc=colors
     else
         fuids = flatrvv(uids,sortvalues)[1]
         g=map(i->"U$i",fuids);uc=colors[sort(unique(fuids)).+1]
     end
-    plotspiketrain(flatrvv(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title)
+    plotspiketrain(flatrvv(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title,size=size)
 end
 
 # function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xmax=maximum(x)+10,xgroup::Vector=[],
@@ -86,43 +88,58 @@ end
 # plotspiketrain1(rvs::RVVector;sortvar=[],xgroup::Vector=[],timemark=[0],theme=Theme(),colorkey="",colorfun=Scale.lab_gradient(colorant"white",colorant"red"),colorminv=[],colormaxv=[]) = plotspiketrain1(flatrvs(rvs,sortvar)...,xgroup=xgroup,timemark=timemark,theme=theme,colorkey=colorkey,colorfun=colorfun,colorminv=colorminv,colormaxv=colormaxv)
 
 
-plotcondresponse(rs,ctc,factor;u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best)=plotcondresponse(Dict(u=>rs),ctc,factor,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend)
-function plotcondresponse(urs::Dict,ctc::DataFrame,factor;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best)
-    mseuc = condresponse(urs,ctc,factor)
-    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend)
+plotcondresponse(rs,ctc,factors;u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best,responseline=[])=plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
+function plotcondresponse(urs::Dict,ctc::DataFrame,factors;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
+    mseuc = condresponse(urs,ctc,factors)
+    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
-function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best)
+function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
     mseuc = condresponse(urs,cond)
-    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend)
+    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
-function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best)
+function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
     us = sort(unique(mseuc[:u]))
-    factor=setdiff(names(mseuc),[:m,:se,:u])
-    nfactor=length(factor)
+    factors=setdiff(names(mseuc),[:m,:se,:u])
+    nfactor=length(factors)
     if nfactor==1
-        factor=factor[1]
+        factor=factors[1]
         if typeof(mseuc[factor][1]) <: Array
             map!(string,mseuc[factor],mseuc[factor])
             style=:bar
         end
+    elseif nfactor==2
+        fm,fse,fa = factorresponse(mseuc)
+        clim=maximum(skipmissing(fm))
+        yfactor,xfactor = collect(keys(fa))
+        y,x = collect(values(fa))
     else
-        mseuc[:Condition]=condstring(mseuc[:,factor])
-        factor=:Condition
+        mseuc[:Condition]=condstring(mseuc[:,factors])
+        factors=:Condition
         style=:bar
     end
-    if projection==:polar
-        c0 = mseuc[mseuc[factor].==0,:]
-        c0[factor]=360
-        mseuc = [mseuc;c0]
-        mseuc[factor]=deg2rad.(mseuc[factor])
-    end
-    sort!(mseuc,factor)
-    if projection==:polar
-        @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
-        grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+    if nfactor==2
+        heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(:Response),clims=(0,clim))
     else
-        @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
-        grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+        if projection==:polar
+            c0 = mseuc[mseuc[factor].==0,:]
+            c0[factor]=360
+            mseuc = [mseuc;c0]
+            mseuc[factor]=deg2rad.(mseuc[factor])
+        end
+        sort!(mseuc,factors)
+        if projection==:polar
+            p = @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+        else
+            p = @df mseuc plot(cols(factors),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factors)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+        end
+        if !isempty(responseline)
+            for i in responseline
+                hline!(p,[i[1]],ribbon=[i[2]],color=colors,legend=false)
+            end
+        end
+        p
     end
 end
 
@@ -139,23 +156,30 @@ function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
     @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
 end
-function plotpsth(data::RealMatrix,x,y,color=:Reds,timeline=[0])
-    heatmap(x,y,data,color=color)
-    vline!(timeline,color=:gray,label="TimeLine")
-end
-
-function plotsta(α;delay=nothing,decor=false,savedir=nothing)
-    ds = delay==nothing ? "" : "_$(delay)ms"
-    t = (decor ? "d" : "") * "STA$ds"
-    p=Plots.plot(α,seriestype=:heatmap,color=:fire,ratio=:equal,yflip=true,leg=false,framestyle=:none,title=t)
-    if savedir!=nothing
-        !isdir(savedir) && mkpath(savedir)
-        png(p,joinpath(savedir,t))
+function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing)
+    xms = x*SecondPerUnit*1000
+    p=heatmap(xms,y,data,color=color,colorbar_title="Spike/Sec",xlabel="Time (ms)",ylabel="Depth (um)")
+    vline!(p,timeline,color=:gray,label="TimeLine")
+    if !isnothing(layer)
+        lx = minimum(xms)+5
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
     end
-    p
+    return p
 end
 
-function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ichi=20,color=:coolwarm)
+function plotsta(α,imagesize;delay=nothing,decor=false,color=:coolwarm,filter=Kernel.gaussian(2))
+    d = delay==nothing ? "" : "_$(delay)ms"
+    t = (decor ? "d" : "") * "STA$d"
+    plotsta(reshape(α,imagesize),title=t,color=color,filter=filter)
+ end
+function plotsta(α;title="",color=:coolwarm,filter=nothing)
+    if !isnothing(filter)
+        α = imfilter(α,filter)
+    end
+    plot(α,seriestype=:heatmap,color=color,ratio=:equal,yflip=true,leg=false,framestyle=:none,title=title)
+end
+
+function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ichi=20,color=:coolwarm,layer=nothing)
     nd=ndims(y)
     if nd==1
         x=1:length(y)
@@ -166,7 +190,7 @@ function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ic
             end
         end
         ylim=maximum(abs.(y))
-        plot(x,y,ylims=(-ylim,ylim))
+        p=plot(x,y,ylims=(-ylim,ylim))
     elseif nd==2
         x=1:size(y,2)
         if fs>0
@@ -178,30 +202,73 @@ function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ic
         ylim=maximum(abs.(y))
         if plottype==:heatmap
             chdepth = (0:size(y,1)-1)*ichi
-            heatmap(x,chdepth,y,color=color,clims=(-ylim,ylim))
+            p=heatmap(x,chdepth,y,color=color,clims=(-ylim,ylim))
         else
-            plot(x,y',legend=false,color_palette=color,ylims=(-ylim,ylim))
+            p=plot(x,y',legend=false,color_palette=color,ylims=(-ylim,ylim))
         end
     end
-    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xlabel="Time ($timeunit)")
+    vline!(p,timeline,line=(:grey),label="TimeLine",grid=false,xlabel="Time ($timeunit)")
+    if !isnothing(layer)
+        lx = minimum(x)+5
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+    end
+    return p
 end
 
-plotunitposition(spike::Dict) = plotunitposition(spike["unitposition"],spike["unitgood"],spike["chposition"],spike["unitid"])
-function plotunitposition(unitposition,unitgood=[],chposition=[],unitid=[])
-    p = plot(legend=false,xlabel="Position_X (um)",ylabel="Position_Y (um)")
+plotunitposition(spike::Dict;layer=nothing) = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer)
+function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing)
+    nunit = size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);us = "$ngoodunit/$nunit"
+    xlim = isempty(chposition) ? (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
+    p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim)
     if !isempty(chposition)
-        scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=2,color=:grey60)
+        scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=2,color=:grey60,label="Electrode")
     end
     color = :gray30
     if !isempty(unitgood)
         color = map(i->i ? :darkgreen : :gray30,unitgood)
     end
     if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],color=color,alpha=0.6,markerstrokewidth=0,markersize=8,series_annotations=text.(unitid,5,color,:center))
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],color=color,alpha=0.6,markerstrokewidth=0,markersize=8)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=0.4,markerstrokewidth=0,markersize=5)
     end
+    if !isnothing(layer)
+        lx = xlim[1]+2
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+    end
+    return p
 end
+
+function plotcircuit(unitposition,projs;unitid=[],eunits=[],iunits=[],layer=nothing)
+    g = SimpleDiGraphFromIterator((Edge(i) for i in projs))
+    nn = nv(g);np=ne(g)
+    nunit = size(unitposition,1);nunitpair=binomial(nunit,2);gs = "$nunit: $np/$nunitpair($(round(np/nunitpair*100,digits=3))%)"
+    xlim = (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5)
+    ylim = (minimum(unitposition[:,2]),maximum(unitposition[:,2]))
+    p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim,grid=false)
+
+    for (i,j) in projs
+        t=vcat(unitposition[i:i,:],unitposition[j:j,:])
+        plot!(p,t[:,1],t[:,2],linewidth=0.3,color=:gray50,arrow=arrow(:closed,:head,0.3,0.1))
+    end
+
+    color = :darkgreen
+    if !isempty(eunits) || !isempty(iunits)
+        color = [in(i,eunits) ? :darkred : in(i,iunits) ? :darkblue : :darkgreen for i in 1:nunit]
+    end
+    if !isempty(unitid)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
+    else
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=5)
+    end
+    if !isnothing(layer)
+        lx = xlim[1]+2
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+    end
+    annotate!(p,[(xlim[2]-5,ylim[2],text(gs,6,:gray20,:bottom))])
+    return p
+end
+
 # function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")
 #     f = joinpath(path,"$filename.$format")
 #     if !ispath(path)

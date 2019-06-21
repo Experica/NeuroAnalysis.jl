@@ -1,5 +1,5 @@
 using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
-DSP,HCubature,Combinatorics
+DSP,HCubature,Combinatorics,DataStructures,LightGraphs
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -8,7 +8,7 @@ include("LFP.jl")
 include("Image.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
-setfln,testfln,condmean,spacepsth,autocorr,crosscorr
+setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
@@ -42,8 +42,8 @@ function statsori(ori::Vector{Float64},m::Vector{Float64})
     Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori,:gvm=>[gvmfit.param],:vm=>[vmfit.param])
 end
 
-"Spike Triggered Average"
-function sta(x::AbstractMatrix,y::AbstractVector,xsize;decor=false)
+"Spike Triggered Average of Images"
+function sta(x::AbstractMatrix,y::AbstractVector;decor=false)
     r=dropdims(sum(x.*y,dims=1),dims=1)/sum(y)
     if decor
         try
@@ -52,8 +52,9 @@ function sta(x::AbstractMatrix,y::AbstractVector,xsize;decor=false)
             r=zeros(xsize)
         end
     end
-    reshape(r,xsize)
+    return r
 end
+
 
 # function drv(p,n=1,isfreq=false)
 #   d=Categorical(p)
@@ -150,6 +151,14 @@ function subcond(conds,sc...)
     return conds[sci]
 end
 
+
+function findcond(df::DataFrame,cond)
+    i = trues(size(df,1))
+    for f in keys(cond)
+        i .&= df[f].==cond[f]
+    end
+    return findall(i)
+end
 function findcond(df::DataFrame,cond::Vector{Any};roundingdigit=3)
     i = trues(size(df,1))
     condstr = ""
@@ -177,33 +186,32 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
     return is[vi],ss[vi],conds[vi]
 end
 
+"""
+Find levels for each factor and indices, repetition for each level
+"""
 flin(ctc::Dict)=flin(DataFrame(ctc))
-"""
-Find levels(except missing) for each factor and indices, repetition for each level
-"""
 function flin(ctc::DataFrame)
-    fl=Dict();fli=Dict();fln=Dict()
+    fl=OrderedDict()
     for f in names(ctc)
-        ls = levels(ctc[f])
-        fl[f]=ls
-        lsi = [findall(ctc[f].==l) for l in ls]
-        fli[f]=lsi
-        fln[f]=length.(lsi)
+        fl[f] = condin(ctc[[f]])
     end
-    return fl,fli,fln
+    return fl
 end
 
-condin(ctc::Dict)=condin(DataFrame(ctc))
 """
 Find unique condition and indices, repetition for each
 """
+condin(ctc::Dict)=condin(DataFrame(ctc))
 function condin(ctc::DataFrame)
     t = [ctc DataFrame(i=1:nrow(ctc))]
-    by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:,:i]]))
+    t = by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:,:i]]))
+    sort!(t);return t
 end
 
+"Get factors of conditions"
 condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])
 
+"Get `Final` factors of conditions"
 function finalfactor(cond::DataFrame)
     fs = String.(condfactor(cond))
     fs = filter(f->endswith(f,"_Final") || ∉("$(f)_Final",fs),fs)
@@ -218,7 +226,7 @@ function condstring(cond::DataFrame,fs=names(cond))
     [condstring(r,fs) for r in eachrow(cond)]
 end
 
-"Group repeats of Conditions, get `Mean` and `SEM`"
+"Group repeats of Conditions, get `Mean` and `SEM` of responses"
 function condresponse(rs,gi)
     grs = [rs[i] for i in gi]
     DataFrame(m=mean.(grs),se=sem.(grs))
@@ -230,10 +238,33 @@ end
 function condresponse(urs::Dict,cond::DataFrame)
     vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
 end
-function condresponse(urs::Dict,ctc::DataFrame,factor)
-    vf = filter(f->any(f.==factor),names(ctc))
+function condresponse(urs::Dict,ctc::DataFrame,factors)
+    vf = filter(f->any(f.==factors),names(ctc))
     isempty(vf) && error("No Valid Factor Found.")
     condresponse(urs,condin(ctc[:,vf]))
+end
+
+"Condition Response in Factor Space"
+function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
+    fm = missings(Float64, map(nrow,values(fl))...)
+    fse = copy(fm)
+    for r in eachrow(mseuc)
+        idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
+        fm[idx...] = r[:m]
+        fse[idx...] = r[:se]
+    end
+    return fm,fse,fa
+end
+function factorresponse(unitspike,ctc,condon,condoff;delay=20)
+    fms=[];fses=[];fa=[];cond=condin(ctc);factors = condfactor(cond)
+    fl = flin(cond[factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
+    for u in 1:length(unitspike)
+        rs = subrvr(unitspike[u],condon.+delay,condoff.+delay)
+        mseuc = condresponse(rs,cond)
+        fm,fse,_ = factorresponse(mseuc,factors=factors,fl=fl,fa=fa)
+        push!(fms,fm);push!(fses,fse);
+    end
+    return fms,fses,fa
 end
 
 function setfln(fl::Dict,n::Int)
@@ -327,7 +358,7 @@ function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
     dfs = [psth(rvvs[i],binedges,conds[i],normfun=normfun) for i=1:n]
     return cat(1,dfs)
 end
-function spacepsth(unitpsth,unitposition;spacebinedges=range(0,step=40,length=ceil(Int,maximum(unitposition[:,2])/40)))
+function spacepsth(unitpsth,unitposition;spacebinedges=range(0,step=20,length=ceil(Int,maximum(unitposition[:,2])/20)))
     ys,ns,ws,is = subrv(unitposition[:,2],spacebinedges)
     x = unitpsth[1][3]
     nbins = length(is)
@@ -344,59 +375,92 @@ function spacepsth(unitpsth,unitposition;spacebinedges=range(0,step=40,length=ce
     return spsth,x,bincenters
 end
 
-function autocorr(unitbinspike;lag=nothing)
-        n = size(unitbinspike[1],1)
-        lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
-        x = 0:lag
-        return map(i->begin
-        t = dropdims(mean(autocov(i,x),dims=2),dims=2)
-        t/=t[1];t[1]=0;t
-        end,unitbinspike),x
+
+"""
+Shift(shuffle) corrected, normalized(coincidence/spike), trial-averaged Cross-Correlogram of binary spike trains.
+(Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676–1697.)
+"""
+function correlogram(unitbinspike1,unitbinspike2;lag=nothing,isnorm=true,shiftcorrection=true)
+    n,nepoch = size(unitbinspike1)
+    lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
+    x = -lag:lag;xn=2lag+1
+    cc = Matrix{Float64}(undef,xn,nepoch)
+    for k in 1:nepoch
+        cc[:,k]=crosscov(unitbinspike1[:,k],unitbinspike2[:,k],x,demean=false)*n
+    end
+    ccg = dropdims(mean(cc,dims=2),dims=2)
+    if isnorm
+        λ1 = mean(mean(unitbinspike1,dims=1))
+        λ2 = mean(mean(unitbinspike2,dims=1))
+        gmsr = sqrt(λ1*λ2)*1000
+        Θ = n.-abs.(x)
+        normfactor = 1 ./ Θ ./ gmsr
+    end
+    if shiftcorrection
+        psth1 = dropdims(mean(unitbinspike1,dims=2),dims=2)
+        psth2 = dropdims(mean(unitbinspike2,dims=2),dims=2)
+        s = crosscov(psth1,psth2,x,demean=false)*n
+        shiftccg = (nepoch*s .- ccg)/(nepoch-1)
+        if isnorm
+            ccg .*= normfactor
+            shiftccg .*= normfactor
+        end
+        ccg .-= shiftccg
+    elseif isnorm
+        ccg .*= normfactor
+    end
+    ccg,x
+end
+function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10)
+    nunit=length(unitbinspike)
+    n,nepoch = size(unitbinspike[1])
+    lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
+    x = -lag:lag;xn=2lag+1
+
+    ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[]
+    for (i,j) in combinations(1:nunit,2)
+        vii = sum(unitbinspike[i],dims=1)[:] .>= minspike
+        vij = sum(unitbinspike[j],dims=1)[:] .>= minspike
+        (count(vii) < minepoch || count(vij) < minepoch) && continue
+
+        ccg,x = correlogram(unitbinspike[i],unitbinspike[j],lag=lag)
+        ps,es,is = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag)
+        if !isempty(ps)
+            push!(ccgs,ccg);push!(ccgis,(i,j))
+            append!(projs,ps);append!(eunits,es);append!(iunits,is)
+        end
+    end
+    return ccgs,x,ccgis,projs,unique(eunits),unique(iunits)
+end
+function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,esdfactor=5,isdfactor=3.5)
+    midi = Int((length(cc)+1)/2)
+    base = vcat(cc[midi+minbaselag:end],cc[1:midi-minbaselag])
+    mb,sdb = mean_and_std(base);hl = mb + esdfactor*sdb;ll = mb - isdfactor*sdb
+    forwardlags = midi+1:midi+maxprojlag
+    backwardlags = midi-maxprojlag:midi-1
+    fcc = cc[forwardlags]
+    bcc = cc[backwardlags]
+    ps=[];ei=[];ii=[]
+
+    if any(fcc .> hl)
+        push!(ps,(i,j));push!(ei,i)
+    elseif any(fcc .< ll)
+        push!(ps,(i,j));push!(ii,i)
+    end
+    if any(bcc .> hl)
+        push!(ps,(j,i));push!(ei,j)
+    elseif any(bcc .< ll)
+        push!(ps,(j,i));push!(ii,j)
+    end
+    return ps,ei,ii
 end
 
-function crosscorr(unitbinspike;lag=nothing,maxprojlag=3,minrepeat=10)
-        nunit=length(unitbinspike)
-        n,nepoch = size(unitbinspike[1])
-        lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
-        x = -lag:lag;xn=2lag+1
-        ys=[];yis=[];ps=[];es=[];is=[]
-        for (i,j) in combinations(1:nunit,2)
-            cc = Matrix{Float64}(undef,xn,nepoch)
-            for k in 1:nepoch
-                cc[:,k]=crosscor(unitbinspike[i][:,k],unitbinspike[j][:,k],x)
-            end
-                vi = .!isnan.(cc)
-                cc = reshape(cc[vi],(xn,:))
-                size(cc,2) < minrepeat && continue
-                cc = dropdims(mean(cc,dims=2),dims=2)
-
-                ccp,cce,cci = projectionfromcrosscorr(cc,i,j,maxprojlag=maxprojlag)
-                if !isempty(ccp)
-                        push!(ys,cc);push!(yis,(i,j))
-                        append!(ps,ccp);append!(es,cce);append!(is,cci)
-                end
+function checklayer(ls::Dict)
+    ln=["WM","6","5","4Cb","4Ca","4B","4A","2/3","Out"]
+    for i in 1:length(ln)-1
+        if haskey(ls,ln[i]) && haskey(ls,ln[i+1])
+            ls[ln[i]][2] = ls[ln[i+1]][1]
         end
-        return ys,x,yis,ps,es,is
-end
-
-function projectionfromcrosscorr(cc,i,j;maxprojlag=3,sdfactor=4)
-        mc,sdc = mean_and_std(cc);hl = mc + sdfactor*sdc;ll = mc - sdfactor*sdc
-        midi = Int((length(cc)+1)/2)
-        forwardlags = midi+1:midi+maxprojlag
-        backwardlags = midi-maxprojlag:midi-1
-        fcc = cc[forwardlags]
-        bcc = cc[backwardlags]
-        ps=[];ei=[];ii=[]
-
-        if any(fcc .> hl)
-                push!(ps,(i,j));push!(ei,i)
-        elseif any(fcc .< ll)
-                push!(ps,(i,j));push!(ii,i)
-        end
-        if any(bcc .> hl)
-                push!(ps,(j,i));push!(ei,j)
-        elseif any(bcc .< ll)
-                push!(ps,(j,i));push!(ii,j)
-        end
-        return ps,ei,ii
+    end
+    return ls
 end
