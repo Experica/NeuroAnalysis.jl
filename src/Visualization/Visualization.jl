@@ -168,7 +168,7 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
 end
 
 function plotsta(α,imagesize;delay=nothing,decor=false,color=:coolwarm,filter=Kernel.gaussian(2))
-    d = delay==nothing ? "" : "_$(delay)ms"
+    d = isnothing(delay) ? "" : "_$(delay)"
     t = (decor ? "d" : "") * "STA$d"
     plotsta(reshape(α,imagesize),title=t,color=color,filter=filter)
  end

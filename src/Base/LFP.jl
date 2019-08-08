@@ -13,21 +13,21 @@ function rmline!(y,fs;freq=60,nh=3,bw=3)
 end
 
 "High pass and low pass filters"
-function hlpass(y;low=Inf,high=0,fs=0)
+function hlpass(y,fs;low=Inf,high=0)
     fy=copy(y)
-    if high!=Inf && high>0 && fs>0
+    if high>0
         f = digitalfilter(Highpass(high;fs=fs), Butterworth(4))
         for j=1:size(fy,1)
             fy[j,:]=filtfilt(f,fy[j,:])
         end
     end
-    if low!=Inf && low >0 && fs>0
+    if low<Inf
         f = digitalfilter(Lowpass(low;fs=fs), Butterworth(4))
         for j=1:size(fy,1)
             fy[j,:]=filtfilt(f,fy[j,:])
         end
     end
-    fy
+    return fy
 end
 
 function epoch2samplerange(epochs,fs)

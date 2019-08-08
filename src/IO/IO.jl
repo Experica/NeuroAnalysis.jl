@@ -6,7 +6,7 @@ export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta,
-subrm,getepochlfpcol,unitfyspike
+subrm,reshape2ref,unitfyspike
 
 "Read variables in `Matlab` MAT format data"
 function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
@@ -234,31 +234,28 @@ function subrm(rm,fs,epochs;meta=[],chs=1:size(rm,1),bandpass=[1,100])
         y = rm[chs,range(max(1,epochis[i,1]),length=minepochlength)]
         if !isempty(meta)
             y=gaincorrectim(y,meta)
-            rmline!(y,fs)
-            y = hlpass(y,low=bandpass[2],high=bandpass[1],fs=fs)
+            if !isempty(bandpass)
+                rmline!(y,fs)
+                y = hlpass(y,low=bandpass[2],high=bandpass[1],fs=fs)
+            end
         end
         ys[:,:,i] = y
     end
     return nepoch==1 ? dropdims(ys,dims=3) : ys
 end
 
-function getepochlfpcol(ys,refmask;cleanref=true)
-    ncol=size(refmask,2)
-    cyss=Array{Array{Float64,3}}(undef,ncol)
+function reshape2ref(ys,refmask;cleanref=true)
+    nrow,ncol=size(refmask)
+    yss=Array{Float64}(undef,nrow,ncol,size(ys)[2:end]...)
     for c in 1:ncol
-        cys=ys[c:ncol:end,:,:]
-        if cleanref
-            for r in 1:size(cys,1)
-                if refmask[r,c]
-                    for j in 1:size(cys,3)
-                        cys[r,:,j]=(cys[r-1,:,j].+cys[r+1,:,j]) / 2 # Local Average
-                    end
-                end
-            end
-        end
-        cyss[c]=cys
+        yss[:,c,:,:] = ys[c:ncol:end,:,:]
     end
-    return cyss
+    if cleanref
+        for (r,c) in Tuple.(findall(refmask))
+            yss[r,c,:,:] = (yss[r+1,c,:,:] .+ yss[r-1,c,:,:]) / 2 # Local Average
+        end
+    end
+    return yss
 end
 
 "get spiking units info"

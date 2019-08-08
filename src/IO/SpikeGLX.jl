@@ -31,9 +31,9 @@ function gaincorrectim(y,meta)
     end
     return cy
 end
-"Logical mask for reference channels in Probe shape"
+"Logical mask for IMEC reference channels in Probe shape"
 function refchmaskim(refs,nrow,ncol)
-    mask = falses(ncol,nrow) # channel counting from cols(left->right), then rows(tip->tail)
+    mask = falses(ncol,nrow) # channel counting from cols(left -> right), then rows(tip -> tail)
     mask[refs].=true # channel linear indexing to probe shape
     return mask'
 end

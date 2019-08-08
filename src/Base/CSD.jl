@@ -18,33 +18,33 @@ kCSD: kernal CSD
 
 data: ch x sample matrix in volts
 h: channel spacing in meters
-conductivity: conductivity of the extracellular medium in siemans/meter
+c: conductivity of the extracellular medium in siemans/meter
 r: radius of the model current source/sink in reverse method
 
 return CSD in amps/meters^3
 """
-function csd(data;method=:iCSDdelta,h=20e-6,conductivity=0.3,r=500e-6)
+function csd(data;method=:iCSDdelta,h=20e-6,c=0.3,r=500e-6)
   nd=ndims(data)
   if nd==3
     nr,nc,n = size(data)
     y = Array{Float64}(undef,nr,nc,n)
     for i in 1:n
-      y[:,:,i] = csd(data[:,:,i],method=method,h=h,conductivity=conductivity,r=r)
+      y[:,:,i] = csd(data[:,:,i],method=method,h=h,c=c,r=r)
     end
   else
     nr,nc = size(data)
     if method==:iCSDdelta
-      f = [h^2/(2conductivity) * ( sqrt((j-i)^2 + (r/h)^2) - abs(j-i) ) for j=1:nr,i=1:nr]
+      f = [h^2/(2c) * ( sqrt((j-i)^2 + (r/h)^2) - abs(j-i) ) for j=1:nr,i=1:nr]
       y = f\data
     elseif method==:iCSDspline # have wired problems, doesn't replicate the original code(CSDPlotter) results
       ep = collect(1:nr)*h
-      y,zs = csd_cubicspline(ep,data,f_cubicspline(ep,r,conductivity)...)
+      y,zs = csd_cubicspline(ep,data,f_cubicspline(ep,r,c)...)
     elseif method==:kCSD
 
     else # traditional CSD
       y=zeros(Float64,nr,nc)
       for i in 2:nr-1
-        y[i,:] = -conductivity*(data[i-1,:] + data[i+1,:] - 2*data[i,:]) / h^2
+        y[i,:] = -c*(data[i-1,:] + data[i+1,:] - 2*data[i,:]) / h^2
       end
     end
   end
