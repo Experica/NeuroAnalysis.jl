@@ -88,7 +88,7 @@ end
 # plotspiketrain1(rvs::RVVector;sortvar=[],xgroup::Vector=[],timemark=[0],theme=Theme(),colorkey="",colorfun=Scale.lab_gradient(colorant"white",colorant"red"),colorminv=[],colormaxv=[]) = plotspiketrain1(flatrvs(rvs,sortvar)...,xgroup=xgroup,timemark=timemark,theme=theme,colorkey=colorkey,colorfun=colorfun,colorminv=colorminv,colormaxv=colormaxv)
 
 
-plotcondresponse(rs,ctc,factors;u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best,responseline=[])=plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
+plotcondresponse(rs,ctc;factors=names(ctc),u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best,responseline=[])=plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 function plotcondresponse(urs::Dict,ctc::DataFrame,factors;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
     mseuc = condresponse(urs,ctc,factors)
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
@@ -114,10 +114,12 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
         y,x = collect(values(fa))
     else
         mseuc[:Condition]=condstring(mseuc[:,factors])
-        factors=:Condition
+        factor=:Condition
         style=:bar
     end
     if nfactor==2
+        x=float.(x)
+        y=float.(y)
         heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(:Response),clims=(0,clim))
     else
         if projection==:polar
@@ -126,13 +128,13 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
             mseuc = [mseuc;c0]
             mseuc[factor]=deg2rad.(mseuc[factor])
         end
-        sort!(mseuc,factors)
+        sort!(mseuc,factor)
         if projection==:polar
             p = @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
             grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
         else
-            p = @df mseuc plot(cols(factors),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factors)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
         end
         if !isempty(responseline)
             for i in responseline
@@ -171,7 +173,7 @@ function plotsta(α,imagesize;delay=nothing,decor=false,color=:coolwarm,filter=K
     d = isnothing(delay) ? "" : "_$(delay)"
     t = (decor ? "d" : "") * "STA$d"
     plotsta(reshape(α,imagesize),title=t,color=color,filter=filter)
- end
+end
 function plotsta(α;title="",color=:coolwarm,filter=nothing)
     if !isnothing(filter)
         α = imfilter(α,filter)
@@ -179,8 +181,8 @@ function plotsta(α;title="",color=:coolwarm,filter=nothing)
     plot(α,seriestype=:heatmap,color=color,ratio=:equal,yflip=true,leg=false,framestyle=:none,title=title)
 end
 
-function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ichi=20,color=:coolwarm,layer=nothing)
-    nd=ndims(y)
+function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
+    nd=ndims(data)
     if nd==1
         x=1:length(y)
         if fs>0
@@ -192,22 +194,32 @@ function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ic
         ylim=maximum(abs.(y))
         p=plot(x,y,ylims=(-ylim,ylim))
     elseif nd==2
-        x=1:size(y,2)
-        if fs>0
-            x = x./fs.-xext
-            if timeunit==:ms
-                x*=1000
+        if isnothing(x)
+            x=1:size(data,2)
+            if fs>0
+                x = x./fs.-xext
+                if xunit==:ms
+                    x*=1000
+                end
             end
         end
-        ylim=maximum(abs.(y))
-        if plottype==:heatmap
-            chdepth = (0:size(y,1)-1)*ichi
-            p=heatmap(x,chdepth,y,color=color,clims=(-ylim,ylim))
+        if cunit==:v
+            lim = maximum(abs.(data))
+            clim = (-lim,lim)
         else
-            p=plot(x,y',legend=false,color_palette=color,ylims=(-ylim,ylim))
+            lim = maximum(data)
+            clim = (0,lim)
+        end
+        if plottype==:heatmap
+            if isnothing(y)
+                y = (1:size(data,1))*ystep
+            end
+            p=heatmap(x,y,data,color=color,clims=clim,xlabel="$xlabel ($xunit)")
+        else
+            p=plot(x,data',legend=false,color_palette=color,grid=false,ylims=clim,xlabel="$xlabel ($xunit)")
         end
     end
-    vline!(p,timeline,line=(:grey),label="TimeLine",grid=false,xlabel="Time ($timeunit)")
+    !isempty(timeline) && vline!(p,timeline,line=(:grey),label="TimeLine")
     if !isnothing(layer)
         lx = minimum(x)+5
         hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
@@ -215,22 +227,25 @@ function plotanalog(y;fs=0,xext=0,timeline=[0],timeunit=:ms,plottype=:heatmap,ic
     return p
 end
 
-plotunitposition(spike::Dict;layer=nothing) = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer)
-function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing)
+plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4) = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha)
+function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4)
     nunit = size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);us = "$ngoodunit/$nunit"
     xlim = isempty(chposition) ? (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
     p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim)
     if !isempty(chposition)
         scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=2,color=:grey60,label="Electrode")
     end
-    color = :gray30
-    if !isempty(unitgood)
-        color = map(i->i ? :darkgreen : :gray30,unitgood)
+    if isnothing(color)
+        if !isempty(unitgood)
+            color = map(i->i ? :darkgreen : :gray30,unitgood)
+        else
+            color = :gray30
+        end
     end
     if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=alpha,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=0.4,markerstrokewidth=0,markersize=5)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=alpha,markerstrokewidth=0,markersize=5)
     end
     if !isnothing(layer)
         lx = xlim[1]+2

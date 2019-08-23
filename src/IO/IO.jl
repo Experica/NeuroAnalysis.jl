@@ -236,7 +236,7 @@ function subrm(rm,fs,epochs;meta=[],chs=1:size(rm,1),bandpass=[1,100])
             y=gaincorrectim(y,meta)
             if !isempty(bandpass)
                 rmline!(y,fs)
-                y = hlpass(y,low=bandpass[2],high=bandpass[1],fs=fs)
+                y = hlpass(y,fs,low=bandpass[2],high=bandpass[1])
             end
         end
         ys[:,:,i] = y
@@ -259,7 +259,7 @@ function reshape2ref(ys,refmask;cleanref=true)
 end
 
 "get spiking units info"
-function unitfyspike(data::Dict)
+function unitfyspike(data::Dict;templateoutradius=100)
     # kilosort results
     rawspiketime = data["time"]
     rawspiketemplate = data["template"]
@@ -275,6 +275,9 @@ function unitfyspike(data::Dict)
         templatesunwhiten[t,:,:] = templates[t,:,:]*whiteninv
     end
     templatesunwhiten_height = dropdims(map(i->-(-(i...)),extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
+    templatesunwhiten_maxheight_chposition = map(i->chposition[Tuple(i)[2],:],argmax(templatesunwhiten_height,dims=2))
+    templateoutmask = [norm(chposition[j,:].-templatesunwhiten_maxheight_chposition[i]) > templateoutradius for i in 1:size(templatesunwhiten_height,1), j in 1:size(chposition,1)]
+    templatesunwhiten_height[templateoutmask].=0.0
 
     # each unit
     unitid = data["clusterid"]

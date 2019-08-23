@@ -106,7 +106,7 @@ function flatrvv(rvv::RVVector,sv=[])
         srvv=rvv
         ssv=sv
     end
-    x=[];y=[];s=[]
+    x=Float64[];y=Float64[];s=Float64[]
     for i in 1:nrv
         rv = srvv[i];n=length(rv)
         n==0 && continue

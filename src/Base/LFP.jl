@@ -1,6 +1,6 @@
 include("CSD.jl")
 
-export rmline!,hlpass,epoch2samplerange,parsedigitalinanalog
+export rmline!,hlpass,epoch2samplerange,parsedigitalinanalog,powerspectrum
 
 "Remove line noise and its harmonics by notch filter"
 function rmline!(y,fs;freq=60,nh=3,bw=3)
@@ -67,4 +67,28 @@ function parsedigitalinanalog(x,ht,lt=ht,n=length(x);activehigh=true)
         end
     end
     return di,dv
+end
+
+function powerspectrum(x,fs;freqrange=0:100,nw=4)
+    nd=ndims(x)
+    if nd==3
+        n=size(x,1);ne=size(x,3)
+        ps = mt_pgram(x[1,:,1],fs=fs,nw=nw)
+        fi = in.(freq(ps),[freqrange])
+        freqs = freq(ps)[fi]
+        p = Array{Float64}(undef,n,length(freqs),ne)
+        for i in 1:n,j in 1:ne
+            p[i,:,j] = power(mt_pgram(x[i,:,j],fs=fs,nw=nw))[fi]
+        end
+    else
+        ps = mt_pgram(x[1,:],fs=fs,nw=nw)
+        fi = in.(freq(ps),[freqrange])
+        freqs = freq(ps)[fi];n = size(x,1)
+        p = Array{Float64}(undef,n,length(freqs))
+        p[1,:]=power(ps)[fi]
+        for i in 2:n
+            p[i,:]=power(mt_pgram(x[i,:],fs=fs,nw=nw))[fi]
+        end
+    end
+    return p,freqs
 end

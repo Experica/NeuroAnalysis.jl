@@ -8,7 +8,7 @@ include("LFP.jl")
 include("Image.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
-setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer
+setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer,factorresponsestats
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
@@ -40,6 +40,24 @@ function statsori(ori::Vector{Float64},m::Vector{Float64})
     pori = x[argmax(vmf.(x,vmfit.param...,n=2))]%pi
 
     Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori,:gvm=>[gvmfit.param],:vm=>[vmfit.param])
+end
+
+function factorresponsestats(fl,fr;factor=:Ori)
+    if factor == :Ori
+        # for orientation
+        ol = unique(mod.(fl,180))
+        or = map(i->sum(fr[(fl.==i) .| (fl.==(i+180))]),ol)
+        oo = mod(rad2deg(circmean(deg2rad.(2ol),or)),360)/2
+        ocv = circvar(deg2rad.(2ol),or)
+        # for direction
+        od = mod(rad2deg(circmean(deg2rad.(fl),fr)),360)
+        dcv = circvar(deg2rad.(fl),fr)
+
+        return (od=od,dcv=dcv,oo=oo,ocv=ocv)
+    elseif factor == :ColorID
+    else
+        return []
+    end
 end
 
 "Spike Triggered Average of Images"
@@ -255,14 +273,14 @@ function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u]),fl = f
     end
     return fm,fse,fa
 end
-function factorresponse(unitspike,ctc,condon,condoff;delay=20)
+function factorresponse(unitspike,ctc,condon,condoff;responsedelay=15)
     fms=[];fses=[];fa=[];cond=condin(ctc);factors = condfactor(cond)
     fl = flin(cond[factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
     for u in 1:length(unitspike)
-        rs = subrvr(unitspike[u],condon.+delay,condoff.+delay)
+        rs = subrvr(unitspike[u],condon.+responsedelay,condoff.+responsedelay)
         mseuc = condresponse(rs,cond)
         fm,fse,_ = factorresponse(mseuc,factors=factors,fl=fl,fa=fa)
-        push!(fms,fm);push!(fses,fse);
+        push!(fms,fm);push!(fses,fse)
     end
     return fms,fses,fa
 end
@@ -380,25 +398,25 @@ end
 Shift(shuffle) corrected, normalized(coincidence/spike), trial-averaged Cross-Correlogram of binary spike trains.
 (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676–1697.)
 """
-function correlogram(unitbinspike1,unitbinspike2;lag=nothing,isnorm=true,shiftcorrection=true)
-    n,nepoch = size(unitbinspike1)
+function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true)
+    n,nepoch = size(bst1)
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
-    cc = Matrix{Float64}(undef,xn,nepoch)
+    cc = Array{Float64}(undef,xn,nepoch)
     for k in 1:nepoch
-        cc[:,k]=crosscov(unitbinspike1[:,k],unitbinspike2[:,k],x,demean=false)*n
+        cc[:,k]=crosscov(bst1[:,k],bst2[:,k],x,demean=false)*n
     end
     ccg = dropdims(mean(cc,dims=2),dims=2)
     if isnorm
-        λ1 = mean(mean(unitbinspike1,dims=1))
-        λ2 = mean(mean(unitbinspike2,dims=1))
-        gmsr = sqrt(λ1*λ2)*1000
+        λ1 = mean(mean(bst1,dims=1))
+        λ2 = mean(mean(bst2,dims=1))
+        gmsr = sqrt(λ1*λ2)
         Θ = n.-abs.(x)
         normfactor = 1 ./ Θ ./ gmsr
     end
     if shiftcorrection
-        psth1 = dropdims(mean(unitbinspike1,dims=2),dims=2)
-        psth2 = dropdims(mean(unitbinspike2,dims=2),dims=2)
+        psth1 = dropdims(mean(bst1,dims=2),dims=2)
+        psth2 = dropdims(mean(bst2,dims=2),dims=2)
         s = crosscov(psth1,psth2,x,demean=false)*n
         shiftccg = (nepoch*s .- ccg)/(nepoch-1)
         if isnorm
@@ -411,7 +429,7 @@ function correlogram(unitbinspike1,unitbinspike2;lag=nothing,isnorm=true,shiftco
     end
     ccg,x
 end
-function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10)
+function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=6,isdfactor=3.5)
     nunit=length(unitbinspike)
     n,nepoch = size(unitbinspike[1])
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
@@ -419,12 +437,12 @@ function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspi
 
     ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[]
     for (i,j) in combinations(1:nunit,2)
-        vii = sum(unitbinspike[i],dims=1)[:] .>= minspike
-        vij = sum(unitbinspike[j],dims=1)[:] .>= minspike
-        (count(vii) < minepoch || count(vij) < minepoch) && continue
+        vsi = sum(unitbinspike[i],dims=1)[:] .>= minspike
+        vsj = sum(unitbinspike[j],dims=1)[:] .>= minspike
+        (count(vsi) < minepoch || count(vsj) < minepoch) && continue
 
-        ccg,x = correlogram(unitbinspike[i],unitbinspike[j],lag=lag)
-        ps,es,is = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag)
+        ccg,_ = correlogram(unitbinspike[i],unitbinspike[j],lag=lag)
+        ps,es,is = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag,esdfactor=esdfactor,isdfactor=isdfactor)
         if !isempty(ps)
             push!(ccgs,ccg);push!(ccgis,(i,j))
             append!(projs,ps);append!(eunits,es);append!(iunits,is)
@@ -432,10 +450,10 @@ function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspi
     end
     return ccgs,x,ccgis,projs,unique(eunits),unique(iunits)
 end
-function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,esdfactor=5,isdfactor=3.5)
+function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+3,esdfactor=5,isdfactor=5)
     midi = Int((length(cc)+1)/2)
     base = vcat(cc[midi+minbaselag:end],cc[1:midi-minbaselag])
-    mb,sdb = mean_and_std(base);hl = mb + esdfactor*sdb;ll = mb - isdfactor*sdb
+    bm,bsd = mean_and_std(base);hl = bm + esdfactor*bsd;ll = bm - isdfactor*bsd
     forwardlags = midi+1:midi+maxprojlag
     backwardlags = midi-maxprojlag:midi-1
     fcc = cc[forwardlags]
