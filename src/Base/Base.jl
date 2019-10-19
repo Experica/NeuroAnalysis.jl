@@ -1,5 +1,5 @@
 using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
-DSP,HCubature,Combinatorics,DataStructures,LightGraphs
+DSP,HCubature,Combinatorics,DataStructures,LightGraphs,ANOVA
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -8,7 +8,7 @@ include("LFP.jl")
 include("Image.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
-setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer,factorresponsestats
+setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer,factorresponsestats,ismodulative,checkcircuit
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
@@ -16,6 +16,16 @@ anscombe(x) = 2*sqrt(x+(3/8))
 isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
 "Check if any `group of response` is significently different to `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
+isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
+
+"Check if any factors and their interactions significently modulate response by ANOVA"
+function ismodulative(df;alpha=0.05)
+    xns = filter(i->i!=:Y,names(df))
+    categorical!(df,xns)
+    f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+    lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
+    any(Anova(lmr).p[1:end-1] .< alpha)
+end
 
 "`von Mises` function"
 vmf(α,β=1,μ=0.0,κ=1.0;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
@@ -55,6 +65,14 @@ function factorresponsestats(fl,fr;factor=:Ori)
 
         return (od=od,dcv=dcv,oo=oo,ocv=ocv)
     elseif factor == :ColorID
+        # for hue angle
+        ucid = sort(unique(fl))
+        hstep = 2pi/length(ucid)
+        ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
+        oh = mod(rad2deg(circmean(ha,fr)),360)
+        hcv = circvar(ha,fr)
+
+        return (oh=oh,hcv=hcv)
     else
         return []
     end
@@ -481,4 +499,13 @@ function checklayer(ls::Dict)
         end
     end
     return ls
+end
+
+function checkcircuit(projs,eunits,iunits)
+    ivu = intersect(eunits,iunits)
+    veunits = setdiff(eunits,ivu)
+    viunits = setdiff(iunits,ivu)
+    ivp = map(p->any(i->i in ivu,p),projs)
+    vprojs = deleteat!(copy(projs),ivp)
+    return vprojs,veunits,viunits
 end

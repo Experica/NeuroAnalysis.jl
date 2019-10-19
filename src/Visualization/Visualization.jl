@@ -38,7 +38,8 @@ function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
 end
 
 function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
-    s = min(size[2]/maximum(y),1)
+    nt = isempty(x) ? 0 : maximum(y)
+    s = min(size[2]/nt,1)
     if isempty(group)
         scatter(x,y,label="SpikeTrain",markershape=:vline,size=size,markersize=s,markerstrokewidth = s,markerstrokecolor=RGBA(0.1,0.1,0.3,0.8),legend=false)
     else
@@ -241,11 +242,14 @@ function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer
         else
             color = :gray30
         end
+        if !isnothing(alpha)
+            color = coloralpha.(parse.(RGB,color),alpha)
+        end
     end
     if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=alpha,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,alpha=alpha,markerstrokewidth=0,markersize=5)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=5)
     end
     if !isnothing(layer)
         lx = xlim[1]+2
@@ -254,8 +258,8 @@ function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer
     return p
 end
 
-function plotcircuit(unitposition,projs;unitid=[],eunits=[],iunits=[],layer=nothing)
-    g = SimpleDiGraphFromIterator((Edge(i) for i in projs))
+function plotcircuit(unitposition,projs,suidx;unitid=[],eunits=[],iunits=[],layer=nothing)
+    g = SimpleDiGraphFromIterator(Edge(i) for i in projs)
     nn = nv(g);np=ne(g)
     nunit = size(unitposition,1);nunitpair=binomial(nunit,2);gs = "$nunit: $np/$nunitpair($(round(np/nunitpair*100,digits=3))%)"
     xlim = (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5)
@@ -263,24 +267,27 @@ function plotcircuit(unitposition,projs;unitid=[],eunits=[],iunits=[],layer=noth
     p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim,grid=false)
 
     for (i,j) in projs
-        t=vcat(unitposition[i:i,:],unitposition[j:j,:])
-        plot!(p,t[:,1],t[:,2],linewidth=0.3,color=:gray50,arrow=arrow(:closed,:head,0.3,0.1))
+        t=vcat(unitposition[suidx[i:i],:],unitposition[suidx[j:j],:])
+        plot!(p,t[:,1],t[:,2],linewidth=0.3,color=:gray50,arrow=arrow(:closed,:head,0.45,0.12))
     end
 
-    color = :darkgreen
-    if !isempty(eunits) || !isempty(iunits)
-        color = [in(i,eunits) ? :darkred : in(i,iunits) ? :darkblue : :darkgreen for i in 1:nunit]
+    color = fill(:gray30,nunit)
+    color[suidx] .= :darkgreen
+    if !isempty(eunits)
+        color[suidx[eunits]] .= :darkred
+    end
+    if !isempty(iunits)
+        color[suidx[iunits]] .= :darkblue
     end
     if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center),legend=false)
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=5)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=5,legend=false)
     end
     if !isnothing(layer)
-        lx = xlim[1]+2
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(xlim[1]+2,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
     end
-    annotate!(p,[(xlim[2]-5,ylim[2],text(gs,6,:gray20,:bottom))])
+    annotate!(p,[(xlim[2]-6,ylim[2],text(gs,6,:gray20,:bottom))])
     return p
 end
 

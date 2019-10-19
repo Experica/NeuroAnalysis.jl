@@ -6,9 +6,9 @@ export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
 oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta,
-subrm,reshape2ref,unitfyspike
+unitfyspike_kilosort
 
-"Read variables in `Matlab` MAT format data"
+"Read variables in `MATLAB` MAT file"
 function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
     if isempty(vars)
         d=matread(f)
@@ -18,8 +18,8 @@ function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","ana
             fvs = names(file)
             reqvars=setdiff(fvs,optvars)
             ovs = intersect(optvars,vars)
-            for ivov in setdiff(ovs,fvs)
-                @warn """variable "$ivov" not found."""
+            for i in setdiff(ovs,fvs)
+                @warn """Optional variable "$i" not found in "$f"."""
             end
             vs=union(reqvars,intersect(fvs,ovs))
             if !isempty(vs)
@@ -32,14 +32,14 @@ function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","ana
     return d
 end
 
-"Read Metadata MAT File"
+"Read `DataExport` Metadata MAT File"
 function readmeta(f::AbstractString)
     d = readmat(f)["Tests"]
     mat2julia!(d)
     DataFrame(d)
 end
 
-"Convert `Matlab` type to `Julia` type with proper dimention"
+"Convert `MATLAB` type to `Julia` type with proper dimention"
 function mat2julia!(x;isscaler = true,isvector = true)
     if x isa Dict
         for k in keys(x)
@@ -47,12 +47,12 @@ function mat2julia!(x;isscaler = true,isvector = true)
         end
     elseif x isa Array
         if ndims(x)==2
-            s = size(x)
-            if s[1]==1 && s[2]==1
+            nr,nc = size(x)
+            if nr==1 && nc==1
                 x = isscaler ? x[1,1] : isvector ? dropdims(x,dims=2) : x
-            elseif s[1]==1 && s[2]>1
+            elseif nr==1 && nc>1
                 x = isvector ? dropdims(x,dims=1) : x
-            elseif s[1]>1 && s[2]==1
+            elseif nr>1 && nc==1
                 x = isvector ? dropdims(x,dims=2) : x
             end
         end
@@ -131,7 +131,7 @@ function digitalbit(dt,dv,bits...)
     return bt,bv
 end
 
-"Prepare Dataset"
+"Prepare Dataset in `MATLAB` MAT File"
 prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...),true)
 function prepare!(d::Dict,ismat=true)
     ismat && mat2julia!(d)
@@ -150,7 +150,7 @@ function prepare!(d::Dict,ismat=true)
     end
     if !haskey(d,"spike")
         if haskey(d,"spike_kilosort")
-            d["spike"] = unitfyspike(d["spike_kilosort"])
+            d["spike"] = unitfyspike_kilosort(d["spike_kilosort"])
         end
     end
     return d
@@ -225,70 +225,48 @@ function maptodatatime(x,ex::Dict;addlatency=true)
     return t
 end
 
-function subrm(rm,fs,epochs;meta=[],chs=1:size(rm,1),bandpass=[1,100])
-    nepoch = size(epochs,1)
-    epochis = floor.(Int,epochs.*fs)
-    minepochlength = minimum(diff(epochis,dims=2))
-    ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
-    for i in 1:nepoch
-        y = rm[chs,range(max(1,epochis[i,1]),length=minepochlength)]
-        if !isempty(meta)
-            y=gaincorrectim(y,meta)
-            if !isempty(bandpass)
-                rmline!(y,fs)
-                y = hlpass(y,fs,low=bandpass[2],high=bandpass[1])
-            end
-        end
-        ys[:,:,i] = y
-    end
-    return nepoch==1 ? dropdims(ys,dims=3) : ys
-end
-
-function reshape2ref(ys,refmask;cleanref=true)
-    nrow,ncol=size(refmask)
-    yss=Array{Float64}(undef,nrow,ncol,size(ys)[2:end]...)
-    for c in 1:ncol
-        yss[:,c,:,:] = ys[c:ncol:end,:,:]
-    end
-    if cleanref
-        for (r,c) in Tuple.(findall(refmask))
-            yss[r,c,:,:] = (yss[r+1,c,:,:] .+ yss[r-1,c,:,:]) / 2 # Local Average
+function subrm(rm,fs,epochs;chs=1:size(rm,1),meta=[],bandpass=[1,100])
+    f = nothing
+    if !isempty(meta)
+        f = x -> gaincorrectim(x,meta)
+        if !isempty(bandpass)
+            f = x -> hlpass(rmline!(gaincorrectim(x,meta),fs),fs,high=bandpass[1],low=bandpass[2])
         end
     end
-    return yss
+    subrm(rm,fs,epochs,chs,fun=f)
 end
 
-"get spiking units info"
-function unitfyspike(data::Dict;templateoutradius=100)
-    # kilosort results
-    rawspiketime = data["time"]
-    rawspiketemplate = data["template"]
-    rawspikecluster = data["cluster"]
-    rawamplitude = data["amplitude"]
+"Organize each spiking unit info from `Kilosort` result"
+function unitfyspike_kilosort(data::Dict;templateradius=120)
+    # spike sorting result
+    spiketime = data["time"]
+    spiketemplate = data["template"]
+    spikecluster = data["cluster"]
+    spikeamplitude = data["amplitude"]
 
-    templates = data["templates"] # nTemplates x nTimePoints x nChannels
+    templates = data["clustertemplates"] # nTemplates x nTimePoints x nChannels
+    chmap = data["chanmap"]
     chposition = data["channelposition"]
-    whiteninv = data["whiteningmatrixinv"]
+    winv = data["whiteningmatrixinv"]
 
     templatesunwhiten = zeros(size(templates))
     for t in 1:size(templates,1)
-        templatesunwhiten[t,:,:] = templates[t,:,:]*whiteninv
+        templatesunwhiten[t,:,:] = templates[t,:,:]*winv
     end
     templatesunwhiten_height = dropdims(map(i->-(-(i...)),extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
     templatesunwhiten_maxheight_chposition = map(i->chposition[Tuple(i)[2],:],argmax(templatesunwhiten_height,dims=2))
-    templateoutmask = [norm(chposition[j,:].-templatesunwhiten_maxheight_chposition[i]) > templateoutradius for i in 1:size(templatesunwhiten_height,1), j in 1:size(chposition,1)]
-    templatesunwhiten_height[templateoutmask].=0.0
+    templatemask = [norm(chposition[j,:].-templatesunwhiten_maxheight_chposition[i]) > templateradius for i in 1:size(templatesunwhiten_height,1), j in 1:size(chposition,1)]
+    templatesunwhiten_height[templatemask].=0.0
 
     # each unit
     unitid = data["clusterid"]
-    unitgood = data["good"].==1
-    unitindex = [rawspikecluster.==i for i in unitid]
-    unitspike = map(i->rawspiketime[i],unitindex)
-    unitamplitude = map(i->rawamplitude[i],unitindex)
-    unittemplate = map(i->rawspiketemplate[i][1],unitindex)
-    unittemplates = map(i->templates[i,:,:],unittemplate)
-    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],unittemplate)
-    unittemplatesunwhiten_height = map(i->templatesunwhiten_height[i,:],unittemplate)
+    unitgood = data["clustergood"].==1
+    unitindex = [spikecluster.==i for i in unitid]
+    unitspike = map(i->spiketime[i],unitindex)
+    unitamplitude = map(i->spikeamplitude[i],unitindex)
+    unittemplate = map(i->spiketemplate[i],unitindex)
+#    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],1:size(templatesunwhiten,1))
+    unittemplatesunwhiten_height = map(i->templatesunwhiten_height[i,:],1:size(templatesunwhiten,1))
 
     unitposition = vcat(map(w->sum(w.*chposition,dims=1)/sum(w),unittemplatesunwhiten_height)...) # center of mass from all weighted unit template channel positions
 

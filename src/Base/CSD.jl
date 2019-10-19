@@ -3,7 +3,7 @@ export csd
 """
 1D Current Source Density for a set of voltage traces from a linear array of electrodes.
 
-tCSD: finite difference method of second spatial derivatives of potentials, I = - ∇σ⋅∇ϕ,
+CSD: finite difference method of second spatial derivatives of potentials, I = - ∇σ⋅∇ϕ,
       σ is conductivities, ϕ is potentials, on the continuous assumption when spacing is around 20-100 um.
      (Nicholson & Freeman, 1975, J Neurophysiol, 38(2): 356-68)
 
@@ -16,14 +16,14 @@ iCSD: solve I -> ϕ forward problem, then get the inverse transformation matrix.
 kCSD: kernal CSD
       ()
 
-data: ch x sample matrix in volts
-h: channel spacing in meters
+data: ch x sample matrix(volts)
+h: channel spacing(micrometers)
 c: conductivity of the extracellular medium in siemans/meter
-r: radius of the model current source/sink in reverse method
+r: radius(micrometers) of the model current source/sink in reverse method
 
-return CSD in amps/meters^3
+return: CSD(amps/meters^3)
 """
-function csd(data;method=:iCSDdelta,h=20e-6,c=0.3,r=500e-6)
+function csd(data;method=:iCSDdelta,h=20,c=0.3,r=500)
   nd=ndims(data)
   if nd==3
     nr,nc,n = size(data)
@@ -33,8 +33,10 @@ function csd(data;method=:iCSDdelta,h=20e-6,c=0.3,r=500e-6)
     end
   else
     nr,nc = size(data)
+    ħ = h*1e-6
+    ɽ = r*1e-6
     if method==:iCSDdelta
-      f = [h^2/(2c) * ( sqrt((j-i)^2 + (r/h)^2) - abs(j-i) ) for j=1:nr,i=1:nr]
+      f = [ħ^2/(2c) * ( sqrt((j-i)^2 + (ɽ/ħ)^2) - abs(j-i) ) for j=1:nr,i=1:nr]
       y = f\data
     elseif method==:iCSDspline # have wired problems, doesn't replicate the original code(CSDPlotter) results
       ep = collect(1:nr)*h
@@ -44,7 +46,7 @@ function csd(data;method=:iCSDdelta,h=20e-6,c=0.3,r=500e-6)
     else # traditional CSD
       y=zeros(Float64,nr,nc)
       for i in 2:nr-1
-        y[i,:] = -c*(data[i-1,:] + data[i+1,:] - 2*data[i,:]) / h^2
+        y[i,:] = -c*(data[i-1,:] + data[i+1,:] - 2*data[i,:]) / ħ^2
       end
     end
   end

@@ -1,6 +1,35 @@
 include("CSD.jl")
 
-export rmline!,hlpass,epoch2samplerange,parsedigitalinanalog,powerspectrum
+export subrm,reshape2ref,rmline!,hlpass,time2sample,sample2time,epoch2samplerange,parsedigitalinanalog,powerspectrum
+
+function subrm(rm,fs,epochs,chs;fun=nothing)
+    nepoch = size(epochs,1)
+    epochis = floor.(Int,epochs.*fs)
+    minepochlength = minimum(diff(epochis,dims=2))
+    ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
+    for i in 1:nepoch
+        y = rm[chs,range(max(1,epochis[i,1]),length=minepochlength)]
+        if !isnothing(fun)
+            y=fun(y)
+        end
+        ys[:,:,i] = y
+    end
+    return nepoch==1 ? dropdims(ys,dims=3) : ys
+end
+
+function reshape2ref(ys,refmask;cleanref=true)
+    nrow,ncol=size(refmask)
+    yss=Array{Float64}(undef,nrow,ncol,size(ys)[2:end]...)
+    for c in 1:ncol
+        yss[:,c,:,:] = ys[c:ncol:end,:,:] # channel counting in refmask is from cols(left -> right), then rows(up -> down)
+    end
+    if cleanref
+        for (r,c) in Tuple.(findall(refmask))
+            yss[r,c,:,:] = (yss[r+1,c,:,:] .+ yss[r-1,c,:,:]) / 2 # Local Average replacement for reference channels
+        end
+    end
+    return yss
+end
 
 "Remove line noise and its harmonics by notch filter"
 function rmline!(y,fs;freq=60,nh=3,bw=3)
@@ -10,10 +39,11 @@ function rmline!(y,fs;freq=60,nh=3,bw=3)
             y[j,:]=filtfilt(f,y[j,:])
         end
     end
+    return y
 end
 
 "High pass and low pass filters"
-function hlpass(y,fs;low=Inf,high=0)
+function hlpass(y,fs;high=0,low=Inf)
     fy=copy(y)
     if high>0
         f = digitalfilter(Highpass(high;fs=fs), Butterworth(4))
@@ -29,6 +59,9 @@ function hlpass(y,fs;low=Inf,high=0)
     end
     return fy
 end
+
+time2sample(t,fs;secondperunit=1,t0sample::Integer=1) = round(Int,t*secondperunit*fs)+t0sample
+sample2time(s,fs;secondperunit=1,t0sample::Integer=1) = (s-t0sample)/fs/secondperunit
 
 function epoch2samplerange(epochs,fs)
     nepoch = size(epochs,1)
