@@ -99,12 +99,12 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
 function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    us = sort(unique(mseuc[:u]))
+    us = sort(unique(mseuc[!,:u]))
     factors=setdiff(names(mseuc),[:m,:se,:u])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
-        if typeof(mseuc[factor][1]) <: Array
+        if typeof(mseuc[!,factor][1]) <: Array
             map!(string,mseuc[factor],mseuc[factor])
             style=:bar
         end
@@ -228,8 +228,8 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
     return p
 end
 
-plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4) = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha)
-function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4)
+plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="") = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha,title=title)
+function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="")
     nunit = size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);us = "$ngoodunit/$nunit"
     xlim = isempty(chposition) ? (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
     p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim)
@@ -247,9 +247,9 @@ function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer
         end
     end
     if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center))
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center),title=title)
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=5)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=5,title=title)
     end
     if !isnothing(layer)
         lx = xlim[1]+2

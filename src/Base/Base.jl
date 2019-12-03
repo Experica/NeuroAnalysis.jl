@@ -12,9 +12,9 @@ setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,che
 
 anscombe(x) = 2*sqrt(x+(3/8))
 
-"Check if `response` is significently different to `baseline` by `Wilcoxon Signed Rank Test`"
+"Check if `response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
-"Check if any `group of response` is significently different to `baseline` by `Wilcoxon Signed Rank Test`"
+"Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
 
@@ -24,7 +24,8 @@ function ismodulative(df;alpha=0.05)
     categorical!(df,xns)
     f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
-    any(Anova(lmr).p[1:end-1] .< alpha)
+    anovatype = length(xns) <= 1 ? 2 : 2
+    any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
 end
 
 "`von Mises` function"
@@ -70,6 +71,13 @@ function factorresponsestats(fl,fr;factor=:Ori)
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
         oh = mod(rad2deg(circmean(ha,fr)),360)
+        hcv = circvar(ha,fr)
+
+        return (oh=oh,hcv=hcv)
+    elseif factor == :HueAngle
+        ha = deg2rad.(fl)
+        oh = mod(rad2deg(circmean(ha,fr)),360)
+        oh = fl[argmax(fr)]
         hcv = circvar(ha,fr)
 
         return (oh=oh,hcv=hcv)
@@ -229,7 +237,7 @@ flin(ctc::Dict)=flin(DataFrame(ctc))
 function flin(ctc::DataFrame)
     fl=OrderedDict()
     for f in names(ctc)
-        fl[f] = condin(ctc[[f]])
+        fl[f] = condin(ctc[:,[f]])
     end
     return fl
 end
@@ -269,7 +277,7 @@ function condresponse(rs,gi)
 end
 function condresponse(rs,cond::DataFrame;u=0)
     crs = [rs[r[:i]] for r in eachrow(cond)]
-    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs))) cond[condfactor(cond)]]
+    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs))) cond[:,condfactor(cond)]]
 end
 function condresponse(urs::Dict,cond::DataFrame)
     vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
@@ -284,16 +292,16 @@ end
 function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
     fm = missings(Float64, map(nrow,values(fl))...)
     fse = copy(fm)
-    for r in eachrow(mseuc)
-        idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
-        fm[idx...] = r[:m]
-        fse[idx...] = r[:se]
+    for i in 1:nrow(mseuc)
+        idx = [findfirst(mseuc[i:i,f].==fa[f]) for f in keys(fa)]
+        fm[idx...] = mseuc[i,:m]
+        fse[idx...] = mseuc[i,:se]
     end
     return fm,fse,fa
 end
 function factorresponse(unitspike,ctc,condon,condoff;responsedelay=15)
     fms=[];fses=[];fa=[];cond=condin(ctc);factors = condfactor(cond)
-    fl = flin(cond[factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
+    fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
     for u in 1:length(unitspike)
         rs = subrvr(unitspike[u],condon.+responsedelay,condoff.+responsedelay)
         mseuc = condresponse(rs,cond)
