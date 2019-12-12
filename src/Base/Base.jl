@@ -25,7 +25,7 @@ function ismodulative(df;alpha=0.05)
     categorical!(df,xns)
     f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
-    anovatype = length(xns) <= 1 ? 2 : 2
+    anovatype = length(xns) <= 1 ? 2 : 3
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
 end
 
@@ -55,15 +55,16 @@ function statsori(ori::Vector{Float64},m::Vector{Float64})
 end
 
 function factorresponsestats(fl,fr;factor=:Ori)
-    if factor == :Ori
+    if factor == :Ori || factor == :Ori_Final
+        d = mean(diff(sort(unique(fl))))
         # for orientation
         ol = unique(mod.(fl,180))
         or = map(i->sum(fr[(fl.==i) .| (fl.==(i+180))]),ol)
         oo = mod(rad2deg(circmean(deg2rad.(2ol),or)),360)/2
-        ocv = circvar(deg2rad.(2ol),or)
+        ocv = circvar(deg2rad.(2ol),or,deg2rad(2d))
         # for direction
         od = mod(rad2deg(circmean(deg2rad.(fl),fr)),360)
-        dcv = circvar(deg2rad.(fl),fr)
+        dcv = circvar(deg2rad.(fl),fr,deg2rad(d))
 
         return (od=od,dcv=dcv,oo=oo,ocv=ocv)
     elseif factor == :ColorID
@@ -77,9 +78,10 @@ function factorresponsestats(fl,fr;factor=:Ori)
         return (oh=oh,hcv=hcv)
     elseif factor == :HueAngle
         ha = deg2rad.(fl)
+        d = mean(diff(sort(unique(ha))))
         oh = mod(rad2deg(circmean(ha,fr)),360)
-        oh = fl[argmax(fr)]
-        hcv = circvar(ha,fr)
+        # oh = fl[argmax(fr)]
+        hcv = circvar(ha,fr,d)
 
         return (oh=oh,hcv=hcv)
     else
@@ -276,9 +278,9 @@ function condresponse(rs,gi)
     grs = [rs[i] for i in gi]
     DataFrame(m=mean.(grs),se=sem.(grs))
 end
-function condresponse(rs,cond::DataFrame;u=0)
+function condresponse(rs,cond::DataFrame;u=0,ug="U")
     crs = [rs[r[:i]] for r in eachrow(cond)]
-    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs))) cond[:,condfactor(cond)]]
+    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs)),ug=fill(ug,length(crs))) cond[:,condfactor(cond)]]
 end
 function condresponse(urs::Dict,cond::DataFrame)
     vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
