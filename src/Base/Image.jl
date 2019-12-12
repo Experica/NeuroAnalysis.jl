@@ -1,5 +1,5 @@
 export alphablend,alphamask,
-clampscale,oiframeresponse,oiresponse,oicomplexmap,anglemode,angleabs
+clampscale,oiframeresponse,oiresponse,oicomplexmap,anglemode,angleabs,findclosestangle
 
 function alphablend(src,dst,srcfactor,dstfactor=1-srcfactor)
     srcfactor.*src+dstfactor.*dst
@@ -137,6 +137,5 @@ function angleabs(cmap)
     mmap = clampscale(abs.(cmap))
     return amap,mmap
 end
-function anglemode(a,theta)
-    theta[findmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))[2]]
-end
+anglemode(a,theta) = theta[findclosestangle(a,theta)]
+findclosestangle(a,theta) = findmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))[2]

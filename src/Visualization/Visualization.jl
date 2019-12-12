@@ -99,8 +99,8 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
 function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    us = sort(unique(mseuc[!,:u]))
-    factors=setdiff(names(mseuc),[:m,:se,:u])
+    ugs = sort(unique(mseuc[:,[:u,:ug]]))
+    factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
@@ -124,17 +124,17 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
         heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(:Response),clims=(0,clim))
     else
         if projection==:polar
-            c0 = mseuc[mseuc[factor].==0,:]
-            c0[factor]=360
+            c0 = mseuc[mseuc[!,factor].==0,:]
+            c0[:,factor].=360
             mseuc = [mseuc;c0]
-            mseuc[factor]=deg2rad.(mseuc[factor])
+            mseuc[!,factor]=deg2rad.(mseuc[!,factor])
         end
         sort!(mseuc,factor)
         if projection==:polar
-            p = @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+            p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
             grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
         else
-            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
+            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
             grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
         end
         if !isempty(responseline)
