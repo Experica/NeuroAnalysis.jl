@@ -1,10 +1,10 @@
 include("CSD.jl")
 
-export subrm,reshape2ref,rmline!,hlpass,time2sample,sample2time,epoch2samplerange,parsedigitalinanalog,powerspectrum
+export subrm,reshape2mask,rmline!,hlpass,time2sample,sample2time,epoch2samplerange,parsedigitalinanalog,powerspectrum
 
 function subrm(rm,fs,epochs,chs;fun=nothing)
     nepoch = size(epochs,1)
-    epochis = floor.(Int,epochs.*fs)
+    epochis = floor.(Int,epochs.*SecondPerUnit.*fs)
     minepochlength = minimum(diff(epochis,dims=2))
     ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
     for i in 1:nepoch
@@ -17,15 +17,24 @@ function subrm(rm,fs,epochs,chs;fun=nothing)
     return nepoch==1 ? dropdims(ys,dims=3) : ys
 end
 
-function reshape2ref(ys,refmask;cleanref=true)
-    nrow,ncol=size(refmask)
+function reshape2mask(ys,chmask;replacemask=true)
+    nrow,ncol=size(chmask)
     yss=Array{Float64}(undef,nrow,ncol,size(ys)[2:end]...)
     for c in 1:ncol
-        yss[:,c,:,:] = ys[c:ncol:end,:,:] # channel counting in refmask is from cols(left -> right), then rows(up -> down)
+        yss[:,c,:,:] = ys[c:ncol:end,:,:] # channel counting in chmask is from cols(left -> right), then rows(up -> down)
     end
-    if cleanref
-        for (r,c) in Tuple.(findall(refmask))
-            yss[r,c,:,:] = (yss[r+1,c,:,:] .+ yss[r-1,c,:,:]) / 2 # Local Average replacement for reference channels
+    if replacemask
+        for (r,c) in Tuple.(findall(chmask))
+            dr = r-1;ur = r+1;
+            while true
+                (!chmask[dr,c] || dr<=1) && break
+                dr-=1
+            end
+            while true
+                (!chmask[ur,c] || ur>=nrow) && break
+                ur+=1
+            end
+            yss[r,c,:,:] = (yss[dr,c,:,:] .+ yss[ur,c,:,:]) / 2 # Local non-mask channels averaging replacement for masking channels
         end
     end
     return yss
@@ -65,7 +74,7 @@ sample2time(s,fs;secondperunit=1,t0sample::Integer=1) = (s-t0sample)/fs/secondpe
 
 function epoch2samplerange(epochs,fs)
     nepoch = size(epochs,1)
-    epochis = floor.(Int,epochs.*fs)
+    epochis = floor.(Int,epochs.*SecondPerUnit.*fs)
     minepochlength = minimum(diff(epochis,dims=2))
     sr = [range(max(1,epochis[i,1]),length=minepochlength) for i in 1:nepoch]
     return nepoch==1 ? sr[1] : sr

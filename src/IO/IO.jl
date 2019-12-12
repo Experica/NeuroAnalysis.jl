@@ -318,9 +318,10 @@ function matchfile(pattern::Regex;dir="",adddir::Bool=false)
     return fs
 end
 
-function querymeta(meta::DataFrame;test="",sourceformat="",subject="")
+function querymeta(meta::DataFrame;test="",sourceformat="",subject="",recordsite="")
     @from i in meta begin
     @where startswith(get(i.Subject_ID),subject)
+    @where i.RecordSite==recordsite
     @where i.ID==test
     @where i.sourceformat==sourceformat
     @select {i.ID,i.UUID,i.files}

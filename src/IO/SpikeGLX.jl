@@ -1,4 +1,4 @@
-export gaincorrectim,refchmaskim
+export gaincorrectim,chmaskim,refchmaskim,badchmaskim
 
 """
 Convert raw imec data to gain-corrected voltages. The saved-channel id subset in data
@@ -29,11 +29,35 @@ function gaincorrectim(y,meta)
     end
     return cy
 end
-"Logical mask for `IMEC` reference channels in probe shape"
-function refchmaskim(nch,refs,nrow,ncol)
+"Logical mask for `IMEC` channels in probe shape"
+function chmaskim(nch,chs,nrow,ncol)
     mask = falses(nch)
-    mask[refs].=true
+    mask[chs].=true
     mask = reshape(mask,ncol,nrow) # Neuropixel Probe channel counting is from cols(left -> right), then rows(tip -> tail)
     return mask' # rows are reverted and will be reverted back when XY plotting
 end
-refchmaskim(meta) = refchmaskim(meta["acqApLfSy"][1],meta["refch"],meta["nrow"],meta["ncol"])
+"Logical mask for `IMEC` reference channels in probe shape"
+function refchmaskim(meta)
+    nch = meta["acqApLfSy"][1]
+    rorefch = meta["rorefch"][1]
+    if rorefch==0
+        refch = meta["refch"]
+    else
+        refch = [rorefch]
+    end
+    chmaskim(nch,refch,meta["nrow"],meta["ncol"])
+end
+"Logical mask for `IMEC` bad channels in probe shape"
+function badchmaskim(dataset;type="lf",badch::Vector{Int}=Int[])
+    nch = dataset["ap"]["meta"]["acqApLfSy"][1]
+    rorefch = dataset["ap"]["meta"]["rorefch"][1]
+    if rorefch==0
+        refch = dataset["ap"]["meta"]["refch"]
+    else
+        refch = [rorefch]
+    end
+    if haskey(dataset[type]["meta"],"badch")
+        badch = union(badch,dataset[type]["meta"]["badch"])
+    end
+    chmaskim(nch,union(refch,badch),dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
+end
