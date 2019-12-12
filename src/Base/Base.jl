@@ -6,6 +6,7 @@ include("CircStats.jl")
 include("Spike.jl")
 include("LFP.jl")
 include("Image.jl")
+include("2P.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer,factorresponsestats,ismodulative,checkcircuit
@@ -286,6 +287,7 @@ function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u]),fl = f
     fse = copy(fm)
     for r in eachrow(mseuc)
         idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
+        display(idx)
         fm[idx...] = r[:m]
         fse[idx...] = r[:se]
     end

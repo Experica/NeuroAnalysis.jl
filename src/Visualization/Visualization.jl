@@ -207,9 +207,13 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
         if cunit==:v
             lim = maximum(abs.(data))
             clim = (-lim,lim)
-        else
+        elseif cunit == :sp
             lim = maximum(data)
             clim = (0,lim)
+        else
+            lim = maximum(data)
+            clim = :auto
+
         end
         if plottype==:heatmap
             if isnothing(y)
