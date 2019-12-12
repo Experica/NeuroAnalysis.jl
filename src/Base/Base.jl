@@ -6,6 +6,7 @@ include("CircStats.jl")
 include("Spike.jl")
 include("LFP.jl")
 include("Image.jl")
+include("2P.jl")
 
 export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
 setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer,factorresponsestats,ismodulative,checkcircuit
