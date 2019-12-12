@@ -8,6 +8,8 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
     if occursin("Ori",fu)
         fu="$fu (deg)"
+    elseif fu=="dir"
+        fu="Direction (deg)"
     elseif fu=="Diameter"
         fu="$fu (deg)"
     elseif fu=="SpatialFreq"
@@ -22,6 +24,8 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
         end
     elseif fu=="Response"
         fu="$fu (spike/s)"
+    elseif fu=="ResponseF"
+        fu="Response (% \\DeltaF / F)"
     end
     return fu
 end
@@ -98,7 +102,7 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     mseuc = condresponse(urs,cond)
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
-function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
+function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
     us = sort(unique(mseuc[!,:u]))
     factors=setdiff(names(mseuc),[:m,:se,:u])
     nfactor=length(factors)
@@ -121,7 +125,7 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
     if nfactor==2
         x=float.(x)
         y=float.(y)
-        heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(:Response),clims=(0,clim))
+        heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(responsetype),clims=(0,clim))
     else
         if projection==:polar
             c0 = mseuc[mseuc[factor].==0,:]
@@ -132,10 +136,10 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
         sort!(mseuc,factor)
         if projection==:polar
             p = @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         else
             p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["U$k" for k in us],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         end
         if !isempty(responseline)
             for i in responseline
