@@ -8,6 +8,8 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
     if occursin("Ori",fu)
         fu="$fu (deg)"
+    elseif fu=="dir"
+        fu="Direction (deg)"
     elseif fu=="Diameter"
         fu="$fu (deg)"
     elseif fu=="SpatialFreq"
@@ -22,6 +24,8 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
         end
     elseif fu=="Response"
         fu="$fu (spike/s)"
+    elseif fu=="ResponseF"
+        fu="Response (% \\DeltaF / F)"
     end
     return fu
 end
@@ -106,9 +110,9 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     mseuc = condresponse(urs,cond)
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
-function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    ugs = sort(unique(mseuc[:,[:u,:ug]]))
-    factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
+function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
+    us = sort(unique(mseuc[!,:u]))
+    factors=setdiff(names(mseuc),[:m,:se,:u])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
@@ -129,7 +133,7 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
     if nfactor==2
         x=float.(x)
         y=float.(y)
-        heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(:Response),clims=(0,clim))
+        heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(responsetype),clims=(0,clim))
     else
         if projection==:polar
             c0 = mseuc[mseuc[!,factor].==0,:]
