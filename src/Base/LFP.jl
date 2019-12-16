@@ -1,6 +1,6 @@
 include("CSD.jl")
 
-export subrm,reshape2mask,rmline!,hlpass,time2sample,sample2time,epoch2samplerange,parsedigitalinanalog,powerspectrum
+export subrm,reshape2mask,stfilter,rmline!,hlpass,time2sample,sample2time,epoch2samplerange,parsedigitalinanalog,powerspectrum
 
 function subrm(rm,fs,epochs,chs;fun=nothing)
     nepoch = size(epochs,1)
@@ -17,27 +17,63 @@ function subrm(rm,fs,epochs,chs;fun=nothing)
     return nepoch==1 ? dropdims(ys,dims=3) : ys
 end
 
-function reshape2mask(ys,chmask;replacemask=true)
-    nrow,ncol=size(chmask)
-    yss=Array{Float64}(undef,nrow,ncol,size(ys)[2:end]...)
-    for c in 1:ncol
-        yss[:,c,:,:] = ys[c:ncol:end,:,:] # channel counting in chmask is from cols(left -> right), then rows(up -> down)
+function reshape2mask(ys, chmask; replacemask = true)
+    nrow, ncol = size(chmask)
+    yss = Array{Float64}(undef, nrow, ncol, size(ys)[2:end]...)
+    for c = 1:ncol
+        yss[:, c, :, :] = ys[c:ncol:end, :, :] # channel counting in chmask is from cols(left -> right), then rows(up -> down)
     end
-    if replacemask
-        for (r,c) in Tuple.(findall(chmask))
-            dr = r-1;ur = r+1;
-            while true
-                (!chmask[dr,c] || dr<=1) && break
-                dr-=1
+    if replacemask # Local non-mask channels averaging replacement for masking channels
+        rchmask = copy(chmask)
+        for (r, c) in Tuple.(findall(chmask))
+            rd = r - 1;ru = r + 1
+            while 1 <= rd && rchmask[rd, c]
+                rd -= 1
             end
-            while true
-                (!chmask[ur,c] || ur>=nrow) && break
-                ur+=1
+            while ru <= nrow && rchmask[ru, c]
+                ru += 1
             end
-            yss[r,c,:,:] = (yss[dr,c,:,:] .+ yss[ur,c,:,:]) / 2 # Local non-mask channels averaging replacement for masking channels
+            if rd < 1
+                if ru > nrow
+                    @error "No Good Channels in Data to Replace Mask Channels."
+                else
+                    yss[r, c, :, :] = yss[ru, c, :, :]
+                end
+            else
+                if ru > nrow
+                    yss[r, c, :, :] = yss[rd, c, :, :]
+                else
+                    yss[r, c, :, :] = (yss[rd, c, :, :] .+ yss[ru, c, :, :]) / 2
+                end
+            end
+            rchmask[r, c] = false
         end
     end
     return yss
+end
+
+function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm,2))
+    nd = ndims(rm)
+    if nd==3
+        nr,nc,n = size(rm)
+        y = Array{Float64}(undef,nr,nc,n)
+        for i in 1:n
+            y[:,:,i] = stfilter(rm[:,:,i],spatialtype=spatialtype,ir=ir,or=or,temporaltype=temporaltype,ti=ti)
+        end
+        return y
+    else
+        if spatialtype==:all
+            rm .-= mean(rm,dims=1)
+        elseif spatialtype==:annulus
+            foreach(i->rm[i,:] .-= dropdims(mean(rm[filter(j-> 1<=j<=size(rm,1),union(i-or:i-ir,i+ir:i+or)),:],dims=1),dims=1),1:size(rm,1))
+        end
+        if temporaltype == :all
+            rm .-= mean(rm,dims=2)
+        elseif temporaltype == :sub
+            rm .-= mean(rm[:,ti],dims=2)
+        end
+        return rm
+    end
 end
 
 "Remove line noise and its harmonics by notch filter"

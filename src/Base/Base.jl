@@ -292,7 +292,7 @@ function condresponse(urs::Dict,ctc::DataFrame,factors)
 end
 
 "Condition Response in Factor Space"
-function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
+function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u,:ug]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
     fm = missings(Float64, map(nrow,values(fl))...)
     fse = copy(fm)
     for i in 1:nrow(mseuc)

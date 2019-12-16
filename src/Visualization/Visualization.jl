@@ -1,6 +1,6 @@
 using Plots,StatsPlots
 
-export factorunit,huecolors,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog,plotunitposition,
+export factorunit,huecolors,minmaxcolormap,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog,plotunitposition,
 plotcircuit
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
@@ -27,6 +27,14 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
 end
 
 huecolors(n::Int;alpha=0.8,saturation=1,brightness=1)=[HSVA(((i-1)/n)*360,saturation,brightness,alpha) for i=1:n]
+
+function minmaxcolormap(cname,min,max;isreverse=false)
+    c=colormap(cname,101,mid=max/(abs(min)+abs(max)))
+    if isreverse
+        c=reverse(c)
+    end
+    ColorGradient(c,0:0.01:1)
+end
 
 function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
     uc = huecolors(n,alpha=alpha,saturation=saturation,brightness=brightness)
@@ -161,6 +169,9 @@ function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
 end
 function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing)
     xms = x*SecondPerUnit*1000
+    if color==:minmax
+        color = minmaxcolormap("RdBu",extrema(data)...,isreverse=true)
+    end
     p=heatmap(xms,y,data,color=color,colorbar_title="Spike/Sec",xlabel="Time (ms)",ylabel="Depth (um)")
     vline!(p,timeline,color=:gray,label="TimeLine")
     if !isnothing(layer)
@@ -207,13 +218,12 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
         if cunit==:v
             lim = maximum(abs.(data))
             clim = (-lim,lim)
-        elseif cunit == :sp
+        elseif cunit == :fr
             lim = maximum(data)
             clim = (0,lim)
         else
             lim = maximum(data)
             clim = :auto
-
         end
         if plottype==:heatmap
             if isnothing(y)
