@@ -52,13 +52,13 @@ function reshape2mask(ys, chmask; replacemask = true)
     return yss
 end
 
-function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm,2))
+function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm,2),hedgevalue=nothing)
     nd = ndims(rm)
     if nd==3
         nr,nc,n = size(rm)
         y = Array{Float64}(undef,nr,nc,n)
         for i in 1:n
-            y[:,:,i] = stfilter(rm[:,:,i],spatialtype=spatialtype,ir=ir,or=or,temporaltype=temporaltype,ti=ti)
+            y[:,:,i] = stfilter(rm[:,:,i],spatialtype=spatialtype,ir=ir,or=or,temporaltype=temporaltype,ti=ti,hedgevalue=hedgevalue)
         end
         return y
     else
@@ -71,6 +71,9 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
             rm .-= mean(rm,dims=2)
         elseif temporaltype == :sub
             rm .-= mean(rm[:,ti],dims=2)
+        end
+        if !isnothing(hedgevalue)
+            rm[[1,end],:].=hedgevalue
         end
         return rm
     end

@@ -1,11 +1,11 @@
-using MAT,Query,FileIO
+using MAT
 
 include("SpikeGLX.jl")
 
 export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,Bits16DCh,digitaldata,digitalbit,
 prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
 statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
-oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,querymeta,
+oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,
 unitfyspike_kilosort
 
 "Read variables in `MATLAB` MAT file"
@@ -316,15 +316,4 @@ function matchfile(pattern::Regex;dir="",adddir::Bool=false)
         fs=joinpath.(dir,fs)
     end
     return fs
-end
-
-function querymeta(meta::DataFrame;test="",sourceformat="",subject="",recordsite="")
-    @from i in meta begin
-    @where startswith(get(i.Subject_ID),subject)
-    @where i.RecordSite==recordsite
-    @where i.ID==test
-    @where i.sourceformat==sourceformat
-    @select {i.ID,i.UUID,i.files}
-    @collect DataFrame
-    end
 end

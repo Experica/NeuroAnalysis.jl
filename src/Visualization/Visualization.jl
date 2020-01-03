@@ -111,8 +111,8 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
 function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
-    us = sort(unique(mseuc[!,:u]))
-    factors=setdiff(names(mseuc),[:m,:se,:u])
+    ugs = sort(unique(mseuc[:,[:u,:ug]]))
+    factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
@@ -171,13 +171,17 @@ function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
     @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
 end
-function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing)
+function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing,n=[])
     xms = x*SecondPerUnit*1000
     if color==:minmax
         color = minmaxcolormap("RdBu",extrema(data)...,isreverse=true)
     end
     p=heatmap(xms,y,data,color=color,colorbar_title="Spike/Sec",xlabel="Time (ms)",ylabel="Depth (um)")
     vline!(p,timeline,color=:gray,label="TimeLine")
+    if !isempty(n)
+        pn = n./maximum(n) .* maximum(x) .* 0.2 .+ minimum(x)
+        plot!(p,pn,y,label="Number of Units",color=:seagreen)
+    end
     if !isnothing(layer)
         lx = minimum(xms)+5
         hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
@@ -219,23 +223,27 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
                 end
             end
         end
+        df=1
         if cunit==:v
             lim = maximum(abs.(data))
+            clim = (-lim,lim)
+        elseif cunit==:uv
+            df = 1e6
+            lim = maximum(abs.(data))*df
             clim = (-lim,lim)
         elseif cunit == :fr
             lim = maximum(data)
             clim = (0,lim)
         else
-            lim = maximum(data)
             clim = :auto
         end
         if plottype==:heatmap
             if isnothing(y)
                 y = (1:size(data,1))*ystep
             end
-            p=heatmap(x,y,data,color=color,clims=clim,xlabel="$xlabel ($xunit)")
+            p=heatmap(x,y,data.*df,color=color,clims=clim,xlabel="$xlabel ($xunit)")
         else
-            p=plot(x,data',legend=false,color_palette=color,grid=false,ylims=clim,xlabel="$xlabel ($xunit)")
+            p=plot(x,data'.*df,legend=false,color_palette=color,grid=false,ylims=clim,xlabel="$xlabel ($xunit)")
         end
     end
     !isempty(timeline) && vline!(p,timeline,line=(:grey),label="TimeLine")
@@ -271,41 +279,60 @@ function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer
     end
     if !isnothing(layer)
         lx = xlim[1]+2
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,5,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
     end
     return p
 end
 
-function plotcircuit(unitposition,projs,suidx;unitid=[],eunits=[],iunits=[],layer=nothing)
-    g = SimpleDiGraphFromIterator(Edge(i) for i in projs)
-    nn = nv(g);np=ne(g)
-    nunit = size(unitposition,1);nunitpair=binomial(nunit,2);gs = "$nunit: $np/$nunitpair($(round(np/nunitpair*100,digits=3))%)"
+function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],projweights=[],layer=nothing,showuid=true,showmode=:none)
+    vpi = indexin(unique(projs),projs)
+    projs=projs[vpi];np=length(projs)
+    if !isempty(projweights)
+        projweights=projweights[vpi]
+        t = abs.(projweights)
+        pcolor = coloralpha.(RGB(0.5,0.5,0.5),t./maximum(t))
+    else
+        pcolor=:gray50
+    end
+    nu = length(unitid)
+    nsu = isempty(unitgood) ? nu : count(unitgood)
+    uidi = Dict(i=>findfirst(i.==unitid) for i in unitid)
+    nsupair=binomial(nsu,2);ss = "$nsu: $np/$nsupair($(round(np/nsupair*100,digits=3))%)"
     xlim = (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5)
     ylim = (minimum(unitposition[:,2]),maximum(unitposition[:,2]))
     p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim,grid=false)
 
-    for (i,j) in projs
-        t=vcat(unitposition[suidx[i:i],:],unitposition[suidx[j:j],:])
-        plot!(p,t[:,1],t[:,2],linewidth=0.3,color=:gray50,arrow=arrow(:closed,:head,0.45,0.12))
+    for i in projs
+        t=hcat(unitposition[uidi[i[1]],:],unitposition[uidi[i[2]],:])
+        plot!(p,t[1,:],t[2,:],linewidth=0.3,color=pcolor,arrow=arrow(:closed,:head,0.45,0.12))
     end
 
-    color = fill(:gray30,nunit)
-    color[suidx] .= :darkgreen
+    color = fill(:gray30,nu)
+    color[unitgood] .= :darkgreen
     if !isempty(eunits)
-        color[suidx[eunits]] .= :darkred
+        color[map(i->uidi[i],eunits)] .= :darkred
     end
     if !isempty(iunits)
-        color[suidx[iunits]] .= :darkblue
+        color[map(i->uidi[i],iunits)] .= :darkblue
     end
-    if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center),legend=false)
+    if showmode == :su
+        showuidi = unitgood
+    elseif showmode == :circuit
+        cuid=[]
+        foreach(p->append!(cuid,[p...]),projs)
+        showuidi=indexin(unique(cuid),unitid)
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=gs,color=color,alpha=0.4,markerstrokewidth=0,markersize=5,legend=false)
+        showuidi = 1:nu
+    end
+    if showuid
+        scatter!(p,unitposition[showuidi,1],unitposition[showuidi,2],label=ss,color=color[showuidi],alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid[showuidi],3,:gray10,:center),legend=false)
+    else
+        scatter!(p,unitposition[showuidi,1],unitposition[showuidi,2],label=ss,color=color[showuidi],alpha=0.4,markerstrokewidth=0,markersize=5,legend=false)
     end
     if !isnothing(layer)
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(xlim[1]+2,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(xlim[1]+2,layer[k][1],text(k,5,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
     end
-    annotate!(p,[(xlim[2]-6,ylim[2],text(gs,6,:gray20,:bottom))])
+    annotate!(p,[(xlim[2]-6,ylim[2]-100,text(ss,6,:gray20,:bottom))])
     return p
 end
 

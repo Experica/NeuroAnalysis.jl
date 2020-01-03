@@ -1,5 +1,5 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
-DSP,HCubature,Combinatorics,DataStructures,LightGraphs,ANOVA
+using LinearAlgebra,FileIO,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
+DSP,HCubature,Combinatorics,DataStructures,ANOVA
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -419,7 +419,7 @@ function spacepsth(unitpsth,unitposition;spacebinedges=range(0,step=20,length=ce
     end
     binwidth = ws[1][2]-ws[1][1]
     bincenters = [ws[i][1]+binwidth/2.0 for i=1:nbins]
-    return spsth,x,bincenters
+    return spsth,x,bincenters,ns
 end
 
 
@@ -458,28 +458,35 @@ function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true)
     end
     ccg,x
 end
-function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=6,isdfactor=3.5)
+function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=6,isdfactor=3.5,unitid=[])
     nunit=length(unitbinspike)
     n,nepoch = size(unitbinspike[1])
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
 
-    ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[]
+    ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[];projweights=[]
     for (i,j) in combinations(1:nunit,2)
         vsi = sum(unitbinspike[i],dims=1)[:] .>= minspike
         vsj = sum(unitbinspike[j],dims=1)[:] .>= minspike
         (count(vsi) < minepoch || count(vsj) < minepoch) && continue
 
         ccg,_ = correlogram(unitbinspike[i],unitbinspike[j],lag=lag)
-        ps,es,is = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag,esdfactor=esdfactor,isdfactor=isdfactor)
+        ps,es,is,pws = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag,esdfactor=esdfactor,isdfactor=isdfactor)
         if !isempty(ps)
             push!(ccgs,ccg);push!(ccgis,(i,j))
-            append!(projs,ps);append!(eunits,es);append!(iunits,is)
+            append!(projs,ps);append!(eunits,es);append!(iunits,is);append!(projweights,pws)
         end
     end
-    return ccgs,x,ccgis,projs,unique(eunits),unique(iunits)
+    unique!(eunits);unique!(iunits)
+    if length(unitid)==nunit
+        map!(t->(unitid[t[1]],unitid[t[2]]),ccgis,ccgis)
+        map!(t->(unitid[t[1]],unitid[t[2]]),projs,projs)
+        map!(t->unitid[t],eunits,eunits)
+        map!(t->unitid[t],iunits,iunits)
+    end
+    return ccgs,x,ccgis,projs,eunits,iunits,projweights
 end
-function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+3,esdfactor=5,isdfactor=5)
+function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,esdfactor=5,isdfactor=5)
     midi = Int((length(cc)+1)/2)
     base = vcat(cc[midi+minbaselag:end],cc[1:midi-minbaselag])
     bm,bsd = mean_and_std(base);hl = bm + esdfactor*bsd;ll = bm - isdfactor*bsd
@@ -487,36 +494,45 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+3,e
     backwardlags = midi-maxprojlag:midi-1
     fcc = cc[forwardlags]
     bcc = cc[backwardlags]
-    ps=[];ei=[];ii=[]
+    ps=[];ei=[];ii=[];pws=[]
 
-    if any(fcc .> hl)
-        push!(ps,(i,j));push!(ei,i)
-    elseif any(fcc .< ll)
-        push!(ps,(i,j));push!(ii,i)
+    if ll <= cc[midi] <= hl
+        if any(fcc .> hl)
+            push!(ps,(i,j));push!(ei,i);push!(pws,(maximum(fcc)-bm)/bsd)
+        elseif any(fcc .< ll)
+            push!(ps,(i,j));push!(ii,i);push!(pws,(minimum(fcc)-bm)/bsd)
+        end
+        if any(bcc .> hl)
+            push!(ps,(j,i));push!(ei,j);push!(pws,(maximum(bcc)-bm)/bsd)
+        elseif any(bcc .< ll)
+            push!(ps,(j,i));push!(ii,j);push!(pws,(minimum(bcc)-bm)/bsd)
+        end
     end
-    if any(bcc .> hl)
-        push!(ps,(j,i));push!(ei,j)
-    elseif any(bcc .< ll)
-        push!(ps,(j,i));push!(ii,j)
-    end
-    return ps,ei,ii
+    return ps,ei,ii,pws
 end
 
 function checklayer(ls::Dict)
-    ln=["WM","6","5","4Cb","4Ca","4B","4A","2/3","Out"]
-    for i in 1:length(ln)-1
-        if haskey(ls,ln[i]) && haskey(ls,ln[i+1])
-            ls[ln[i]][2] = ls[ln[i+1]][1]
+    ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"]
+    n = length(ln)
+    for i in 1:n-1
+        if haskey(ls,ln[i])
+            for j in (i+1):n
+                if haskey(ls,ln[j])
+                    ls[ln[i]][2] = ls[ln[j]][1]
+                    break
+                end
+            end
         end
     end
     return ls
 end
 
-function checkcircuit(projs,eunits,iunits)
+function checkcircuit(projs,eunits,iunits,projweights)
     ivu = intersect(eunits,iunits)
     veunits = setdiff(eunits,ivu)
     viunits = setdiff(iunits,ivu)
     ivp = map(p->any(i->i in ivu,p),projs)
     vprojs = deleteat!(copy(projs),ivp)
-    return vprojs,veunits,viunits
+    vprojweights = deleteat!(copy(projweights),ivp)
+    return vprojs,veunits,viunits,vprojweights
 end
