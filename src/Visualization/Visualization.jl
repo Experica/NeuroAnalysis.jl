@@ -103,8 +103,8 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
 function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
-    us = sort(unique(mseuc[!,:u]))
-    factors=setdiff(names(mseuc),[:m,:se,:u])
+    ugs = sort(unique(mseuc[:,[:u,:ug]]))
+    factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
@@ -136,10 +136,10 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
         sort!(mseuc,factor)
         if projection==:polar
             p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         else
             p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(:Response)),title=(title),linewidth=linewidth)
+            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         end
         if !isempty(responseline)
             for i in responseline
@@ -161,7 +161,7 @@ function plotpsth(rvv::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0
 end
 function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
     @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
-    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(:Response)),title=(title))
+    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(responsetype)),title=(title))
 end
 function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing)
     xms = x*SecondPerUnit*1000

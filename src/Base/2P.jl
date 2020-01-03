@@ -1,6 +1,6 @@
 
 
-export sbxsubrm, dPrime
+export sbxsubrm, dFoF
 
 function sbxsubrm(rm,epochs,rois;fun=nothing)
     nepoch = size(epochs,1)   # number of trial
@@ -16,7 +16,7 @@ function sbxsubrm(rm,epochs,rois;fun=nothing)
     return nepoch==1 ? dropdims(ys,dims=3) : ys
 end
 
-function dPrime(bi)
+function dFoF(bi)
         return x->begin
         bl = mean(x[:,bi],dims=2)
         x = x./bl .-1

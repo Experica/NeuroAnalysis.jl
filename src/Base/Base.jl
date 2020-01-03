@@ -1,5 +1,5 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
-DSP,HCubature,Combinatorics,DataStructures,LightGraphs,ANOVA
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions
+using DSP,HCubature,Combinatorics,DataStructures,LightGraphs,ANOVA,StatsFuns
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -20,13 +20,20 @@ isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
 
 "Check if any factors and their interactions significently modulate response by ANOVA"
-function ismodulative(df;alpha=0.05)
+function ismodulative(df;alpha=0.05,interact=true)
     xns = filter(i->i!=:Y,names(df))
+    # display(xns)
     categorical!(df,xns)
-    f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+    if interact
+        f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+    else
+        f = Term(:Y) ~ reduce(+,term.(xns))
+    end
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
     anovatype = length(xns) <= 1 ? 2 : 3
+    # display(anovatype)
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
+    # display(Anova(lmr,anovatype = anovatype))
 end
 
 "`von Mises` function"
@@ -55,18 +62,26 @@ function statsori(ori::Vector{Float64},m::Vector{Float64})
 end
 
 function factorresponsestats(fl,fr;factor=:Ori)
-    if factor == :Ori || factor == :Ori_Final
+    if factor == :Ori || factor == :Ori_Final || factor == :dir
         d = mean(diff(sort(unique(fl))))
         # for orientation
         ol = unique(mod.(fl,180))
-        or = map(i->sum(fr[(fl.==i) .| (fl.==(i+180))]),ol)
-        oo = mod(rad2deg(circmean(deg2rad.(2ol),or)),360)/2
-        ocv = circvar(deg2rad.(2ol),or,deg2rad(2d))
+        or = map(i->sum(fr[(fl.==i) .| (fl.==(i+180))]),mod.(ol.+90,180))
+        # maxo = ol[argmax(or)]
+        oo = mod(rad2deg(circmean(deg2rad.(2ol),or)),360)/2  # optimal ori
+        oov = circmeanv(deg2rad.(2ol),or)  # vectot of optimal ori
+        oor = circr(deg2rad.(2ol),or)   # scaled magnitude of optimal ori vector
+        ocv = circvar(deg2rad.(2ol),or,deg2rad(2d))  # circuilar variance
         # for direction
         od = mod(rad2deg(circmean(deg2rad.(fl),fr)),360)
+        odv = circmeanv(deg2rad.(fl),fr)
+        odr = circr(deg2rad.(fl),fr)
         dcv = circvar(deg2rad.(fl),fr,deg2rad(d))
 
-        return (od=od,dcv=dcv,oo=oo,ocv=ocv)
+        return (od=od,odr=odr,dcv=dcv,odv=odv,oo=oo,oor=oor, ocv=ocv,oov=oov)
+    elseif factor == :SpatialFreq
+        osf = 10^(sum(fr.*log10.(fl))/sum(fr))  # Optimal sf
+        return (osf = osf)
     elseif factor == :ColorID
         # for hue angle
         ucid = sort(unique(fl))
@@ -292,7 +307,7 @@ function condresponse(urs::Dict,ctc::DataFrame,factors)
 end
 
 "Condition Response in Factor Space"
-function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
+function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u,:ug]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
     fm = missings(Float64, map(nrow,values(fl))...)
     fse = copy(fm)
     for i in 1:nrow(mseuc)

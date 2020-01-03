@@ -20,6 +20,7 @@ function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzer
     w = (min, max)
     return y,n,w,i
 end
+"Sub set of RealVector"
 function subrv(rv::RealVector,mins::RealVector,maxs::RealVector;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     yn = length(mins)
     if yn != length(maxs)
@@ -51,7 +52,7 @@ function subrv(rvv::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzer
     end
     return ys,ns,ws,is
 end
-
+"Spike rate of Sub set of RealVector "
 subrvr(rv::RealVector,minmaxs::RealMatrix) = subrvr(rv,minmaxs[:,1],minmaxs[:,end])
 function subrvr(rv::RealVector,mins::RealVector,maxs::RealVector)
     _,ns,_,_ = subrv(rv,mins,maxs,israte=true)
