@@ -23,22 +23,21 @@ r: radius(micrometers) of the model current source/sink in reverse method
 
 return: CSD(amps/meters^3)
 """
-function csd(data;filter=nothing,method=:iCSDdelta,h=20,c=0.3,r=500)
+function csd(data;method=:iCSDdelta,h=20,c=0.3,r=500)
   nd=ndims(data)
   if nd==3
     nr,nc,n = size(data)
     y = Array{Float64}(undef,nr,nc,n)
     for i in 1:n
-      y[:,:,i] = csd(data[:,:,i],filter=filter,method=method,h=h,c=c,r=r)
+      y[:,:,i] = csd(data[:,:,i],method=method,h=h,c=c,r=r)
     end
   else
-    fdata = isnothing(filter) ? data : imfilter(data,filter)
-    nr,nc = size(fdata)
+    nr,nc = size(data)
     ħ = h*1e-6
     ɽ = r*1e-6
     if method==:iCSDdelta
       f = [ħ^2/(2c) * ( sqrt((j-i)^2 + (ɽ/ħ)^2) - abs(j-i) ) for j=1:nr,i=1:nr]
-      y = f\fdata
+      y = f\data
     elseif method==:iCSDspline # have wired problems, doesn't replicate the original code(CSDPlotter) results
       ep = collect(1:nr)*h
       y,zs = csd_cubicspline(ep,data,f_cubicspline(ep,r,c)...)
@@ -47,7 +46,7 @@ function csd(data;filter=nothing,method=:iCSDdelta,h=20,c=0.3,r=500)
     else # traditional CSD
       y=zeros(Float64,nr,nc)
       for i in 2:nr-1
-        y[i,:] = -c*(fdata[i-1,:] + fdata[i+1,:] - 2*fdata[i,:]) / ħ^2
+        y[i,:] = -c*(data[i-1,:] + data[i+1,:] - 2*data[i,:]) / ħ^2
       end
     end
   end

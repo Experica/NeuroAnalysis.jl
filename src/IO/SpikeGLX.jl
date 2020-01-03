@@ -37,22 +37,22 @@ function chmaskim(nch,chs,nrow,ncol)
     return mask' # rows are reverted and will be reverted back when XY plotting
 end
 "Logical mask for `IMEC` reference channels in probe shape"
-function refchmaskim(meta)
-    nch = meta["acqApLfSy"][1]
-    rorefch = meta["rorefch"][1]
+function refchmaskim(dataset;type="lf")
+    nch = dataset["ap"]["meta"]["acqApLfSy"][1]
+    rorefch = dataset["ap"]["meta"]["rorefch"][1]
     if rorefch==0
-        refch = meta["refch"]
+        refch = dataset[type]["meta"]["refch"]
     else
         refch = [rorefch]
     end
-    chmaskim(nch,refch,meta["nrow"],meta["ncol"])
+    chmaskim(nch,refch,dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
 end
-"Logical mask for `IMEC` bad channels in probe shape"
+"Logical mask for `IMEC` bad and reference channels in probe shape"
 function badchmaskim(dataset;type="lf",badch::Vector{Int}=Int[])
     nch = dataset["ap"]["meta"]["acqApLfSy"][1]
     rorefch = dataset["ap"]["meta"]["rorefch"][1]
     if rorefch==0
-        refch = dataset["ap"]["meta"]["refch"]
+        refch = dataset[type]["meta"]["refch"]
     else
         refch = [rorefch]
     end
