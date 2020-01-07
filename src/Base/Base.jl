@@ -22,7 +22,6 @@ isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(b
 "Check if any factors and their interactions significently modulate response by ANOVA"
 function ismodulative(df;alpha=0.05,interact=true)
     xns = filter(i->i!=:Y,names(df))
-    # display(xns)
     categorical!(df,xns)
     if interact
         f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
@@ -31,7 +30,6 @@ function ismodulative(df;alpha=0.05,interact=true)
     end
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
     anovatype = length(xns) <= 1 ? 2 : 3
-    # display(anovatype)
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
     # display(Anova(lmr,anovatype = anovatype))
 end
@@ -61,24 +59,50 @@ function statsori(ori::Vector{Float64},m::Vector{Float64})
     Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori,:gvm=>[gvmfit.param],:vm=>[vmfit.param])
 end
 
-function factorresponsestats(fl,fr;factor=:Ori)
-    if factor == :Ori || factor == :Ori_Final || factor == :dir
-        d = mean(diff(sort(unique(fl))))
-        # for orientation
-        ol = unique(mod.(fl,180))
-        or = map(i->sum(fr[(fl.==i) .| (fl.==(i+180))]),mod.(ol.+90,180))
-        # maxo = ol[argmax(or)]
-        oo = mod(rad2deg(circmean(deg2rad.(2ol),or)),360)/2  # optimal ori
-        oov = circmeanv(deg2rad.(2ol),or)  # vectot of optimal ori
-        oor = circr(deg2rad.(2ol),or)   # scaled magnitude of optimal ori vector
-        ocv = circvar(deg2rad.(2ol),or,deg2rad(2d))  # circuilar variance
-        # for direction
-        od = mod(rad2deg(circmean(deg2rad.(fl),fr)),360)
-        odv = circmeanv(deg2rad.(fl),fr)
-        odr = circr(deg2rad.(fl),fr)
-        dcv = circvar(deg2rad.(fl),fr,deg2rad(d))
+"""
+Tuning properties of factor response
 
-        return (od=od,odr=odr,dcv=dcv,odv=odv,oo=oo,oor=oor, ocv=ocv,oov=oov)
+fl: factor levels
+fr: factor responses
+
+    Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
+    For cases where Orientation and Direction are interlocked(drifting grating):
+        when Orientation is -(0), then Direction is ↑(90)
+        when Direction is →(0), then Orientation is |(-90)
+"""
+function factorresponsestats(fl,fr;factor=:Ori)
+    if factor == :Ori || factor == :Ori_Final
+        fls = deg2rad.(fl)
+        d = mean(diff(sort(unique(fls))))
+        # for orientation
+        ofl = mod.(fls,π)
+        ol = unique(ofl)
+        or = map(i->mean(fr[ofl.==i]),ol)
+        om = circmean(2ol,or)
+        oo = mod(rad2deg(angle(om)),360)/2
+        ocv = circvar(2ol,or,2d)
+        # for direction
+        dm = circmean(fls.+0.5π,fr)
+        od = mod(rad2deg(angle(dm)),360)
+        dcv = circvar(fls,fr,d)
+
+        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv)
+    elseif factor == :Dir
+        fls = deg2rad.(fl)
+        d = mean(diff(sort(unique(fls))))
+        # for orientation
+        ofl = mod.(fls-0.5π,π)
+        ol = unique(ofl)
+        or = map(i->mean(fr[ofl.==i]),ol)
+        om = circmean(2ol,or)
+        oo = mod(rad2deg(angle(om)),360)/2
+        ocv = circvar(2ol,or,2d)
+        # for direction
+        dm = circmean(fls,fr)
+        od = mod(rad2deg(angle(dm)),360)
+        dcv = circvar(fls,fr,d)
+
+        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv)
     elseif factor == :SpatialFreq
         osf = 10^(sum(fr.*log10.(fl))/sum(fr))  # Optimal sf
         return (osf = osf)
@@ -87,18 +111,19 @@ function factorresponsestats(fl,fr;factor=:Ori)
         ucid = sort(unique(fl))
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
-        oh = mod(rad2deg(circmean(ha,fr)),360)
+        oh = mod(rad2deg(angle(circmean(ha,fr))),360)
         hcv = circvar(ha,fr)
 
         return (oh=oh,hcv=hcv)
     elseif factor == :HueAngle
         ha = deg2rad.(fl)
         d = mean(diff(sort(unique(ha))))
-        oh = mod(rad2deg(circmean(ha,fr)),360)
+        hm = circmean(ha,fr)
+        oh = mod(rad2deg(angle(hm)),360)
         # oh = fl[argmax(fr)]
         hcv = circvar(ha,fr,d)
 
-        return (oh=oh,hcv=hcv)
+        return (hm=hm,oh=oh,hcv=hcv)
     else
         return []
     end
