@@ -1,7 +1,5 @@
 
 
-export sbxsubrm, dFoF
-
 function sbxsubrm(rm,epochs,rois;fun=nothing)
     nepoch = size(epochs,1)   # number of trial
     minepochlength = floor(Int,minimum(diff(epochs,dims=2)))

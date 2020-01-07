@@ -1,5 +1,5 @@
 using LinearAlgebra,FileIO,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
-DSP,HCubature,Combinatorics,DataStructures,LightGraphs,ANOVA,StatsFuns
+DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -7,9 +7,6 @@ include("Spike.jl")
 include("LFP.jl")
 include("Image.jl")
 include("2P.jl")
-
-export anscombe,isresponsive,vmf,gvmf,statsori,sta,flcond,subcond,findcond,flin,condin,condfactor,finalfactor,condstring,condresponse,
-setfln,testfln,condmean,spacepsth,correlogram,circuitestimate,factorresponse,checklayer,factorresponsestats,ismodulative,checkcircuit
 
 anscombe(x) = 2*sqrt(x+(3/8))
 

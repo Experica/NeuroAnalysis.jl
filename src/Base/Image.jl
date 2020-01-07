@@ -1,6 +1,3 @@
-export alphablend,alphamask,
-clampscale,oiframeresponse,oiresponse,oicomplexmap,anglemode,angleabs,findclosestangle
-
 function alphablend(src,dst,srcfactor,dstfactor=1-srcfactor)
     srcfactor.*src+dstfactor.*dst
 end

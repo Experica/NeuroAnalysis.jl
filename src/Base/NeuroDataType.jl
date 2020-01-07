@@ -1,5 +1,3 @@
-export RealVector,RealMatrix,RVVector,RVVVector,SecondPerUnit,settimeunit,timetounit
-
 RealVector{T} = AbstractArray{T,1} where T<:Real
 RealMatrix{T} = AbstractArray{T,2} where T<:Real
 RVVector{T} = AbstractArray{T,1} where T<:RealVector

@@ -1,5 +1,3 @@
-export subrv,subrvr,isi,poissonspike,flatrvv,histrv,histmatrix,psth
-
 "Sub set of `RealVector` V, where `min <= V[i] < max`. KwArgs `isminzero` and `ismaxzero` set subrv zero to min and max."
 function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     if ismaxzero && isminzero

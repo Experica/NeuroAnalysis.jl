@@ -1,5 +1,3 @@
-export circmean,circvar,circr,circaxial,circaxialmean,hotellingt2test,dirsigtest
-
 "Mean for circular data"
 circmean(α::AbstractVector,w=ones(length(α)))=sum(w.*exp.(im*α))
 """

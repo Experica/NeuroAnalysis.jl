@@ -1,5 +1,3 @@
-export csd
-
 """
 1D Current Source Density for a set of voltage traces from a linear array of electrodes.
 
