@@ -88,9 +88,11 @@ function factorresponsestats(fl,fr;factor=:Ori)
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
         oh = mod(rad2deg(circmean(ha,fr)),360)
+        ohv = circmeanv(ha,fr)
+        ohr = circr(ha,fr)
         hcv = circvar(ha,fr)
 
-        return (oh=oh,hcv=hcv)
+        return (oh=oh,ohr=ohr,hcv=hcv,ohv=ohv)
     elseif factor == :HueAngle
         ha = deg2rad.(fl)
         d = mean(diff(sort(unique(ha))))
