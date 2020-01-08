@@ -1,7 +1,5 @@
 include("CSD.jl")
 
-export subrm,reshape2mask,stfilter,rmline!,hlpass,time2sample,sample2time,epoch2samplerange,parsedigitalinanalog,powerspectrum
-
 function subrm(rm,fs,epochs,chs;fun=nothing)
     nepoch = size(epochs,1)
     epochis = floor.(Int,epochs.*SecondPerUnit.*fs)

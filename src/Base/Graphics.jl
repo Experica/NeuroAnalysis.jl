@@ -1,13 +1,4 @@
 import Base: convert,getindex,setindex!,+,-,*,/,==,length,norm
-export Vec3,Vec4,translation,rotationxyz,reflection,
-transform,translate,rotatexyz,transrotatez,ang2rad,rad2ang
-
-function ang2rad(a)
-  r = a * (pi/180)
-end
-function rad2ang(r)
-  a = r * (180/pi)
-end
 
 # Vector3
 type Vec3{T}

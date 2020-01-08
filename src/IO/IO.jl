@@ -2,12 +2,6 @@ using MAT
 
 include("SpikeGLX.jl")
 
-export readmat,readmeta,mat2julia!,loadimageset,CondDCh,MarkDCh,StartDCh,StopDCh,Bits16DCh,digitaldata,digitalbit,
-prepare,prepare!,prepare_ripple!,prepare_oi!,prepare_experica!,
-statetime,getparam,condtestcond,condtest,ctctc,maptodatatime,
-oifileregex,getoifile,expericafileregex,getexpericafile,matchfile,
-unitfyspike_kilosort
-
 "Read variables in `MATLAB` MAT file"
 function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
     if isempty(vars)

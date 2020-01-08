@@ -1,8 +1,5 @@
 using Plots,StatsPlots
 
-export factorunit,huecolors,minmaxcolormap,unitcolors,plotspiketrain,plotpsth,plotcondresponse,plotsta,plotanalog,plotunitposition,
-plotcircuit
-
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)

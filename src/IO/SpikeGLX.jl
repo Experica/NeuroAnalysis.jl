@@ -1,5 +1,3 @@
-export gaincorrectim,chmaskim,refchmaskim,badchmaskim
-
 """
 Convert raw imec data to gain-corrected voltages. The saved-channel id subset in data
 will be used to get corresponding gain.
