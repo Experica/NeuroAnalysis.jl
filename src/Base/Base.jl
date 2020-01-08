@@ -88,7 +88,7 @@ function factorresponsestats(fl,fr;factor=:Ori)
         fls = deg2rad.(fl)
         d = mean(diff(sort(unique(fls))))
         # for orientation
-        ofl = mod.(fls-0.5π,π)
+        ofl = mod.(fls.-0.5π,π)
         ol = unique(ofl)
         or = map(i->mean(fr[ofl.==i]),ol)
         om = circmean(2ol,or)
