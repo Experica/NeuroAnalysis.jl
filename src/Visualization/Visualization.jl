@@ -186,10 +186,12 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
     return p
 end
 
-function plotsta(α,imagesize;delay=nothing,decor=false,color=:coolwarm,filter=Kernel.gaussian(2))
-    d = isnothing(delay) ? "" : "_$(delay)"
-    t = (decor ? "d" : "") * "STA$d"
-    plotsta(reshape(α,imagesize),title=t,color=color,filter=filter)
+function plotsta(α,imagesize;delay=nothing,decor=false,color=:coolwarm,filter=Kernel.gaussian(1),title=nothing)
+    if isnothing(title)
+        d = isnothing(delay) ? "" : "_$(delay)"
+        title = (decor ? "d" : "") * "STA$d"
+    end
+    plotsta(reshape(α,imagesize),title=title,color=color,filter=filter)
 end
 function plotsta(α;title="",color=:coolwarm,filter=nothing)
     if !isnothing(filter)
