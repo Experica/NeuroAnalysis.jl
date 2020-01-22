@@ -114,15 +114,23 @@ function factorresponsestats(fl,fr;factor=:Ori)
 
         return (hm=hm,oh=oh,hcv=hcv)
     elseif factor == :HueAngle
-        ha = deg2rad.(fl)
-        d = mean(diff(sort(unique(ha))))
-        hm = circmean(ha,fr)
-        oh = mod(rad2deg(angle(hm)),360)
+        fls = deg2rad.(fl)
+        d = mean(diff(sort(unique(fls))))
+        # for hue axis
+        axfl = mod.(fls.-0.5π,π)
+        axl = unique(axfl)
+        axresp = map(i->mean(fr[axfl.==i]),axl)
+        haxm = circmean(2axl, axresp)
+        ohax = mod(rad2deg(angle(haxm)),360)/2
+        haxcv = circvar(2axl,axresp,2d)
+        # for hue direction
+        hdirm = circmean(fls,fr)
+        ohdir = mod(rad2deg(angle(hdirm)),360)
+        hdircv = circvar(fls,fr,d)
         # oh = fl[argmax(fr)]
-        hcv = circvar(ha,fr,d)
         maxh = fl[findmax(fr)[2]]
         maxr = findmax(fr)[1]
-        return (hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr)
+        return (haxm=haxm,ohax=ohax,haxcv=haxcv,hdirm=hdirm,ohdir=ohdir,hdircv=hdircv,maxh=maxh,maxr=maxr)
     else
         return []
     end
