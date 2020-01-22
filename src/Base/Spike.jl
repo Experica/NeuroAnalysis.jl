@@ -49,10 +49,10 @@ function subrv(rvv::RVVector,binedges::RealVector;isminzero::Bool=false,ismaxzer
     end
     return ys,ns,ws,is
 end
-"Mean firing rate of each sub set of `RealVector`"
-subrvr(rv::RealVector,minmaxs::RealMatrix) = subrvr(rv,minmaxs[:,1],minmaxs[:,end])
-function subrvr(rv::RealVector,mins::RealVector,maxs::RealVector)
-    _,ns,_,_ = subrv(rv,mins,maxs,israte=true)
+"Response of each sub set of `RealVector`, could be mean firing rate or number of spikes"
+subrvr(rv::RealVector,minmaxs::RealMatrix;israte=true) = subrvr(rv,minmaxs[:,1],minmaxs[:,2],israte=israte)
+function subrvr(rv::RealVector,mins::RealVector,maxs::RealVector;israte=true)
+    _,ns,_,_ = subrv(rv,mins,maxs,israte=israte)
     return ns
 end
 

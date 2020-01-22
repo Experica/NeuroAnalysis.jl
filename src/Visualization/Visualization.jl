@@ -1,4 +1,4 @@
-using Plots,StatsPlots
+using Plots,StatsPlots,VegaLite
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
@@ -187,16 +187,53 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
     return p
 end
 
-function plotsta(α,imagesize;delay=nothing,decor=false,color=:coolwarm,filter=Kernel.gaussian(2))
-    d = isnothing(delay) ? "" : "_$(delay)"
-    t = (decor ? "d" : "") * "STA$d"
-    plotsta(reshape(α,imagesize),title=t,color=color,filter=filter)
-end
-function plotsta(α;title="",color=:coolwarm,filter=nothing)
-    if !isnothing(filter)
-        α = imfilter(α,filter)
+function plotsta(r;imagesize=size(r),size=nothing,ppd=30,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue")
+    nd = ndims(r)
+    if nd==1
+        if isnothing(index)
+            sta = reshape(r,imagesize)
+        else
+            sta = fill(mean(r),imagesize)
+            sta[index] = r
+        end
+    elseif nd==2
+        sta = r
     end
-    plot(α,seriestype=:heatmap,color=color,ratio=:equal,yflip=true,leg=false,framestyle=:none,title=title)
+    if !isnothing(filter)
+        sta = imfilter(sta,filter)
+    end
+    if !isnothing(size)
+        ppd = first(imagesize./size)
+    end
+
+    x = vec([(j-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
+    y = vec([(i-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
+    z = vec(sta)
+    if !isnothing(index)
+        x=x[index];y=y[index];z=z[index]
+    end
+    xlim=[extrema(x)...];ylim=[extrema(y)...];width=2ppd*xlim[2];height=2ppd*ylim[2]
+
+    DataFrame(z=z,x=x,y=y) |> @vlplot(:rect,width=width,height=height,
+    x={"x:o",title="X (deg)",axis={values=xlim,format=".1",labelAngle=0}},
+    y={"y:o",title="Y (deg)",axis={values=ylim,format=".1"}},
+    color={"z:q",title=""},title={text=title},
+    config={
+    range={heatmap={scheme=color,extent=[1,0]}},
+    view={stroke="transparent"}})
+
+    # x=[(i-1)/ppd for i in 1:imagesize[1]]
+    #
+    # color=:coolwarm
+    # if true
+    #     cg = cgrad(color)
+    #     minv,maxv = extrema(sta)
+    #     vr=maxv-minv
+    #     sta = map(i->coloralpha(RGB(cg[(i-minv)/vr]),0),sta)
+    #     sta[index] = coloralpha.(sta[index],1)
+    # end
+    # Plots.heatmap(x,x,sta,color=:coolwarm,ratio=:equal,yflip=true,leg=true,framestyle=:grid,title=title,
+    # xlabel="Position_X (Deg)",ylabel="Position_Y (Deg)",xtick=xlim,ytick=[])
 end
 
 function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
