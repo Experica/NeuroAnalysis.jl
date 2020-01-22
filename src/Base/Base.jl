@@ -83,6 +83,14 @@ function factorresponsestats(fl,fr;factor=:Ori)
         od = mod(rad2deg(angle(dm)),360)
         dcv = circvar(fls,fr,d)
 
+        # fit Generalized von Mises and von Mises
+        gvmfit = curve_fit((x,p)->gvmf.(x,p...),a,m,Float64[1,0,0,0,0])
+        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),a,m,Float64[1,0,0])
+        # 1deg = 0.017rad, 0.01rad = 0.57deg
+        x = collect(0:0.01:2pi)
+        pdir = x[argmax(gvmf.(x,gvmfit.param...))]
+        pori = x[argmax(vmf.(x,vmfit.param...,n=2))]%pi
+
         return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv)
     elseif factor == :Dir
         fls = deg2rad.(fl)
@@ -108,10 +116,14 @@ function factorresponsestats(fl,fr;factor=:Ori)
         ucid = sort(unique(fl))
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
+        oh = mod(rad2deg(circmean(ha,fr)),360)
+        ohv = circmeanv(ha,fr)
+        ohr = circr(ha,fr)
+        hcv = circvar(ha,fr)
         hm = circmean(ha,fr)
         oh = mod(rad2deg(angle(hm)),360)
         hcv = circvar(ha,fr,hstep)
-
+        
         return (hm=hm,oh=oh,hcv=hcv)
     elseif factor == :HueAngle
         ha = deg2rad.(fl)
@@ -122,6 +134,7 @@ function factorresponsestats(fl,fr;factor=:Ori)
         hcv = circvar(ha,fr,d)
         maxh = fl[findmax(fr)[2]]
         maxr = findmax(fr)[1]
+
         return (hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr)
     else
         return []
@@ -312,9 +325,13 @@ function condstring(cond::DataFrame,fs=names(cond))
     [condstring(r,fs) for r in eachrow(cond)]
 end
 
-"Group repeats of Conditions, get `Mean` and `SEM` of responses"
+"""
+Group repeats of Conditions, get `Mean` and `SEM` of responses
+
+rs: responses of each trial
+gi: trial indices of repeats for each condition
+"""
 function condresponse(rs,gi)
-    "gi is group index, need input as a group"
     grs = [rs[i] for i in gi]
     DataFrame(m=mean.(grs),se=sem.(grs))
 end
