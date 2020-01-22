@@ -107,7 +107,7 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     mseuc = condresponse(urs,cond)
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
-function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
+function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:ug])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
     ugs = sort(unique(mseuc[:,[:u,:ug]]))
     factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
     nfactor=length(factors)
@@ -140,10 +140,10 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
         end
         sort!(mseuc,factor)
         if projection==:polar
-            p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
+            p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:ug,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
             grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         else
-            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
+            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:ug,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
             grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         end
         if !isempty(responseline)
@@ -186,17 +186,17 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
     return p
 end
 
-function plotsta(r;imagesize=size(r),size=nothing,ppd=30,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue")
-    nd = ndims(r)
+function plotsta(ps;imagesize=size(ps),size=nothing,ppd=30,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
+    nd = ndims(ps)
     if nd==1
         if isnothing(index)
-            sta = reshape(r,imagesize)
+            sta = reshape(ps,imagesize)
         else
-            sta = fill(mean(r),imagesize)
-            sta[index] = r
+            sta = fill(mean(ps),imagesize)
+            sta[index] = ps
         end
     elseif nd==2
-        sta = r
+        sta = ps
     end
     if !isnothing(filter)
         sta = imfilter(sta,filter)
@@ -211,15 +211,14 @@ function plotsta(r;imagesize=size(r),size=nothing,ppd=30,index=nothing,filter=Ke
     if !isnothing(index)
         x=x[index];y=y[index];z=z[index]
     end
-    xlim=[extrema(x)...];ylim=[extrema(y)...];width=2ppd*xlim[2];height=2ppd*ylim[2]
+    xlim=[extrema(x)...];ylim=[extrema(y)...];size=2;width=size*length(unique(x));height=size*length(unique(y))
 
-    DataFrame(z=z,x=x,y=y) |> @vlplot(:rect,width=width,height=height,
+    DataFrame(z=z,x=x,y=y) |> @vlplot(mark={:rect,size=size,strokeWidth=0},width=width,height=height,background=bg,
     x={"x:o",title="X (deg)",axis={values=xlim,format=".1",labelAngle=0}},
     y={"y:o",title="Y (deg)",axis={values=ylim,format=".1"}},
-    color={"z:q",title=""},title={text=title},
-    config={
-    range={heatmap={scheme=color,extent=[1,0]}},
-    view={stroke="transparent"}})
+    color={"z:q",title="",scale={domain=r}},title={text=title},
+    config={range={heatmap={scheme=color,extent=[1,0]}},
+    view={strokeWidth=0,fill=bg}})
 
     # x=[(i-1)/ppd for i in 1:imagesize[1]]
     #
@@ -289,9 +288,9 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
 end
 
 plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="") = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha,title=title)
-function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="")
+function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="",markersize=5)
     nunit = size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);us = "$ngoodunit/$nunit"
-    xlim = isempty(chposition) ? (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
+    xlim = isempty(chposition) ? (minimum(unitposition[:,1])-4,maximum(unitposition[:,1])+2) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
     p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim)
     if !isempty(chposition)
         scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=2,color=:grey60,label="Electrode")
@@ -306,16 +305,175 @@ function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer
             color = coloralpha.(parse.(RGB,color),alpha)
         end
     end
-    if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid,3,:gray10,:center),title=title)
-    else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=5,title=title)
-    end
     if !isnothing(layer)
         lx = xlim[1]+2
         hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,5,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
     end
+    if !isempty(unitid)
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=markersize,series_annotations=text.(unitid,3,:gray10,:center),title=title)
+    else
+        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=markersize,title=title)
+    end
     return p
+end
+
+function plotunitpositionproperty(unitposition;ori=nothing,os=nothing,dir=nothing,ds=nothing,sf=nothing,width=500,height=400,title="",layer=nothing)
+    df = DataFrame(x=unitposition[:,1],y=unitposition[:,2],m=Any[:circle for _ in 1:size(unitposition,1)],a=0.0,sw=0.0,c=0.0,s=10.0)
+    l = DataFrame()
+    xlim = [minimum(df[:,:x])-4,maximum(df[:,:x])+2]
+    ylim = [minimum(df[:,:y])-100,maximum(df[:,:y])+100]
+    if !isnothing(sf)
+        df[!,:c]=sf
+    end
+    if !isnothing(ori)
+        df[!,:m] .= :stroke
+        df[!,:a] = -ori
+        df[!,:sw] .= 1
+        if !isnothing(os)
+            df[!,:s]=os
+        else
+            df[!,:s].=160
+        end
+    end
+    if !isnothing(dir)
+        t = copy(df)
+        arrowpath = "M 0 -0.1 H 1 V -0.3 L 1.6 0 L 1 0.3 V 0.1 H 0 Z"
+        t[!,:m] .= arrowpath
+        t[!,:a] = -dir
+        t[!,:sw] .= 0
+        if !isnothing(ds)
+            t[!,:s]=ds
+        else
+            t[!,:s].=200
+        end
+        df = [df;t]
+    end
+    if !isnothing(layer)
+        l[!,:x] = fill(xlim[1],length(layer))
+        l[!,:x2] .= xlim[2]
+        l[!,:y] = [v[1] for v in values(layer)]
+        l[!,:y2] = l[!,:y]
+        l[!,:l] = collect(keys(layer))
+        ylim = [extrema([ylim;l[:,:y]])...].+[-50,100]
+    end
+    @vgplot(height=height,width=width,padding=5,data=[:df=>df,:l=>l],
+    marks=[
+    {
+    type="rule",
+    from={data="l"},
+    encode={
+        update={
+        x={field="x",scale="x"},
+        y={field="y",scale="y"},
+        x2={field="x2",scale="x"},
+        y2={field="y2",scale="y"},
+        strokeDash={value=[4,2]},
+        strokeWidth={value=0.5},
+        stroke={value="dimgray"}
+        }}
+    },
+    {
+    type="text",
+    from={data="l"},
+    encode={
+        update={
+        x={field="x",scale="x"},
+        y={field="y",scale="y"},
+        text={field="l"},
+        align={value="left"},
+        baseline={value="bottom"},
+        fontSize={value=7},
+        dx={value=15}
+        }}
+    },
+    {
+    type="symbol",
+    from={data="df"},
+    encode={
+        update={
+        x={field="x",scale="x"},
+        y={field="y",scale="y"},
+        shape={field="m"},
+        angle={field="a"},
+        size={field="s",scale="s"},
+        strokeWidth={field="sw"},
+        stroke={field="c",scale="c"},
+        fill={field="c",scale="c"}
+        }}
+    }
+    ],
+    scales=[
+    {
+        name="x",
+        nice=false,
+        zero=false,
+        range="width",
+        domain=xlim,
+        type="linear",
+        round=true
+    },
+    {
+        name="y",
+        nice=false,
+        zero=false,
+        range="height",
+        domain=ylim,
+        type="linear",
+        round=true
+    },
+    {
+        name="c",
+        nice=false,
+        zero=false,
+        round=false,
+        type="linear",
+        range={scheme = "plasma",extent=[0.8,0.2]},
+        domain={data="df",field="c"}
+    },
+    {
+        name="s",
+        nice=false,
+        zero=false,
+        domain={data="df",field="s"},
+        type="linear",
+        round=true,
+        range=[10, 200]
+    }
+    ],
+    axes=[
+    {
+        domain=true,
+        tickCount=5,
+        grid=false,
+        title="Position_X (μm)",
+        scale="x",
+        orient="bottom"
+    },
+    {
+        domain=true,
+        tickCount=5,
+        grid=false,
+        title="Position_Y (μm)",
+        scale="y",
+        orient="left"
+    }
+    ],
+    title={
+    text = title
+    },
+    legends=[
+    {
+    type="gradient",
+    fill="c",
+    title="SF"
+    },
+    {
+    type="symbol",
+    symbolType="stroke",
+    size="s",
+    title="1-CV"
+    }
+    ])
 end
 
 function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],projweights=[],layer=nothing,showuid=true,showmode=:none)

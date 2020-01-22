@@ -1,4 +1,11 @@
-"Sub set of `RealVector` V, where `min <= V[i] < max`. KwArgs `isminzero` and `ismaxzero` set subrv zero to min and max."
+"""
+Sub set of a `RealVector` `rv`, where `min <= rv[i] < max`. KwArgs `isminzero` and `ismaxzero` set subrv zero to min and max.
+
+y: subset of `RealVector`
+n: number of elements in the subset
+w: window of the subset (min,max)
+i: indices of subset elements in original `RealVector`, such that y = rv[i] 
+"""
 function subrv(rv::RealVector,min::Real,max::Real;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     if ismaxzero && isminzero
         error("Zero setting conflicts, only one of them is allowed to be true.")

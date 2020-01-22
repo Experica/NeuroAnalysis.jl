@@ -68,9 +68,9 @@ fr: factor responses
         when Direction is →(0), then Orientation is |(-90)
 """
 function factorresponsestats(fl,fr;factor=:Ori)
-    if factor == :Ori || factor == :Ori_Final
+    if factor in [:Ori,:Ori_Final]
         fls = deg2rad.(fl)
-        d = mean(diff(sort(unique(fls))))
+        d = mean(diff(sort(unique(fls)))) # factor levels spacing
         # for orientation
         ofl = mod.(fls,π)
         ol = unique(ofl)
@@ -101,8 +101,8 @@ function factorresponsestats(fl,fr;factor=:Ori)
 
         return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv)
     elseif factor == :SpatialFreq
-        osf = 10^(sum(fr.*log10.(fl))/sum(fr))  # Optimal sf
-        return (osf = osf)
+        osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
+        return (osf = osf,)
     elseif factor == :ColorID
         # for hue angle
         ucid = sort(unique(fl))
@@ -463,10 +463,19 @@ end
 
 
 """
-Shift(shuffle) corrected, normalized(coincidence/spike), trial-averaged Cross-Correlogram of binary spike trains.
+Shift(shuffle) corrected, normalized(coincidence/spike), condition/trial-averaged Cross-Correlogram of binary spike trains.
 (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676–1697.)
 """
-function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true)
+function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true,condis=nothing)
+    if !isnothing(condis)
+        cccg=[];x=[]
+        for ci in condis
+            ccg,x = correlogram(bst1[:,ci],bst2[:,ci],lag=lag,isnorm=isnorm,shiftcorrection=shiftcorrection,condis=nothing)
+            push!(cccg,ccg)
+        end
+        ccg=dropdims(mean(hcat(cccg...),dims=2),dims=2)
+        return ccg,x
+    end
     n,nepoch = size(bst1)
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
@@ -497,19 +506,30 @@ function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true)
     end
     ccg,x
 end
-function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=6,isdfactor=3.5,unitid=[])
+function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=6,isdfactor=3.5,unitid=[],condis=nothing)
     nunit=length(unitbinspike)
     n,nepoch = size(unitbinspike[1])
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
 
+    isenoughspike = (i,j;minepoch=5,minspike=10) -> begin
+        vsi = sum(i,dims=1)[:] .>= minspike
+        vsj = sum(j,dims=1)[:] .>= minspike
+        count(vsi) >= minepoch && count(vsj) >= minepoch
+    end
+
     ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[];projweights=[]
     for (i,j) in combinations(1:nunit,2)
-        vsi = sum(unitbinspike[i],dims=1)[:] .>= minspike
-        vsj = sum(unitbinspike[j],dims=1)[:] .>= minspike
-        (count(vsi) < minepoch || count(vsj) < minepoch) && continue
+        if isnothing(condis)
+            !isenoughspike(unitbinspike[i],unitbinspike[j],minepoch=minepoch,minspike=minspike) && continue
+            vcondis=nothing
+        else
+            vci = map(ci->isenoughspike(unitbinspike[i][:,ci],unitbinspike[j][:,ci],minepoch=minepoch,minspike=minspike),condis)
+            all(.!vci) && continue
+            vcondis = condis[vci]
+        end
 
-        ccg,_ = correlogram(unitbinspike[i],unitbinspike[j],lag=lag)
+        ccg,_ = correlogram(unitbinspike[i],unitbinspike[j],lag=lag,condis=vcondis)
         ps,es,is,pws = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag,esdfactor=esdfactor,isdfactor=isdfactor)
         if !isempty(ps)
             push!(ccgs,ccg);push!(ccgis,(i,j))
