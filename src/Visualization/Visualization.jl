@@ -140,7 +140,8 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:u])),
         end
         sort!(mseuc,factor)
         if projection==:polar
-            p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
+            # p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
+            p = @df mseuc Plots.plot(cols(factor),:m,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
             grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         else
             p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:u,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
