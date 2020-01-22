@@ -148,12 +148,12 @@ function parsedigitalinanalog(x,ht,lt=ht,n=length(x);activehigh=true)
     return di,dv
 end
 
-function powerspectrum(x,fs;freqrange=0:100,nw=4)
+function powerspectrum(x,fs;freqrange=[0,100],nw=4)
     nd=ndims(x)
     if nd==3
         n=size(x,1);ne=size(x,3)
         ps = mt_pgram(x[1,:,1],fs=fs,nw=nw)
-        fi = in.(freq(ps),[freqrange])
+        fi = map(f->freqrange[1]<=f<=freqrange[2],freq(ps))
         freqs = freq(ps)[fi]
         p = Array{Float64}(undef,n,length(freqs),ne)
         for i in 1:n,j in 1:ne
@@ -161,7 +161,7 @@ function powerspectrum(x,fs;freqrange=0:100,nw=4)
         end
     else
         ps = mt_pgram(x[1,:],fs=fs,nw=nw)
-        fi = in.(freq(ps),[freqrange])
+        fi = map(f->freqrange[1]<=f<=freqrange[2],freq(ps))
         freqs = freq(ps)[fi];n = size(x,1)
         p = Array{Float64}(undef,n,length(freqs))
         p[1,:]=power(ps)[fi]
