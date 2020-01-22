@@ -104,16 +104,15 @@ function factorresponsestats(fl,fr;factor=:Ori)
         osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
         return (osf = osf,)
     elseif factor == :ColorID
-        # for hue angle
+        # transform colorId to hue angle
         ucid = sort(unique(fl))
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
-        oh = mod(rad2deg(circmean(ha,fr)),360)
-        ohv = circmeanv(ha,fr)
-        ohr = circr(ha,fr)
-        hcv = circvar(ha,fr)
+        hm = circmean(ha,fr)
+        oh = mod(rad2deg(angle(hm)),360)
+        hcv = circvar(ha,fr,hstep)
 
-        return (oh=oh,ohr=ohr,hcv=hcv,ohv=ohv)
+        return (hm=hm,oh=oh,hcv=hcv)
     elseif factor == :HueAngle
         ha = deg2rad.(fl)
         d = mean(diff(sort(unique(ha))))
@@ -121,8 +120,9 @@ function factorresponsestats(fl,fr;factor=:Ori)
         oh = mod(rad2deg(angle(hm)),360)
         # oh = fl[argmax(fr)]
         hcv = circvar(ha,fr,d)
-
-        return (hm=hm,oh=oh,hcv=hcv)
+        maxh = fl[findmax(fr)[2]]
+        maxr = findmax(fr)[1]
+        return (hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr)
     else
         return []
     end
@@ -314,6 +314,7 @@ end
 
 "Group repeats of Conditions, get `Mean` and `SEM` of responses"
 function condresponse(rs,gi)
+    "gi is group index, need input as a group"
     grs = [rs[i] for i in gi]
     DataFrame(m=mean.(grs),se=sem.(grs))
 end

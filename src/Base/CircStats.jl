@@ -8,7 +8,7 @@ Mean Resultant Vector Length for circular data
        correction factor is used to correct for bias
 """
 function circr(α::AbstractVector,w=ones(length(α)),d=nothing)
-    r = abs(sum(w.*exp.(im*α)))/sum(w)
+    r = abs(sum(w.*exp.(im*α)))/sum(abs.(w))
     if d!=nothing
         r *= d/2/sin(d/2)
     end
