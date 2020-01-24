@@ -135,7 +135,7 @@ function angleabs(cmap)
     return amap,mmap
 end
 anglemode(a,theta) = theta[findclosestangle(a,theta)]
-findclosestangle(a,theta) = findmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))[2]
+findclosestangle(a,theta) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))
 
 "Generate Grating"
 function grating(;ori=0,sf=0.1,phase=0,tf=1,t=0,size=10,ppd=30)

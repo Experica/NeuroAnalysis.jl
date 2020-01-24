@@ -28,32 +28,51 @@ function ismodulative(df;alpha=0.05,interact=true)
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
     anovatype = length(xns) <= 1 ? 2 : 3
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
-    # display(Anova(lmr,anovatype = anovatype))
 end
 
-"`von Mises` function"
-vmf(α,β=1,μ=0.0,κ=1.0;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
-"`Generalized von Mises` function"
-gvmf(α,β=1,μ₁=0.0,κ₁=1.0,μ₂=0.0,κ₂=1.0) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2*(α-μ₂))-1))
+"""
+`von Mises` function f(α) = βℯ(κ(cos(𝒏(α-μ))-1))
+(Swindale, N.V. (1998). Orientation tuning curves: empirical description and estimation of parameters. Biol Cybern 78, 45–56.)
 
-function statsori(ori::Vector{Float64},m::Vector{Float64})
-    # Circular Statistics
-    d=deg2rad(filter(x->x!=0,unique(diff(sort(ori))))[1])
-    a = deg2rad.(ori)
-    dcv = circvar(a,m,d)
-    aa=circaxial.(a)
-    ad=circaxial(d)
-    ocv = circvar(aa,m,ad)
+β: amplitude at μ
+μ: angle of peak
+κ: width parameter
+𝒏: frequency parameter
+"""
+vmf(α,β=1,μ=0,κ=1;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
+"""
+`Generalized von Mises` function f(α) = βℯ(κ₁(cos(α-μ₁)-1) + κ₂(cos(2(α-μ₂))-1))
+(Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.)
+"""
+gvmf(α,β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
 
-    # Generalized von Mises and von Mises model fitting
-    gvmfit = curve_fit((x,p)->gvmf.(x,p...),a,m,Float64[1,0,0,0,0])
-    vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),a,m,Float64[1,0,0])
-    # 1deg = 0.017rad, 0.01rad = 0.57deg
-    x = collect(0:0.01:2pi)
-    pdir = x[argmax(gvmf.(x,gvmfit.param...))]
-    pori = x[argmax(vmf.(x,vmfit.param...,n=2))]%pi
+"""
+Properties of Circular Tuning:
+    Prefered Direction/Orientation
+    Selectivity Index
+        version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
+        version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
+    Full Width at Half Maximum
 
-    Dict(:dcv=>dcv,:pdir=>pdir,:ocv=>ocv,:pori=>pori,:gvm=>[gvmfit.param],:vm=>[vmfit.param])
+x: angles in radius
+y: responses
+od: opposing angle distance, π for DSI, 0.5π for OSI
+s: symbol name
+"""
+function circtuningstats(x,y;od=π,s=od==π ? :d : :o)
+    maxi = argmax(y)
+    maxr = y[maxi]
+    px = x[maxi]
+    ox = px+od
+    oi = findclosestangle(ox,x)
+    or = y[oi]
+
+    si1 = 1-or/maxr
+    si2 = (maxr-or)/(maxr+or)
+
+    # minr = minimum(y)
+    # hmaxr = minr + (maxr-minr)/2
+    @eval ($(Symbol(:p,s)) = $(rad2deg(mod(px,2od))), $(Symbol(s,:si1)) = $si1, $(Symbol(s,:si2)) = $si2)
 end
 
 """
@@ -62,52 +81,70 @@ Tuning properties of factor response
 fl: factor levels
 fr: factor responses
 
-    Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
+    HueAngle, Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
     For cases where Orientation and Direction are interlocked(drifting grating):
         when Orientation is -(0), then Direction is ↑(90)
         when Direction is →(0), then Orientation is |(-90)
 """
 function factorresponsestats(fl,fr;factor=:Ori)
     if factor in [:Ori,:Ori_Final]
-        fls = deg2rad.(fl)
-        d = mean(diff(sort(unique(fls)))) # factor levels spacing
+        θ = deg2rad.(fl)
+        d = mean(diff(sort(unique(θ)))) # angle spacing
         # for orientation
-        ofl = mod.(fls,π)
-        ol = unique(ofl)
-        or = map(i->mean(fr[ofl.==i]),ol)
-        om = circmean(2ol,or)
-        oo = mod(rad2deg(angle(om)),360)/2
-        ocv = circvar(2ol,or,2d)
+        oθ = mod.(θ,π)
+        om = circmean(2oθ,fr)
+        oo = rad2deg(mod(angle(om),2π)/2)
+        ocv = circvar(2oθ,fr,2d)
         # for direction
-        dm = circmean(fls.+0.5π,fr)
-        od = mod(rad2deg(angle(dm)),360)
-        dcv = circvar(fls,fr,d)
+        dm = circmean(θ.+0.5π,fr)
+        od = rad2deg(mod(angle(dm),2π))
+        dcv = circvar(θ.+0.5π,fr,d)
+        # fit Generalized von Mises for direction
+        fit = ()
+        gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ.+0.5π,fr,[1.0,0,1,0,1])
+        if gvmfit.converged
+            x = 0:0.004:2π # 0.004rad = 0.23deg
+            y = gvmf.(x,gvmfit.param...)
+            fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
+        end
+        # fit von Mises for orientation
+        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
+        if vmfit.converged
+            x = 0:0.004:2π
+            y = vmf.(x,vmfit.param...,n=2)
+            fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+        end
 
-        # fit Generalized von Mises and von Mises
-        gvmfit = curve_fit((x,p)->gvmf.(x,p...),a,m,Float64[1,0,0,0,0])
-        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),a,m,Float64[1,0,0])
-        # 1deg = 0.017rad, 0.01rad = 0.57deg
-        x = collect(0:0.01:2pi)
-        pdir = x[argmax(gvmf.(x,gvmfit.param...))]
-        pori = x[argmax(vmf.(x,vmfit.param...,n=2))]%pi
-
-        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv)
+        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
     elseif factor == :Dir
-        fls = deg2rad.(fl)
-        d = mean(diff(sort(unique(fls))))
+        θ = deg2rad.(fl)
+        d = mean(diff(sort(unique(θ)))) # angle spacing
         # for orientation
-        ofl = mod.(fls.-0.5π,π)
-        ol = unique(ofl)
-        or = map(i->mean(fr[ofl.==i]),ol)
-        om = circmean(2ol,or)
-        oo = mod(rad2deg(angle(om)),360)/2
-        ocv = circvar(2ol,or,2d)
+        oθ = mod.(θ.-0.5π,π)
+        om = circmean(2oθ,fr)
+        oo = rad2deg(mod(angle(om),2π)/2)
+        ocv = circvar(2oθ,fr,2d)
         # for direction
-        dm = circmean(fls,fr)
-        od = mod(rad2deg(angle(dm)),360)
-        dcv = circvar(fls,fr,d)
+        dm = circmean(θ,fr)
+        od = rad2deg(mod(angle(dm),2π))
+        dcv = circvar(θ,fr,d)
+        # fit Generalized von Mises for direction
+        fit = ()
+        gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
+        if gvmfit.converged
+            x = 0:0.004:2π # 0.004rad = 0.23deg
+            y = gvmf.(x,gvmfit.param...)
+            fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
+        end
+        # fit von Mises for orientation
+        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ.-0.5π,fr,[1.0,0,1])
+        if vmfit.converged
+            x = 0:0.004:2π
+            y = vmf.(x,vmfit.param...,n=2)
+            fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+        end
 
-        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv)
+        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
     elseif factor == :SpatialFreq
         osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
         return (osf = osf,)
@@ -126,24 +163,37 @@ function factorresponsestats(fl,fr;factor=:Ori)
 
         return (hm=hm,oh=oh,hcv=hcv)
     elseif factor == :HueAngle
-        fls = deg2rad.(fl)
-        d = mean(diff(sort(unique(fls))))
+        θ = deg2rad.(fl)
+        d = mean(diff(sort(unique(θ)))) # angle spacing
         # for hue axis
-        afl = mod.(fls,π)
-        al = unique(afl)
-        ar = map(i->mean(fr[afl.==i]),al)
-        ham = circmean(2al,ar)
-        oha = mod(rad2deg(angle(ham)),360)/2
-        hacv = circvar(2al,ar,2d)
+        aθ = mod.(θ,π)
+        ham = circmean(2aθ,fr)
+        oha = rad2deg(mod(angle(ham),2π)/2)
+        hacv = circvar(2aθ,fr,2d)
         # for hue
-        hm = circmean(fls,fr)
-        oh = mod(rad2deg(angle(hm)),360)
-        hcv = circvar(fls,fr,d)
+        hm = circmean(θ,fr)
+        oh = rad2deg(mod(angle(hm),2π))
+        hcv = circvar(θ,fr,d)
         maxi = argmax(fr)
         maxh = fl[maxi]
         maxr = fr[maxi]
+        # fit Generalized von Mises for hue
+        fit = ()
+        gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
+        if gvmfit.converged
+            x = 0:0.004:2π # 0.004rad = 0.23deg
+            y = gvmf.(x,gvmfit.param...)
+            fit = (circtuningstats(x,y,od=π,s=:h)...,gvm=gvmfit)
+        end
+        # fit von Mises for hue axis
+        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
+        if vmfit.converged
+            x = 0:0.004:2π
+            y = vmf.(x,vmfit.param...,n=2)
+            fit = (fit...,circtuningstats(x,y,od=0.5π,s=:ha)...,vm=vmfit)
+        end
 
-        return (ham=ham,oha=oha,hacv=hacv,hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr)
+        return (ham=ham,oha=oha,hacv=hacv,hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr,fit=fit)
     else
         return []
     end

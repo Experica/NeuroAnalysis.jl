@@ -3,7 +3,7 @@ using Plots,StatsPlots,VegaLite
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
-    if occursin("Ori",fu)
+    if any(occursin.(["Ori","Angle"],fu))
         fu="$fu (deg)"
     elseif fu=="dir"
         fu="Direction (deg)"
