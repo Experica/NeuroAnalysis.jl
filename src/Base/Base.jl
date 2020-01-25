@@ -45,7 +45,10 @@ vmf(α,β=1,μ=0,κ=1;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 (Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.)
 """
 gvmf(α,β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
-
+"""
+`Difference of Gaussians` function
+"""
+dogf(x,βₑ=1,βᵢ=1,μₑ=0,μᵢ=0,σₑ=1,σᵢ=1) = βₑ*exp(-(x-μₑ)^2 / (2σₑ*σₑ)) - βᵢ*exp(-(x-μᵢ)^2 / (2σᵢ*σᵢ))
 """
 Properties of Circular Tuning:
     Prefered Direction/Orientation
@@ -101,18 +104,24 @@ function factorresponsestats(fl,fr;factor=:Ori)
         dcv = circvar(θ.+0.5π,fr,d)
         # fit Generalized von Mises for direction
         fit = ()
-        gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ.+0.5π,fr,[1.0,0,1,0,1])
-        if gvmfit.converged
-            x = 0:0.004:2π # 0.004rad = 0.23deg
-            y = gvmf.(x,gvmfit.param...)
-            fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
+        try
+            gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ.+0.5π,fr,[1.0,0,1,0,1])
+            if gvmfit.converged
+                x = 0:0.004:2π # 0.004rad = 0.23deg
+                y = gvmf.(x,gvmfit.param...)
+                fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
+            end
+        catch
         end
         # fit von Mises for orientation
-        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
-        if vmfit.converged
-            x = 0:0.004:2π
-            y = vmf.(x,vmfit.param...,n=2)
-            fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+        try
+            vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
+            if vmfit.converged
+                x = 0:0.004:2π
+                y = vmf.(x,vmfit.param...,n=2)
+                fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+            end
+        catch
         end
 
         return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
@@ -130,18 +139,24 @@ function factorresponsestats(fl,fr;factor=:Ori)
         dcv = circvar(θ,fr,d)
         # fit Generalized von Mises for direction
         fit = ()
-        gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
-        if gvmfit.converged
-            x = 0:0.004:2π # 0.004rad = 0.23deg
-            y = gvmf.(x,gvmfit.param...)
-            fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
+        try
+            gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
+            if gvmfit.converged
+                x = 0:0.004:2π # 0.004rad = 0.23deg
+                y = gvmf.(x,gvmfit.param...)
+                fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
+            end
+        catch
         end
         # fit von Mises for orientation
-        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ.-0.5π,fr,[1.0,0,1])
-        if vmfit.converged
-            x = 0:0.004:2π
-            y = vmf.(x,vmfit.param...,n=2)
-            fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+        try
+            vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ.-0.5π,fr,[1.0,0,1])
+            if vmfit.converged
+                x = 0:0.004:2π
+                y = vmf.(x,vmfit.param...,n=2)
+                fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+            end
+        catch
         end
 
         return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
@@ -179,18 +194,24 @@ function factorresponsestats(fl,fr;factor=:Ori)
         maxr = fr[maxi]
         # fit Generalized von Mises for hue
         fit = ()
-        gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
-        if gvmfit.converged
-            x = 0:0.004:2π # 0.004rad = 0.23deg
-            y = gvmf.(x,gvmfit.param...)
-            fit = (circtuningstats(x,y,od=π,s=:h)...,gvm=gvmfit)
+        try
+            gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
+            if gvmfit.converged
+                x = 0:0.004:2π # 0.004rad = 0.23deg
+                y = gvmf.(x,gvmfit.param...)
+                fit = (circtuningstats(x,y,od=π,s=:h)...,gvm=gvmfit)
+            end
+        catch
         end
         # fit von Mises for hue axis
-        vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
-        if vmfit.converged
-            x = 0:0.004:2π
-            y = vmf.(x,vmfit.param...,n=2)
-            fit = (fit...,circtuningstats(x,y,od=0.5π,s=:ha)...,vm=vmfit)
+        try
+            vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
+            if vmfit.converged
+                x = 0:0.004:2π
+                y = vmf.(x,vmfit.param...,n=2)
+                fit = (fit...,circtuningstats(x,y,od=0.5π,s=:ha)...,vm=vmfit)
+            end
+        catch
         end
 
         return (ham=ham,oha=oha,hacv=hacv,hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr,fit=fit)
