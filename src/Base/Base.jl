@@ -31,17 +31,17 @@ function ismodulative(df;alpha=0.05,interact=true)
 end
 
 """
-`von Mises` function f(α) = βℯ(κ(cos(𝒏(α-μ))-1))
+`von Mises` function ``f(\\alpha ) =  \\beta e^{\\kappa (\\cos (n(\\alpha - \\mu )) - 1)}``.
 (Swindale, N.V. (1998). Orientation tuning curves: empirical description and estimation of parameters. Biol Cybern 78, 45–56.)
 
-β: amplitude at μ
-μ: angle of peak
-κ: width parameter
-𝒏: frequency parameter
+- β: amplitude at μ
+- μ: angle of peak
+- κ: width parameter
+- n: frequency parameter
 """
 vmf(α,β=1,μ=0,κ=1;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 """
-`Generalized von Mises` function f(α) = βℯ(κ₁(cos(α-μ₁)-1) + κ₂(cos(2(α-μ₂))-1))
+`Generalized von Mises` function ``f(\\alpha ) =  \\beta e^{\\kappa_1 (\\cos (\\alpha - \\mu_1 ) - 1) + \\kappa_2 (\\cos 2(\\alpha - \\mu_2 ) - 1)}``.
 (Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.)
 """
 gvmf(α,β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
