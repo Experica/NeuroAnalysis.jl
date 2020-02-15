@@ -137,17 +137,27 @@ end
 anglemode(a,theta) = theta[findclosestangle(a,theta)]
 findclosestangle(a,theta) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))
 
-"Generate Grating"
-function grating(;ori=0,sf=0.1,phase=0,tf=1,t=0,size=10,ppd=30)
-    pc = floor(Int,size*ppd/2)
-    psize = 2pc+1
-    g = fill(0.5,psize,psize)
-    isnan(ori) && return g
-    sinv,cosv = sincos(ori)
-    for i in 1:psize, j in 1:psize
-        u = (j-pc)/pc/2
-        v = (pc-i)/pc/2
-        d = cosv * v * size - sinv * u * size
+"""
+Generate Grating Image.
+
+- θ: Orientation (radius)
+- sf: SpatialFreq (cycle/deg)
+- phase: Sin wave phase in [0,1]
+- stisize: Tuple of image size in visual degree
+- ppd: Pixel per degree
+
+return image in [0,1]
+"""
+function grating(;θ=0,sf=1,phase=0,tf=1,t=0,stisize=(10,10),ppd=50)
+    pc = round.(Int,stisize.*ppd./2)
+    psize = pc.*2
+    g = fill(0.5,psize)
+    isnan(θ) && return g
+    sinv,cosv = sincos(θ)
+    for i in 1:psize[1], j in 1:psize[2]
+        u = (j-pc[2])/pc[2]/2
+        v = (pc[1]-i)/pc[1]/2
+        d = cosv * v * stisize[1] - sinv * u * stisize[2]
         g[i,j] = (sin(2π * (sf * d - tf * t + phase)) + 1) / 2
     end
     return g

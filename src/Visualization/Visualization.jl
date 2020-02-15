@@ -36,6 +36,16 @@ function minmaxcolormap(cname,min,max;isreverse=false)
     end
     ColorGradient(c,0:0.01:1)
 end
+function minmaxcolorgradient(minc,maxc;n=100)
+    d = maxc-minc
+    r = range(0,1,length=n)
+    ColorGradient(map(i->minc+i*d,r),r)
+end
+function mapcolor(data,cg::ColorGradient)
+    minv,maxv = extrema(data)
+    r=maxv-minv
+    map(i->RGBA(cg[(i-minv)/r]),data)
+end
 
 function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
     uc = huecolors(n,alpha=alpha,saturation=saturation,brightness=brightness)
@@ -186,7 +196,7 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
     return p
 end
 
-function plotsta(ps;imagesize=size(ps),size=nothing,ppd=30,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
+function plotsta(ps;imagesize=size(ps),stisize=nothing,ppd=50,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
     nd = ndims(ps)
     if nd==1
         if isnothing(index)
@@ -201,8 +211,8 @@ function plotsta(ps;imagesize=size(ps),size=nothing,ppd=30,index=nothing,filter=
     if !isnothing(filter)
         sta = imfilter(sta,filter)
     end
-    if !isnothing(size)
-        ppd = first(imagesize./size)
+    if !isnothing(stisize)
+        ppd = first(imagesize./stisize)
     end
 
     x = vec([(j-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
@@ -211,9 +221,9 @@ function plotsta(ps;imagesize=size(ps),size=nothing,ppd=30,index=nothing,filter=
     if !isnothing(index)
         x=x[index];y=y[index];z=z[index]
     end
-    xlim=[extrema(x)...];ylim=[extrema(y)...];size=2;width=size*length(unique(x));height=size*length(unique(y))
+    xlim=[extrema(x)...];ylim=[extrema(y)...];psize=2;width=psize*length(unique(x));height=psize*length(unique(y))
 
-    DataFrame(z=z,x=x,y=y) |> @vlplot(mark={:rect,size=size,strokeWidth=0},width=width,height=height,background=bg,
+    DataFrame(z=z,x=x,y=y) |> @vlplot(mark={:rect,size=psize,strokeWidth=0},width=width,height=height,background=bg,
     x={"x:o",title="X (deg)",axis={values=xlim,format=".1",labelAngle=0}},
     y={"y:o",title="Y (deg)",axis={values=ylim,format=".1"}},
     color={"z:q",title="",scale={domain=r}},title={text=title},
@@ -474,6 +484,137 @@ function plotunitpositionproperty(unitposition;ori=nothing,os=nothing,dir=nothin
     title="1-CV"
     }
     ])
+end
+
+function plotunitpositionimage(unitposition,image;width=800,height=600,markersize=20,title="",layer=nothing)
+    tempimagedir = joinpath(pwd(),"tempimage");nu=size(unitposition,1)
+    isdir(tempimagedir) || mkpath(tempimagedir)
+    urls = map(i->"tempimage/$(i).png",1:nu)
+    foreach(i->save(urls[i],image[i]),1:nu)
+
+    df = DataFrame(x=unitposition[:,1],y=unitposition[:,2],m=urls,s=markersize)
+    l = DataFrame()
+    xlim = [minimum(df[:,:x])-4,maximum(df[:,:x])+2]
+    ylim = [minimum(df[:,:y])-100,maximum(df[:,:y])+100]
+    if !isnothing(layer)
+        l[!,:x] = fill(xlim[1],length(layer))
+        l[!,:x2] .= xlim[2]
+        l[!,:y] = [v[1] for v in values(layer)]
+        l[!,:y2] = l[!,:y]
+        l[!,:l] = collect(keys(layer))
+        ylim = [extrema([ylim;l[:,:y]])...].+[-50,100]
+    end
+    @vgplot(height=height,width=width,padding=5,data=[:df=>df,:l=>l],
+    marks=[
+    {
+    type="rule",
+    from={data="l"},
+    encode={
+        update={
+        x={field="x",scale="x"},
+        y={field="y",scale="y"},
+        x2={field="x2",scale="x"},
+        y2={field="y2",scale="y"},
+        strokeDash={value=[4,2]},
+        strokeWidth={value=0.5},
+        stroke={value="dimgray"}
+        }}
+    },
+    {
+    type="text",
+    from={data="l"},
+    encode={
+        update={
+        x={field="x",scale="x"},
+        y={field="y",scale="y"},
+        text={field="l"},
+        align={value="left"},
+        baseline={value="bottom"},
+        fontSize={value=7},
+        dx={value=15}
+        }}
+    },
+    {
+    type="image",
+    from={data="df"},
+    encode={
+        update={
+        x={field="x",scale="x"},
+        y={field="y",scale="y"},
+        url={field="m"},
+        width={field="s"},
+        height={field="s"},
+        align={value="center"},
+        baseline={value="middle"}
+        }}
+    }
+    ],
+    scales=[
+    {
+        name="x",
+        nice=false,
+        zero=false,
+        range="width",
+        domain=xlim,
+        type="linear",
+        round=true
+    },
+    {
+        name="y",
+        nice=false,
+        zero=false,
+        range="height",
+        domain=ylim,
+        type="linear",
+        round=true
+    }
+    ],
+    axes=[
+    {
+        domain=true,
+        tickCount=5,
+        grid=false,
+        title="Position_X (μm)",
+        scale="x",
+        orient="bottom"
+    },
+    {
+        domain=true,
+        tickCount=5,
+        grid=false,
+        title="Position_Y (μm)",
+        scale="y",
+        orient="left"
+    }
+    ],
+    title={
+    text = title
+    }
+    )
+end
+
+function plotunitlayerimage(unitlayer,image;width=800,height=600,markersize=40,title="",unitid=nothing)
+    tempimagedir = joinpath(pwd(),"tempimage");nu=length(unitlayer)
+    isdir(tempimagedir) || mkpath(tempimagedir)
+    urls = map(i->"tempimage/$(i).png",1:nu)
+    foreach(i->save(urls[i],image[i]),1:nu)
+
+    x = zeros(nu)
+    for r in eachrow(condin(DataFrame(l=unitlayer)))
+        x[r.i] = 1:r.n
+    end
+    df = DataFrame(x=x,y=unitlayer,m=urls)
+    if isnothing(unitid)
+        df[:u] = ""
+    else
+        df[:u] = unitid
+    end
+
+    @vlplot(height=height,width=width,padding=5,title=title,data=df,
+    y={"y:o",axis={title="Layer"}},
+    x={"x",axis={grid=false,title=nothing,ticks=false,domain=false,labels=false}}) +
+    @vlplot(mark={:image,width=markersize,height=markersize,align=:center,baseline=:middle}, url=:m) +
+    @vlplot(mark={:text,align=:center,baseline=:bottom,dy=30,fontSize=7},text=:u)
 end
 
 function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],projweights=[],layer=nothing,showuid=true,showmode=:none)

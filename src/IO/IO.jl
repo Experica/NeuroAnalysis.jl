@@ -230,8 +230,12 @@ function subrm(rm,fs,epochs;chs=1:size(rm,1),meta=[],bandpass=[1,100])
     subrm(rm,fs,epochs,chs,fun=f)
 end
 
-"Organize each spiking unit info from `Kilosort` result"
-function unitfyspike_kilosort(data::Dict;templateradius=120)
+"""
+Organize each spiking unit info from `Kilosort` result.
+
+- templateradius: radius(μm) within which the templates height are used to estimate unit position.
+"""
+function unitfyspike_kilosort(data::Dict;templateradius=65,sortspike::Bool=true)
     # spike sorting result
     spiketime = data["time"]
     spiketemplate = data["template"]
@@ -247,7 +251,7 @@ function unitfyspike_kilosort(data::Dict;templateradius=120)
     for t in 1:size(templates,1)
         templatesunwhiten[t,:,:] = templates[t,:,:]*winv
     end
-    templatesunwhiten_height = dropdims(map(i->-(-(i...)),extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
+    templatesunwhiten_height = dropdims(map(i->i[2]-i[1],extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
     templatesunwhiten_maxheight_chposition = map(i->chposition[Tuple(i)[2],:],argmax(templatesunwhiten_height,dims=2))
     templatemask = [norm(chposition[j,:].-templatesunwhiten_maxheight_chposition[i]) > templateradius for i in 1:size(templatesunwhiten_height,1), j in 1:size(chposition,1)]
     templatesunwhiten_height[templatemask].=0.0
@@ -257,6 +261,7 @@ function unitfyspike_kilosort(data::Dict;templateradius=120)
     unitgood = data["clustergood"].==1
     unitindex = [spikecluster.==i for i in unitid]
     unitspike = map(i->spiketime[i],unitindex)
+    sortspike && foreach(sort!,unitspike)
     unitamplitude = map(i->spikeamplitude[i],unitindex)
     unittemplate = map(i->spiketemplate[i],unitindex)
 #    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],1:size(templatesunwhiten,1))
@@ -264,7 +269,7 @@ function unitfyspike_kilosort(data::Dict;templateradius=120)
 
     unitposition = vcat(map(w->sum(w.*chposition,dims=1)/sum(w),unittemplatesunwhiten_height)...) # center of mass from all weighted unit template channel positions
 
-    return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition)
+    return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition,"isspikesorted"=>sortspike)
 end
 
 

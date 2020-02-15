@@ -30,9 +30,25 @@ function ismodulative(df;alpha=0.05,interact=true)
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
 end
 
+"`Gaussian` function"
+gaussianf(x;a=1,μ=0,σ=1) = a*exp(-0.5((x-μ)/σ)^2)
+function gaussianf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)
+    sinv,cosv = sincos(θ)
+    x′ = cosv * x + sinv * y
+    y′ = cosv * y - sinv * x
+    a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2))
+end
+
 """
-`von Mises` function ``f(\\alpha ) =  \\beta e^{\\kappa (\\cos (n(\\alpha - \\mu )) - 1)}``.
-(Swindale, N.V. (1998). Orientation tuning curves: empirical description and estimation of parameters. Biol Cybern 78, 45–56.)
+`von Mises` function [^1]
+
+```math
+f(α) =  βe^{κ(cos(n(α - μ)) - 1)}
+```
+
+[^1]
+
+Swindale, N.V. (1998). Orientation tuning curves: empirical description and estimation of parameters. Biol Cybern 78, 45–56.
 
 - β: amplitude at μ
 - μ: angle of peak
@@ -41,14 +57,48 @@ end
 """
 vmf(α,β=1,μ=0,κ=1;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 """
-`Generalized von Mises` function ``f(\\alpha ) =  \\beta e^{\\kappa_1 (\\cos (\\alpha - \\mu_1 ) - 1) + \\kappa_2 (\\cos 2(\\alpha - \\mu_2 ) - 1)}``.
-(Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.)
+`Generalized von Mises` function [^1]
+
+```math
+f(α) =  βe^{κ₁(cos(α - μ₁) - 1) + κ₂(cos2(α - μ₂) - 1)}
+```
+
+[^1]
+
+Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.
 """
 gvmf(α,β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
+
 """
 `Difference of Gaussians` function
 """
-dogf(x,βₑ=1,βᵢ=1,μₑ=0,μᵢ=0,σₑ=1,σᵢ=1) = βₑ*exp(-(x-μₑ)^2 / (2σₑ*σₑ)) - βᵢ*exp(-(x-μᵢ)^2 / (2σᵢ*σᵢ))
+dogf(x;aₑ=2,μₑ=0,σₑ=1,aᵢ=1,μᵢ=0,σᵢ=2) = gaussianf(x,a=aₑ,μ=μₑ,σ=σₑ) - gaussianf(x,a=aᵢ,μ=μᵢ,σ=σᵢ)
+function dogf(x,y;aₑ=2,μₑ₁=0,σₑ₁=1,μₑ₂=0,σₑ₂=1,θₑ=0,aᵢ=1,μᵢ₁=0,σᵢ₁=2,μᵢ₂=0,σᵢ₂=2,θᵢ=0)
+    sinvₑ,cosvₑ = sincos(θₑ)
+    xₑ′ = cosvₑ * x + sinvₑ * y
+    yₑ′ = cosvₑ * y - sinvₑ * x
+    sinvᵢ,cosvᵢ = sincos(θᵢ)
+    xᵢ′ = cosvᵢ * x + sinvᵢ * y
+    yᵢ′ = cosvᵢ * y - sinvᵢ * x
+    aₑ*exp(-0.5(((xₑ′-μₑ₁)/σₑ₁)^2 + ((yₑ′-μₑ₂)/σₑ₂)^2)) - aᵢ*exp(-0.5(((xᵢ′-μᵢ₁)/σᵢ₁)^2 + ((yᵢ′-μᵢ₂)/σᵢ₂)^2))
+end
+
+"Plane sin wave funtion"
+function gratingf(x,y;θ=0,f=1,phase=0)
+    sinv,cosv = sincos(θ)
+    y′ = cosv * y - sinv * x
+    sin(2π*(f * y′ + phase))
+end
+
+"`Gabor` function"
+gaborf(x;a=1,μ=0,σ=1,f=1,phase=0) = gaussianf(x,a=a,μ=μ,σ=σ)*sin(2π*(f*x+phase))
+function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
+    sinv,cosv = sincos(θ)
+    x′ = cosv * x + sinv * y
+    y′ = cosv * y - sinv * x
+    a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2)) * sin(2π*(f * y′ + phase))
+end
+
 """
 Properties of Circular Tuning:
     Prefered Direction/Orientation
@@ -603,7 +653,7 @@ function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true,cond
     end
     ccg,x
 end
-function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=6,isdfactor=3.5,unitid=[],condis=nothing)
+function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=5,isdfactor=3.5,unitid=[],condis=nothing)
     nunit=length(unitbinspike)
     n,nepoch = size(unitbinspike[1])
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
@@ -677,6 +727,18 @@ function checklayer(ls::Dict)
                     ls[ln[i]][2] = ls[ln[j]][1]
                     break
                 end
+            end
+        end
+    end
+    return ls
+end
+
+function assignlayer(ys,layer)
+    ls = []
+    for y in ys
+        for k in keys(layer)
+            if layer[k][1] <= y < layer[k][2]
+                push!(ls,k);break
             end
         end
     end
