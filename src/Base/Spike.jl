@@ -76,7 +76,7 @@ Response of each sub set of `RealVector`, could be mean firing rate or number of
 !!! note
     This is a faster(~900x) version compared to `subrvr`, but only works when `rv`, `mins` and `maxs` are ascendingly ordered, and each `maxs-mins` range are none-overlapping.
 """
-function subrvr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true)
+function subrvr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true)
     n = length(mins)
     if n != length(maxs)
         error("Length of mins and maxs do not match.")
@@ -97,6 +97,7 @@ function subrvr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Boo
     end
     if israte
         ns = ns ./ ((maxs.-mins).*SecondPerUnit)
+        isnan2zero && replace!(ns,NaN=>0)
     end
     return ns
 end
