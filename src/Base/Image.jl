@@ -162,3 +162,24 @@ function grating(;θ=0,sf=1,phase=0,tf=1,t=0,stisize=(10,10),ppd=50)
     end
     return g
 end
+
+function powerspectrum(x::AbstractMatrix,fs;freqrange=[-15,15])
+    ps = periodogram(x,fs=fs)
+    p = power(ps)
+    freq1,freq2 = freq(ps)
+    fi1 = map(f->freqrange[1]<=f<=freqrange[2],freq1)
+    fi2 = map(f->freqrange[1]<=f<=freqrange[2],freq2)
+    p = p[fi1,fi2];freq1 = freq1[fi1];freq2 = freq2[fi2]
+    si1=sortperm(freq1);si2=sortperm(freq2)
+    return p[si1,si2],freq1[si1],freq2[si2]
+end
+
+function freqimagestats(x,f1,f2)
+    f0i = (findfirst(f1.==0),findfirst(f2.==0))
+    p = copy(x);p[f0i...]=0
+    mi = argmax(p)
+    mf = [f2[mi[2]],f1[mi[1]]]
+    sf = norm(mf)
+    ori = mod(atan(mf...),π)
+    return ori,sf
+end
