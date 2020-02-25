@@ -276,16 +276,24 @@ function factorresponsestats(fl,fr;factor=:Ori,thres=0.5)
     end
 end
 
-"Spike Triggered Average of Images"
-function sta(x::AbstractMatrix,y::AbstractVector;decor=false)
-    r=dropdims(sum(x.*y,dims=1),dims=1)/sum(y)
-    if decor
-        try
-            r=length(y)*inv(cov(x,dims=1))*r
-        catch
-            r=zeros(xsize)
-        end
+"""
+Spike Triggered Average of Images
+
+- x: Matrix where each row is one image
+- y: Vector of image response
+"""
+function sta(x::AbstractMatrix,y::AbstractVector;isnorm=true,whiten=nothing)
+    r = x'*y
+    if isnorm
+        r/=sum(y)
     end
+    if !isnothing(whiten)
+        r = whiten * r
+    end
+    # if iswhiten
+    #     r = x'*x\r
+    #     r=length(y)*inv(cov(x,dims=1))*r
+    # end
     return r
 end
 
