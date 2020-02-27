@@ -6,7 +6,7 @@ function alphablend(src::Colorant,dst::Colorant)
     srcfactor.*src+(1-srcfactor).*dst
 end
 function alphamask(src;radius=0.5,sigma=0.15,masktype="Disk")
-    if (masktype=="Disk") | (masktype=="disc")
+    if masktype in ["Disk","disc"]
         alphamask_disk(src,radius)
     elseif masktype=="Gaussian"
         alphamask_gaussian(src,sigma)
