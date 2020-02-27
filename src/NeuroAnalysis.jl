@@ -5,7 +5,7 @@ include("Base/Base.jl")
 include("Visualization/Visualization.jl")
 include("IO/IO.jl")
 
-# export all symbol
+# export all symbols
 for n in names(@__MODULE__, all=true)
     if Base.isidentifier(n) && n ∉ (nameof(@__MODULE__), :eval, :include)
         @eval export $n

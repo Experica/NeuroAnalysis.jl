@@ -1,5 +1,6 @@
-using LinearAlgebra,FileIO,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageFiltering,SpecialFunctions,
-DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz
+import Base: vec,range
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -8,6 +9,7 @@ include("LFP.jl")
 include("Image.jl")
 include("2P.jl")
 
+vec(x::RGBA)=[x.r,x.g,x.b,x.alpha]
 anscombe(x) = 2*sqrt(x+(3/8))
 
 "Check if `response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
@@ -139,7 +141,7 @@ fr: factor responses
         when Orientation is -(0), then Direction is ↑(90)
         when Direction is →(0), then Orientation is |(-90)
 """
-function factorresponsestats(fl,fr;factor=:Ori,thres=0.5)
+function factorresponsestats(fl,fr;factor=:Ori,isfit::Bool=true)
     if factor in [:Ori,:Ori_Final]
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -154,7 +156,7 @@ function factorresponsestats(fl,fr;factor=:Ori,thres=0.5)
         dcv = circvar(θ.+0.5π,fr,d)
         # fit Generalized von Mises for direction
         fit = ()
-        if thres > 0.5   # threshold here is based on AUC from ROC, if use p-values, should be (eg.) < 0.05
+        if isfit
             try
                 gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ.+0.5π,fr,[1.0,0,1,0,1])
                 if gvmfit.converged
@@ -191,7 +193,7 @@ function factorresponsestats(fl,fr;factor=:Ori,thres=0.5)
         dcv = circvar(θ,fr,d)
         # fit Generalized von Mises for direction
         fit = ()
-        if thres > 0.5   # threshold here is based on AUC from ROC, if use p-values, should be (eg.) < 0.05
+        if isfit
             try
                 gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
                 if gvmfit.converged
@@ -216,7 +218,19 @@ function factorresponsestats(fl,fr;factor=:Ori,thres=0.5)
         return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
     elseif factor == :SpatialFreq
         osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
-        return (osf = osf,)
+        fit=()
+        if isfit
+            # fit difference of gaussians
+            try
+                dogfit = curve_fit((x,p)->dogf.(x,p...),fl,fr,[1.0,0,1,1,0,1])
+                if dogfit.converged
+                    fit = (dog=dogfit,)
+                end
+            catch
+            end
+        end
+
+        return (osf = osf,fit=fit)
     elseif factor == :ColorID
         # transform colorId to hue angle
         ucid = sort(unique(fl))
@@ -248,7 +262,7 @@ function factorresponsestats(fl,fr;factor=:Ori,thres=0.5)
         maxr = fr[maxi]
         # fit Generalized von Mises for hue
         fit = ()
-        if thres > 0.5   # threshold here is based on AUC from ROC, if use p-values, should be (eg.) < 0.05
+        if isfit
             try
                 gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
                 if gvmfit.converged

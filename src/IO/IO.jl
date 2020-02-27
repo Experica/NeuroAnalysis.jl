@@ -1,4 +1,5 @@
-using MAT
+using FileIO,MAT,YAML
+import FileIO: save
 
 include("SpikeGLX.jl")
 
@@ -315,4 +316,17 @@ function matchfile(pattern::Regex;dir="",adddir::Bool=false)
         fs=joinpath.(dir,fs)
     end
     return fs
+end
+
+function save(filepath::Union{AbstractString,IO},cm::Dict)
+    ext = splitext(filepath)[2]
+    if ext == ".yaml"
+        data = copy(cm)
+        data["colors"] = map(vec,data["colors"])
+        YAML.write_file(filepath,data)
+    elseif ext == ".mat"
+        data = copy(cm)
+        data["colors"] = mapreduce(c->vec(c)',vcat,data["colors"])
+        matwrite(filepath,data)
+    end
 end

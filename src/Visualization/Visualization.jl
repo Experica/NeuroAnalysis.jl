@@ -1,4 +1,7 @@
 using Plots,StatsPlots,VegaLite
+import Plots: cgrad
+
+include("Colormap.jl")
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
@@ -25,35 +28,6 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
         fu="Response (% \\DeltaF / F)"
     end
     return fu
-end
-
-huecolors(n::Int;alpha=0.8,saturation=1,brightness=1)=[HSVA(((i-1)/n)*360,saturation,brightness,alpha) for i=1:n]
-
-function minmaxcolormap(cname,min,max;isreverse=false)
-    c=colormap(cname,101,mid=max/(abs(min)+abs(max)))
-    if isreverse
-        c=reverse(c)
-    end
-    ColorGradient(c,0:0.01:1)
-end
-function minmaxcolorgradient(minc,maxc;n=100)
-    d = maxc-minc
-    r = range(0,1,length=n)
-    ColorGradient(map(i->minc+i*d,r),r)
-end
-function mapcolor(data,cg::ColorGradient)
-    minv,maxv = extrema(data)
-    r=maxv-minv
-    map(i->RGBA(cg[(i-minv)/r]),data)
-end
-
-function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
-    uc = huecolors(n,alpha=alpha,saturation=saturation,brightness=brightness)
-    insert!(uc,1,HSVA(0,0,0,alpha))
-    if !isempty(uids)
-        uc=uc[sort(unique(uids)).+1]
-    end
-    return uc
 end
 
 function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
@@ -297,7 +271,7 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
     return p
 end
 
-plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="") = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha,title=title)
+plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3) = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha,title=title,markersize=markersize,unitidsize=unitidsize)
 function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3)
     nunit = size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);us = "$ngoodunit/$nunit"
     xlim = isempty(chposition) ? (minimum(unitposition[:,1])-4,maximum(unitposition[:,1])+2) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
