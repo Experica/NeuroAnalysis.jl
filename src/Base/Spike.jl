@@ -102,6 +102,36 @@ function subrvr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Boo
     return ns
 end
 
+function subrvr_onotest(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true)
+    n = length(mins)
+    if n != length(maxs)
+        error("Length of mins and maxs do not match.")
+    end
+    ns = zeros(n)
+    ni=1
+    for v in rv
+        @label start
+        if mins[ni]<=v
+            if v<maxs[ni]
+                ns[ni] += 1
+            else
+                ni+=1
+                ni>n && break
+                @goto start
+            end
+        end
+    end
+    if israte
+        ns = ns ./ ((maxs.-mins).*SecondPerUnit)
+        isnan2zero && replace!(ns,NaN=>0)
+    end
+    return ns
+end
+
+function subrmr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true)
+end
+
+
 function isi(rv::RealVector)
     diff(sort(rv))
 end
