@@ -14,4 +14,4 @@ script:
   - julia --project -e 'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true)'
 
 after_success:
-  - julia --project -e 'Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
+  - julia -e 'Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
