@@ -9,4 +9,4 @@ notifications:
   email: true
 
 script:
-  - julia --project -e `using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true)`
+  - julia --project -e 'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true)'
