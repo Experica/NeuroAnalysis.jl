@@ -281,9 +281,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[Distributions]]
 deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "e063d0b5d27180b98edacd2b1cb90ecfbc171385"
+git-tree-sha1 = "6b19601c0e98de3a8964ed33ad73e130c7165b1d"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.21.12"
+version = "0.22.4"
 
 [[DocStringExtensions]]
 deps = ["LibGit2", "Markdown", "Pkg", "Test"]
@@ -430,9 +430,9 @@ version = "0.12.5"
 
 [[HTTP]]
 deps = ["Base64", "Dates", "IniFile", "MbedTLS", "Sockets"]
-git-tree-sha1 = "d52325a46b4df64bdf38ffbbaef00f0a0296943c"
+git-tree-sha1 = "8d9bdd55c9d0d6ddf08f8b5229f90b7f274b6777"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "0.8.11"
+version = "0.8.12"
 
 [[Hiccup]]
 deps = ["MacroTools", "Test"]
@@ -442,9 +442,9 @@ version = "0.2.2"
 
 [[HypothesisTests]]
 deps = ["Combinatorics", "Distributions", "LinearAlgebra", "Random", "Rmath", "Roots", "Statistics", "StatsBase"]
-git-tree-sha1 = "2c923100fa79f699d698c56d73c9fe0ad01c76db"
+git-tree-sha1 = "dbc2bca8464fd1d2174e9a5d4a5bd0ba896040a9"
 uuid = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
-version = "0.9.0"
+version = "0.9.1"
 
 [[IdentityRanges]]
 deps = ["OffsetArrays"]
@@ -667,10 +667,16 @@ deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[MbedTLS]]
-deps = ["BinaryProvider", "Dates", "Libdl", "Random", "Sockets"]
-git-tree-sha1 = "85f5947b53c8cfd53ccfa3f4abae31faa22c2181"
+deps = ["Dates", "MbedTLS_jll", "Random", "Sockets"]
+git-tree-sha1 = "709797fadd2d3b7e3f040a9f6e12726a6d6d2bf5"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "0.7.0"
+version = "1.0.0"
+
+[[MbedTLS_jll]]
+deps = ["Libdl", "Pkg"]
+git-tree-sha1 = "066a4467008745eed36dad973ceb66405785a621"
+uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.16.0+1"
 
 [[Measures]]
 git-tree-sha1 = "e498ddeee6f9fdb4551ce855a46f54dbd900245f"
@@ -932,10 +938,16 @@ uuid = "ae029012-a4dd-5104-9daa-d747884805df"
 version = "1.0.1"
 
 [[Rmath]]
-deps = ["BinaryProvider", "Libdl", "Random", "Statistics"]
-git-tree-sha1 = "2bbddcb984a1d08612d0c4abb5b4774883f6fa98"
+deps = ["Random", "Rmath_jll"]
+git-tree-sha1 = "86c5647b565873641538d8f812c04e4c9dbeb370"
 uuid = "79098fc4-a85e-5d69-aa6a-4863f24498fa"
-version = "0.6.0"
+version = "0.6.1"
+
+[[Rmath_jll]]
+deps = ["Libdl", "Pkg"]
+git-tree-sha1 = "1660f8fefbf5ab9c67560513131d4e933012fc4b"
+uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
+version = "0.2.2+0"
 
 [[Roots]]
 deps = ["Printf"]
@@ -992,9 +1004,9 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[SpecialFunctions]]
 deps = ["OpenSpecFun_jll"]
-git-tree-sha1 = "268052ee908b2c086cc0011f528694f02f3e2408"
+git-tree-sha1 = "e19b98acb182567bcb7b75bb5d9eedf3a3b5ec6c"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "0.9.0"
+version = "0.10.0"
 
 [[StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
