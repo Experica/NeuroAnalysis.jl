@@ -1,8 +1,9 @@
 using Documenter,NeuroAnalysis
 
-uname = "Experica"
-pname = "NeuroAnalysis"
-makedocs(sitename="$pname.jl",modules=[NeuroAnalysis],
+username = "Experica"
+pkgname = "NeuroAnalysis"
+
+makedocs(sitename="$pkgname.jl",modules=[NeuroAnalysis],
     pages=[])
 
-deploydocs(repo = "github.com/$uname/$pname.jl.git")
+deploydocs(repo = "github.com/$username/$pkgname.jl.git")

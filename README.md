@@ -1,8 +1,8 @@
 # NeuroAnalysis - Neural Signal Analysis
 
-| **Documentation**                       | **Build Status**                                              |
-|:---------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-dev-img]][docs-dev-url]       | [![][travis-img]][travis-url] [![][codecov-img]][codecov-url] |
+| **Build Status**                                              | **Documentation**                 |
+|:-------------------------------------------------------------:|:---------------------------------:|
+| [![][travis-img]][travis-url] [![][codecov-img]][codecov-url] | [![][docs-dev-img]][docs-dev-url] |
 
 [travis-img]: https://travis-ci.com/Experica/NeuroAnalysis.jl.svg?branch=master
 [travis-url]: https://travis-ci.com/Experica/NeuroAnalysis.jl

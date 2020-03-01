@@ -1,12 +1,11 @@
 # NeuroAnalysis - Neural Signal Analysis
 
+## API Reference
 ```@autodocs
 Modules = [NeuroAnalysis]
-Private = false
 ```
 
 ## Index
-
 ```@index
 Modules = [NeuroAnalysis]
 ```
