@@ -1,7 +1,7 @@
 import Base: convert,getindex,setindex!,+,-,*,/,==,length,norm
 
 # Vector3
-type Vec3{T}
+struct Vec3{T}
   x::T
   y::T
   z::T
@@ -83,7 +83,7 @@ end
 ==(a::Vec3,b::Vec3)=(a.x==b.x) && (a.y==b.y) && (a.z==b.z)
 
 # Vector4
-type Vec4{T}
+struct Vec4{T}
   x::T
   y::T
   z::T
