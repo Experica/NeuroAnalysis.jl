@@ -163,6 +163,25 @@ function grating(;θ=0,sf=1,phase=0,tf=1,t=0,stisize=(10,10),ppd=50)
     return g
 end
 
+"""
+Generate gratings in Hartley space (PL)
+- kx, ky: wavenumber along x, y axis
+- bw: black and white (phase) flip
+- stisize: stimulus size in visual angle (degree); note that sz[1]=sz[2]
+Return image in [0,1]
+"""
+
+function hartley(;kx,ky,bw,stisize=5,ppd=50)
+    sz = round.(Int,stisize.*ppd./2).*2
+    vect=collect(0:sz-1)
+    nxmat = repeat(vect',sz,1)
+    nymat = repeat(vect,1,sz)
+    kxy = 2π .* (kx .* nxmat + ky .* nymat) ./ sz
+    g = sin.(kxy) + cos.(kxy)
+    g = (g .* bw ./ max(g...) .+ 1) ./ 2
+    return g
+end
+
 function powerspectrum(x::AbstractMatrix,fs;freqrange=[-15,15])
     ps = periodogram(x,fs=fs)
     p = power(ps)
