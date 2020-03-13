@@ -177,7 +177,7 @@ function hartley(;kx,ky,bw,stisize=5,ppd=50)
     nxmat = repeat(vect',sz,1)
     nymat = repeat(vect,1,sz)
     kxy = 2π .* (kx .* nxmat + ky .* nymat) ./ sz
-    g = sin.(kxy) + cos.(kxy)
+    g = (sin.(kxy) + cos.(kxy)) ./ sqrt(2)
     g = (g .* bw ./ max(g...) .+ 1) ./ 2
     return g
 end
