@@ -28,6 +28,15 @@ eori,esf = freqimagestats(ps,f1,f2)
 #     plothartleyspace(hartleysubspace(kbegin=kb,kend=ke,dk=dk,phase=p,shape=shape),floor(Int,ke/dk),dk)
 # end
 
+hs = hartleysubspace(kbegin=0.2,kend=6.6,dk=0.2,addhalfcycle=true)
+mhg = mapreduce(i -> begin
+                ss = cas2sin(i...)
+                grating(θ = ss.θ, sf = ss.f, phase = ss.phase, sized = (5, 5), ppd = 30)
+                end, (i, j) -> i .+ j, hs) / length(hs)
+# mean of a hartley subspace gratings should be a uniform gray
+minv,maxv = extrema(mhg)
+@test minv≈maxv≈0.5
+
 end
 
 @testset "Function" begin
