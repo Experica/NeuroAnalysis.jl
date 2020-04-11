@@ -85,11 +85,91 @@ function dogf(x,y;aₑ=2,μₑ₁=0,σₑ₁=1,μₑ₂=0,σₑ₂=1,θₑ=0,a�
     aₑ*exp(-0.5(((xₑ′-μₑ₁)/σₑ₁)^2 + ((yₑ′-μₑ₂)/σₑ₂)^2)) - aᵢ*exp(-0.5(((xᵢ′-μᵢ₁)/σᵢ₁)^2 + ((yᵢ′-μᵢ₂)/σᵢ₂)^2))
 end
 
-"Plane sin wave funtion"
-function gratingf(x,y;θ=0,f=1,phase=0)
-    sinv,cosv = sincos(θ)
-    y′ = cosv * y - sinv * x
-    sin(2π*(f * y′ + phase))
+"""
+`sin` grating function
+
+- f: Frequency in cycle/unit_x
+- phase: Phase of a cycle in [0, 1] scale
+"""
+gratingf(x; f=1, phase=0) = sin(2π * (f * x + phase))
+
+"""
+`cas` function defined as ``cas(x) = cos(x) + sin(x)``
+
+- f: Frequency in cycle/unit_x
+- phase: Phase of a cycle in [0, 1] scale
+- isnorm: scale `cas` in [-√2, √2] to [-1, 1]
+"""
+function cas(x;f=1, phase=0, isnorm::Bool=true)
+    r = sum(sincos(2π * (f * x + phase)))
+    if isnorm
+        r /=sqrt(2)
+    end
+    return r
+end
+
+"""
+2D `sin` grating function
+
+- θ: Orientation in radius, 0 is -, increase counter-clock wise
+- f: Frequency in cycle/unit_x/y
+- phase: Phase of a cycle in [0, 1] scale
+"""
+function gratingf(x,y; θ=0,f=1,phase=0)
+    sinθ,cosθ = sincos(θ)
+    y′ = cosθ * y - sinθ * x
+    sin(2π * (f * y′ + phase))
+end
+
+"""
+2D `cas` function defined as ``cas(x+y) = cos(x+y) + sin(x+y)``
+
+- kx: Frequency in cycle/unit_x
+- ky: Frequency in cycle/unit_y
+- phase: Phase of a cycle in [0, 1] scale
+- isnorm: scale `cas` in [-√2, √2] to [-1, 1]
+"""
+function cas(x,y;kx=1,ky=1, phase=0, isnorm::Bool=true)
+    r = sum(sincos(2π * (kx * x + ky * y + phase)))
+    if isnorm
+        r /=sqrt(2)
+    end
+    return r
+end
+
+"""
+`cas` phase to `sin` phase, phase is in [0, 1] scale
+
+!!! note
+    ``cas(x) = √2 sin(x + π/4)``
+"""
+cas2sin(phase) = phase + 0.125
+
+"""
+2D `cas` to 2D sin `gratingf`
+"""
+function cas2sin(kx,ky,phase)
+    θ = atan(ky,kx) - π/2
+    f = sqrt(kx*kx + ky*ky)
+    return (θ=θ,f=f,phase=phase + 0.125)
+end
+
+"""
+`sin` phase to `cas` phase, phase is in [0, 1] scale
+
+!!! note
+    ``cas(x) = √2 sin(x + π/4)``
+"""
+sin2cas(phase) = phase - 0.125
+
+"""
+2D sin `gratingf` to 2D `cas`
+"""
+function sin2cas(θ,f,phase)
+    sinθ,cosθ = sincos(θ + π/2)
+    kx = cosθ*f
+    ky = sinθ*f
+    return (kx=kx,ky=ky,phase=phase - 0.125)
 end
 
 "`Gabor` function"

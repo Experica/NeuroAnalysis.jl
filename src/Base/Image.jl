@@ -138,29 +138,66 @@ anglemode(a,theta) = theta[findclosestangle(a,theta)]
 findclosestangle(a,theta) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))
 
 """
-Generate Grating Image.
+Generate Grating Image, match the implementation in `Experica`.
 
-- θ: Orientation (radius)
+- θ: Orientation in radius, 0 is -, increase counter-clock wise
 - sf: SpatialFreq (cycle/deg)
-- phase: Sin wave phase in [0,1]
-- stisize: Tuple of image size in visual degree
-- ppd: Pixel per degree
+- tf: TemporalFreq (cycle/sec)
+- t: Time (second)
+- phase: Phase of a cycle in [0, 1] scale
+- sized: Tuple of image size in visual degree
+- ppd: pixel per degree
 
-return image in [0,1]
+return image in [0, 1]
 """
-function grating(;θ=0,sf=1,phase=0,tf=1,t=0,stisize=(10,10),ppd=50)
-    pc = round.(Int,stisize.*ppd./2)
+function grating(;θ=0,sf=1,phase=0,tf=1,t=0,sized=(10,10),ppd=50)
+    pc = round.(Int,sized.*ppd./2)
     psize = pc.*2
     g = fill(0.5,psize)
     isnan(θ) && return g
-    sinv,cosv = sincos(θ)
+    sinθ,cosθ = sincos(θ)
     for i in 1:psize[1], j in 1:psize[2]
-        u = (j-pc[2])/pc[2]/2
-        v = (pc[1]-i)/pc[1]/2
-        d = cosv * v * stisize[1] - sinv * u * stisize[2]
-        g[i,j] = (sin(2π * (sf * d - tf * t + phase)) + 1) / 2
+        x = (j-pc[2])/pc[2]/2
+        y = (-i+pc[1])/pc[1]/2
+        y′ = cosθ * y * sized[1] - sinθ * x * sized[2]
+        g[i,j] = (sin(2π * (sf * y′ - tf * t + phase)) + 1) / 2
     end
     return g
+end
+
+"""
+Generate Hartley Subspace, where k is Frequency in cycle/unit_x/y. [^1]
+
+- kbegin: k >= kbegin
+- kend: k <= kend
+- dk: Δk, step on k axis
+- phase: phase in [0, 1] scale
+- shape: :square or :circle shape subspace
+- addhalfcycle: add half cycle shifted hartleys
+- blank: element of hartley as blank
+- nblank: No. of blank
+
+[^1]
+
+Ringach, D.L., Sapiro, G., and Shapley, R. (1997). A subspace reverse-correlation technique for the study of visual neurons. Vision Research 37, 2455–2464.
+"""
+function hartleysubspace(;kbegin=0,kend=5,dk=1,phase=0,shape = :square,addhalfcycle=false,blank=(kx=0,ky=0,phase=-0.125),nblank=0)
+    kr = 0:dk:kend; kaxis = sort(unique([kr;-kr]))
+    ps = vec([(kx=kx,ky=ky,phase=phase) for ky in reverse(kaxis), kx in kaxis])
+    if shape == :square
+        if kbegin > 0
+            filter!(i->abs(i.kx) >= kbegin || abs(i.ky) >= kbegin,ps)
+        end
+    elseif shape == :circle
+        filter!(i->kbegin <= sqrt(i.kx^2 + i.ky^2) <= kend,ps)
+    end
+    if addhalfcycle
+        ps = [ps;map(i->(kx=i.kx,ky=i.ky,phase=i.phase + 0.5),ps)]
+    end
+    if nblank > 0
+        ps = [ps;fill(blank,nblank)]
+    end
+    ps
 end
 
 """
@@ -170,7 +207,6 @@ Generate gratings in Hartley space (PL)
 - stisize: stimulus size in visual angle (degree); note that sz[1]=sz[2]
 Return image in [0,1]
 """
-
 function hartley(;kx,ky,bw,stisize=5,ppd=50)
     sz = round.(Int,stisize.*ppd./2).*2
     vect=collect(0:sz-1)

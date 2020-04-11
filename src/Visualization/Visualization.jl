@@ -643,6 +643,18 @@ function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],p
     return p
 end
 
+function plothartleyspace(space,nk,dk)
+    n = 2nk+1
+    p=plot(layout=(n,n),size=(120n,120n),leg=false,clims=(-1,1),frame=:none,aspect_ratio=:equal,yflip=true)
+    x=y=0:0.01:1
+    for (kx,ky,phase) in space
+        r = -Int(ky/dk)+nk+1; c = Int(kx/dk)+nk+1
+        cg = [cas(i,j,kx=kx,ky=ky,phase=phase) for j in reverse(y),i in x]
+        heatmap!(p,subplot=c+n*(r-1),cg,color=:grays)
+    end
+    p
+end
+
 # function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")
 #     f = joinpath(path,"$filename.$format")
 #     if !ispath(path)
