@@ -13,7 +13,7 @@
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://Experica.github.io/NeuroAnalysis.jl/dev
 
-## Spike Trian
+## Spike Train
 
 ## Local Field Potential
 

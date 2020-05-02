@@ -3,26 +3,67 @@ import FileIO: save
 
 include("SpikeGLX.jl")
 
-"Read variables in `MATLAB` MAT file"
-function readmat(f::AbstractString,vars...;optvars=["spike","lfp","digital","analog1k","image"])
+"""
+Drop matrix dims according to `MATLAB` convention.
+
+- scalar: scalar instead of 1x1 matrix
+- rvector: vector instead of 1xN matrix
+- cvector: vector instead of Nx1 matrix
+"""
+dropmatdim!(x;scalar = true, rvector = true, cvector = true) = x
+dropmatdim!(x::Dict;scalar = true, rvector = true, cvector = true) = Dict(k=>dropmatdim!(x[k],scalar=scalar,rvector=rvector,cvector=cvector) for k in keys(x))
+function dropmatdim!(x::Array;scalar = true, rvector = true, cvector = true)
+    if ndims(x) == 2
+        nr,nc = size(x)
+        if nr==1 && nc==1 && scalar
+            return dropmatdim!(x[1,1],scalar=scalar,rvector=rvector,cvector=cvector)
+        elseif nr==1 && nc>1 && rvector
+            x = dropdims(x,dims=1)
+        elseif nr>1 && nc==1 && cvector
+            x = dropdims(x,dims=2)
+        end
+    end
+    if x isa Array{Any}
+        foreach(i->x[i]=dropmatdim!(x[i],scalar=scalar,rvector=rvector,cvector=cvector),eachindex(x))
+    elseif any((<:).(eltype(x),[Array,Dict]))
+        x = dropmatdim!.(x,scalar=scalar,rvector=rvector,cvector=cvector)
+    end
+    return x
+end
+
+"""
+Read variables of a `MATLAB` MAT file into a Dictionary
+
+1. f: MAT file path
+2. vars: variable names in the varset to read
+
+- varset: variable names to select in vars
+- scalar: scalar instead of 1x1 matrix
+- rvector: vector instead of 1xN matrix
+- cvector: vector instead of Nx1 matrix
+"""
+function readmat(f::AbstractString,vars...;varset=["spike","lfp","digital","analog1k","image"],scalar = true, rvector = true, cvector = true)
     if isempty(vars)
         d=matread(f)
     else
         d=Dict()
         matopen(f) do file
             fvs = names(file)
-            reqvars=setdiff(fvs,optvars)
-            ovs = intersect(optvars,vars)
-            for i in setdiff(ovs,fvs)
-                @warn """Optional variable "$i" not found in "$f"."""
+            nonselectvars=setdiff(fvs,varset)
+            selectvars = intersect(varset,vars)
+            for i in setdiff(selectvars,fvs)
+                @warn """Selected variable "$i" not found in "$f"."""
             end
-            vs=union(reqvars,intersect(fvs,ovs))
-            if !isempty(vs)
-                for v in vs
+            readvars=union(nonselectvars,intersect(fvs,selectvars))
+            if !isempty(readvars)
+                for v in readvars
                     d[v]=read(file,v)
                 end
             end
         end
+    end
+    if scalar || rvector || cvector
+        dropmatdim!(d,scalar=scalar,rvector=rvector,cvector=cvector)
     end
     return d
 end
@@ -30,38 +71,7 @@ end
 "Read `DataExport` Metadata MAT File"
 function readmeta(f::AbstractString)
     d = readmat(f)["Tests"]
-    mat2julia!(d)
     DataFrame(d)
-end
-
-"Convert `MATLAB` type to `Julia` type with proper dimention"
-function mat2julia!(x;isscaler = true,isvector = true)
-    if x isa Dict
-        for k in keys(x)
-            x[k]=mat2julia!(x[k],isscaler=isscaler,isvector=isvector)
-        end
-    elseif x isa Array
-        if ndims(x)==2
-            nr,nc = size(x)
-            if nr==1 && nc==1
-                x = isscaler ? x[1,1] : isvector ? dropdims(x,dims=2) : x
-            elseif nr==1 && nc>1
-                x = isvector ? dropdims(x,dims=1) : x
-            elseif nr>1 && nc==1
-                x = isvector ? dropdims(x,dims=2) : x
-            end
-        end
-        if x isa Array{Any} || x isa Array{Array} || x isa Array{Dict}
-            for i in 1:length(x)
-                x[i]=mat2julia!(x[i],isscaler=isscaler,isvector=isvector)
-            end
-        elseif x isa Dict
-            for k in keys(x)
-                x[k]=mat2julia!(x[k],isscaler=isscaler,isvector=isvector)
-            end
-        end
-    end
-    return x
 end
 
 "Load images in directory"
@@ -126,10 +136,9 @@ function digitalbit(dt,dv,bits...)
     return bt,bv
 end
 
-"Prepare Dataset in `MATLAB` MAT File"
-prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...),true)
-function prepare!(d::Dict,ismat=true)
-    ismat && mat2julia!(d)
+"Read and Prepare Dataset in `MATLAB` MAT File"
+prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...))
+function prepare!(d::Dict)
     if haskey(d,"secondperunit")
         settimeunit(d["secondperunit"])
     end
@@ -145,7 +154,7 @@ function prepare!(d::Dict,ismat=true)
     end
     if !haskey(d,"spike")
         if haskey(d,"spike_kilosort")
-            d["spike"] = unitfyspike_kilosort(d["spike_kilosort"])
+            d["spike"] = unitspike_kilosort(d["spike_kilosort"])
         end
     end
     return d
@@ -233,46 +242,29 @@ end
 
 """
 Organize each spiking unit info from `Kilosort` result.
-
-- templateradius: radius(μm) within which the templates height are used to estimate unit position.
 """
-function unitfyspike_kilosort(data::Dict;templateradius=65,sortspike::Bool=true)
-    # spike sorting result
-    spiketime = data["time"]
-    spiketemplate = data["template"]
-    spikecluster = data["cluster"]
-    spikeamplitude = data["amplitude"]
-
-    templates = data["clustertemplates"] # nTemplates x nTimePoints x nChannels
-    chmap = data["chanmap"]
-    chposition = data["channelposition"]
-    winv = data["whiteningmatrixinv"]
-
-    templatesunwhiten = zeros(size(templates))
-    for t in 1:size(templates,1)
-        templatesunwhiten[t,:,:] = templates[t,:,:]*winv
-    end
-    templatesunwhiten_height = dropdims(map(i->i[2]-i[1],extrema(templatesunwhiten,dims=2)),dims=2) # unwhiten template height between trough to peak, nTemplates x nChannels
-    templatesunwhiten_maxheight_chposition = map(i->chposition[Tuple(i)[2],:],argmax(templatesunwhiten_height,dims=2))
-    templatemask = [norm(chposition[j,:].-templatesunwhiten_maxheight_chposition[i]) > templateradius for i in 1:size(templatesunwhiten_height,1), j in 1:size(chposition,1)]
-    templatesunwhiten_height[templatemask].=0.0
-
+function unitspike_kilosort(data::Dict;sortspike::Bool=true)
     # each unit
     unitid = data["clusterid"]
     unitgood = data["clustergood"].==1
-    unitindex = [spikecluster.==i for i in unitid]
-    unitspike = map(i->spiketime[i],unitindex)
+    unitindex = [data["cluster"].==i for i in unitid]
+    unitspike = map(i->data["time"][i],unitindex)
+    unittemplate = map(i->data["template"][i],unitindex)
+    unitamplitude = map(i->data["amplitude"][i],unitindex)
+
+    chmap = data["chanmap"]
+    chposition = data["channelposition"]
+    # first found template as unit template
+    unittemplatesindex = first.(unittemplate)
+    unitposition = vcat(map(i->data["templatesposition"][i:i,:],unittemplatesindex)...)
+    unittemplateamplitude = map(i->data["templatesamplitude"][i],unittemplatesindex)
+    unittemplatefeature = Dict(k=>data["templateswaveformfeature"][k][unittemplatesindex] for k in keys(data["templateswaveformfeature"]))
+    unitfeature = haskey(data,"clusterwaveformfeature") ? data["clusterwaveformfeature"] : unittemplatefeature
+
     sortspike && foreach(sort!,unitspike)
-    unitamplitude = map(i->spikeamplitude[i],unitindex)
-    unittemplate = map(i->spiketemplate[i],unitindex)
-#    unittemplatesunwhiten = map(i->templatesunwhiten[i,:,:],1:size(templatesunwhiten,1))
-    unittemplatesunwhiten_height = map(i->templatesunwhiten_height[i,:],1:size(templatesunwhiten,1))
-
-    unitposition = vcat(map(w->sum(w.*chposition,dims=1)/sum(w),unittemplatesunwhiten_height)...) # center of mass from all weighted unit template channel positions
-
-    return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition,"isspikesorted"=>sortspike)
+    return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition,
+                "unittemplateamplitude"=>unittemplateamplitude,"unitfeature"=>unitfeature,"isspikesorted"=>sortspike)
 end
-
 
 "convert `Matlab` struct of array to `DataFrame`"
 matdictarray2df(d) = DataFrame(Any[squeeze(v,2) for v in values(d)],[Symbol(k) for k in keys(d)])

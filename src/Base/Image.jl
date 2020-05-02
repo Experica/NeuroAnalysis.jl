@@ -138,7 +138,7 @@ anglemode(a,theta) = theta[findclosestangle(a,theta)]
 findclosestangle(a,theta) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))
 
 """
-Generate Grating Image, match the implementation in `Experica`.
+Generate Grating Image, match the implementation in `Experica` grating shader.
 
 - θ: Orientation in radius, 0 is -, increase counter-clock wise
 - sf: SpatialFreq (cycle/deg)
@@ -181,7 +181,7 @@ Generate Hartley Subspace, where k is Frequency in cycle/unit_x/y. [^1]
 
 Ringach, D.L., Sapiro, G., and Shapley, R. (1997). A subspace reverse-correlation technique for the study of visual neurons. Vision Research 37, 2455–2464.
 """
-function hartleysubspace(;kbegin=0,kend=5,dk=1,phase=0,shape = :square,addhalfcycle=false,blank=(kx=0,ky=0,phase=-0.125),nblank=0)
+function hartleysubspace(;kbegin=0,kend=5,dk=1,phase=0,shape = :square,addhalfcycle=false,blank=(kx=0,ky=0,phase=0.375),nblank=0)
     kr = 0:dk:kend; kaxis = sort(unique([kr;-kr]))
     ps = vec([(kx=kx,ky=ky,phase=phase) for ky in reverse(kaxis), kx in kaxis])
     if shape == :square
@@ -218,7 +218,7 @@ function hartley(;kx,ky,bw,stisize=5,ppd=50)
     return g
 end
 
-function powerspectrum(x::AbstractMatrix,fs;freqrange=[-15,15])
+function powerspectrum2(x::AbstractMatrix,fs;freqrange=[-15,15])
     ps = periodogram(x,fs=fs)
     p = power(ps)
     freq1,freq2 = freq(ps)
