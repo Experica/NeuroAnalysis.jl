@@ -1,4 +1,6 @@
-using NeuroAnalysis, Test, BenchmarkTools
+using NeuroAnalysis, Test#, Pkg
+# Pkg.add(["BenchmarkTools","DataFrames","Plots"])
+using BenchmarkTools, DataFrames, Plots
 
 @testset "NeuroAnalysis" begin
 
