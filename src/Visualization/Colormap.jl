@@ -7,11 +7,11 @@ function minmaxcolormap(cname,min,max;isreverse=false)
     end
     ColorGradient(c,0:0.01:1)
 end
-function minmaxcolorgradient(minc,maxc;n=100)
-    d = maxc-minc
-    r = range(0,1,length=n)
-    ColorGradient(map(i->minc+i*d,r),r)
-end
+# function minmaxcolorgradient(minc,maxc;n=100)
+#     d = maxc-minc
+#     r = range(0,1,length=n)
+#     ColorGradient(map(i->minc+i*d,r),r)
+# end
 function mapcolor(data,cg::ColorGradient)
     minv,maxv = extrema(data)
     r=maxv-minv
@@ -27,14 +27,25 @@ function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
     return uc
 end
 
+"Generates linearly interpolated `ColorGradient`"
 function cgrad(start::T,stop::T;length=100) where T<:Colorant
     cgrad(range(start,stop,length=length))
 end
 
+"Generates linearly interpolated `ColorGradient` between key colors."
+function cgrad(x::T...;length=100) where T<:Colorant
+    cgrad(range(x...,length=length))
+end
+
+"""
+Generates linearly interpolated colors between key colors inclusively.
+
+return an `Array` of colors.
+"""
 function range(x::T...;length=100) where T<:Colorant
-    n = Base.length(x)
-    nps = round(Int,(length+n)/(n-1))
-    segs = map(i->range(x[i],x[i+1],length=nps),1:n-1)
+    nk = Base.length(x)
+    sn = round(Int,length/(nk-1))
+    segs = map(i->range(x[i],x[i+1],length=sn),1:nk-1)
     cs = push!(mapreduce(i->i[1:end-1],append!,segs),segs[end][end])
 end
 

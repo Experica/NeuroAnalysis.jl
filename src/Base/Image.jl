@@ -5,6 +5,10 @@ function alphablend(src::Colorant,dst::Colorant)
     srcfactor = alpha(src)
     srcfactor.*src+(1-srcfactor).*dst
 end
+
+"""
+Masking alpha channel of an image, match the implementation in `Experica` shaders.
+"""
 function alphamask(src;radius=0.5,sigma=0.15,masktype="Disk")
     if masktype in ["Disk","disc"]
         alphamask_disk(src,radius)
@@ -13,44 +17,44 @@ function alphamask(src;radius=0.5,sigma=0.15,masktype="Disk")
     elseif masktype=="DiskFade"
         alphamask_diskfade(src,radius,sigma)
     else
-        return copy(src),Int[]
+        return (y=deepcopy(src),i=Int[])
     end
 end
 function alphamask_disk(src,radius)
-    dims = size(src);dim1=dims[1];dim2=dims[2];mindim=min(dim1,dim2)
-    hh = dim1/2;hw = dim2/2;dst = copy(src);unmaskidx=Int[];li = LinearIndices(dims)
-    for i=1:dim1,j=1:dim2
-        d = sqrt((i-hh)^2+(j-hw)^2)-radius*mindim
+    dims = size(src);hh,hw = dims./2;id=minimum(dims)
+    dst = deepcopy(src);unmaskidx=Int[];li = LinearIndices(dims)
+    for i=1:dims[1],j=1:dims[2]
+        d = sqrt((i-hh)^2+(j-hw)^2)/id-radius
         if d>0
             dst[i,j]=coloralpha(color(dst[i,j]),0)
         else
             push!(unmaskidx,li[i,j])
         end
     end
-    return dst,unmaskidx
+    return (y=dst,i=unmaskidx)
 end
 function alphamask_gaussian(src,sigma)
-    dims = size(src);dim1=dims[1];dim2=dims[2];mindim=min(dim1,dim2)
-    hh = dim1/2;hw = dim2/2;dst = copy(src);unmaskidx=Int[];li = LinearIndices(dims)
-    for i=1:dim1,j=1:dim2
-        d = ((i-hh)^2+(j-hw)^2)/(0.5*mindim)^2
-        dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*exp(-d/(2*sigma^2)))
+    dims = size(src);hh,hw = dims./2;ir=min(hh,hw)
+    dst = deepcopy(src);unmaskidx=Int[];li = LinearIndices(dims)
+    for i=1:dims[1],j=1:dims[2]
+        r2 = ((i-hh)^2+(j-hw)^2)/ir^2
+        dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*exp(-0.5r2/sigma^2))
         push!(unmaskidx,li[i,j])
     end
-    return dst,unmaskidx
+    return (y=dst,i=unmaskidx)
 end
 function alphamask_diskfade(src,radius,sigma)
-    dims = size(src);dim1=dims[1];dim2=dims[2];mindim=min(dim1,dim2)
-    hh = dim1/2;hw = dim2/2;dst = copy(src);unmaskidx=Int[];li = LinearIndices(dims)
-    for i=1:dim1,j=1:dim2
-        d = sqrt((i-hh)^2+(j-hw)^2)/mindim-radius
+    dims = size(src);hh,hw = dims./2;id=minimum(dims)
+    dst = deepcopy(src);unmaskidx=Int[];li = LinearIndices(dims)
+    for i=1:dims[1],j=1:dims[2]
+        d = sqrt((i-hh)^2+(j-hw)^2)/id-radius
         if d>0
             dst[i,j] = coloralpha(color(dst[i,j]),alpha(dst[i,j])*erfc(sigma*d))
         else
             push!(unmaskidx,li[i,j])
         end
     end
-    return dst,unmaskidx
+    return (y=dst,i=unmaskidx)
 end
 
 function clampscale(x,min::Real,max::Real)
@@ -145,13 +149,13 @@ Generate Grating Image, match the implementation in `Experica` grating shader.
 - tf: TemporalFreq (cycle/sec)
 - t: Time (second)
 - phase: Phase of a cycle in [0, 1] scale
-- sized: Tuple of image size in visual degree
+- size: Tuple of image size in visual degree
 - ppd: pixel per degree
 
 return image in [0, 1]
 """
-function grating(;θ=0,sf=1,phase=0,tf=1,t=0,sized=(10,10),ppd=50)
-    pc = round.(Int,sized.*ppd./2)
+function grating(;θ=0,sf=1,phase=0,tf=1,t=0,size=(10,10),ppd=50)
+    pc = round.(Int,size.*ppd./2)
     psize = pc.*2
     g = fill(0.5,psize)
     isnan(θ) && return g
@@ -159,7 +163,7 @@ function grating(;θ=0,sf=1,phase=0,tf=1,t=0,sized=(10,10),ppd=50)
     for i in 1:psize[1], j in 1:psize[2]
         x = (j-pc[2])/pc[2]/2
         y = (-i+pc[1])/pc[1]/2
-        y′ = cosθ * y * sized[1] - sinθ * x * sized[2]
+        y′ = cosθ * y * size[1] - sinθ * x * size[2]
         g[i,j] = (sin(2π * (sf * y′ - tf * t + phase)) + 1) / 2
     end
     return g
@@ -218,23 +222,36 @@ function hartley(;kx,ky,bw,stisize=5,ppd=50)
     return g
 end
 
-function powerspectrum2(x::AbstractMatrix,fs;freqrange=[-15,15])
+"""
+2D powerspectrum of an image.
+"""
+function powerspectrum2(x,fs;freqrange=[-15,15])
     ps = periodogram(x,fs=fs)
-    p = power(ps)
-    freq1,freq2 = freq(ps)
-    fi1 = map(f->freqrange[1]<=f<=freqrange[2],freq1)
-    fi2 = map(f->freqrange[1]<=f<=freqrange[2],freq2)
-    p = p[fi1,fi2];freq1 = freq1[fi1];freq2 = freq2[fi2]
-    si1=sortperm(freq1);si2=sortperm(freq2)
-    return p[si1,si2],freq1[si1],freq2[si2]
+    p = power(ps);freqd1,freqd2 = freq(ps)
+    fi1 = freqrange[1].<=freqd1.<=freqrange[2]
+    fi2 = freqrange[1].<=freqd2.<=freqrange[2]
+    p = p[fi1,fi2];freqd1 = freqd1[fi1];freqd2 = freqd2[fi2]
+    si1=sortperm(freqd1);si2=sortperm(freqd2)
+    return p[si1,si2],freqd1[si1],freqd2[si2]
 end
 
-function freqimagestats(x,f1,f2)
-    f0i = (findfirst(f1.==0),findfirst(f2.==0))
-    p = copy(x);p[f0i...]=0
-    mi = argmax(p)
-    mf = [f2[mi[2]],f1[mi[1]]]
-    sf = norm(mf)
-    ori = mod(atan(mf...),π)
+"""
+Estimate the F1 Ori and SpatialFreq of an image from its 2D powerspectrum.
+
+1. x: 2D powerspectrum
+2. freqd1: frequencies of dim 1
+3. freqd2: frequencies of dim 2
+
+return:
+- ori: Orientation in radius, 0 is -, increase counter-clock wise
+- sf: SpatialFreq along the line perpendicular to ori
+"""
+function f1orisf(x,freqd1,freqd2)
+    f0i = (findfirst(freqd1.==0),findfirst(freqd2.==0))
+    p = deepcopy(x);p[f0i...]=0
+    f1i = argmax(p)
+    f1freqd2d1 = [freqd2[f1i[2]],freqd1[f1i[1]]]
+    ori = mod(atan(f1freqd2d1...),π)
+    sf = norm(f1freqd2d1)
     return ori,sf
 end

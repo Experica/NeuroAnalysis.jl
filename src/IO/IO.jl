@@ -4,14 +4,17 @@ import FileIO: save
 include("SpikeGLX.jl")
 
 """
-Drop matrix dims according to `MATLAB` convention.
+Drop array dims according to `MATLAB` convention.
 
-- scalar: scalar instead of 1x1 matrix
-- rvector: vector instead of 1xN matrix
-- cvector: vector instead of Nx1 matrix
+- scalar: scalar instead of 1x1 array
+- rvector: vector instead of 1xN array
+- cvector: vector instead of Nx1 array
 """
 dropmatdim!(x;scalar = true, rvector = true, cvector = true) = x
-dropmatdim!(x::Dict;scalar = true, rvector = true, cvector = true) = Dict(k=>dropmatdim!(x[k],scalar=scalar,rvector=rvector,cvector=cvector) for k in keys(x))
+function dropmatdim!(x::Dict;scalar = true, rvector = true, cvector = true)
+    foreach(k->x[k]=dropmatdim!(x[k],scalar=scalar,rvector=rvector,cvector=cvector),keys(x))
+    return x
+ end
 function dropmatdim!(x::Array;scalar = true, rvector = true, cvector = true)
     if ndims(x) == 2
         nr,nc = size(x)
@@ -25,8 +28,6 @@ function dropmatdim!(x::Array;scalar = true, rvector = true, cvector = true)
     end
     if x isa Array{Any}
         foreach(i->x[i]=dropmatdim!(x[i],scalar=scalar,rvector=rvector,cvector=cvector),eachindex(x))
-    elseif any((<:).(eltype(x),[Array,Dict]))
-        x = dropmatdim!.(x,scalar=scalar,rvector=rvector,cvector=cvector)
     end
     return x
 end
@@ -63,16 +64,13 @@ function readmat(f::AbstractString,vars...;varset=["spike","lfp","digital","anal
         end
     end
     if scalar || rvector || cvector
-        dropmatdim!(d,scalar=scalar,rvector=rvector,cvector=cvector)
+        d = dropmatdim!(d,scalar=scalar,rvector=rvector,cvector=cvector)
     end
     return d
 end
 
 "Read `DataExport` Metadata MAT File"
-function readmeta(f::AbstractString)
-    d = readmat(f)["Tests"]
-    DataFrame(d)
-end
+readmeta(f::AbstractString) = DataFrame(readmat(f)["Tests"])
 
 "Load images in directory"
 function loadimageset(dir;name=[],n=typemax(Int),alpha=false)
@@ -229,15 +227,16 @@ function maptodatatime(x,ex::Dict;addlatency=true)
     return t
 end
 
-function subrm(rm,fs,epochs;chs=1:size(rm,1),meta=[],bandpass=[1,100])
+"Epochs of `Neuropixels` Channel Sample `x`, optionally gain corrected(voltage), line noise(60,120,180Hz) removed and bandpass filtered"
+function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100])
     f = nothing
     if !isempty(meta)
-        f = x -> gaincorrectim(x,meta)
+        f = i -> gaincorrectnp(i,meta)
         if !isempty(bandpass)
-            f = x -> hlpass(rmline!(gaincorrectim(x,meta),fs),fs,high=bandpass[1],low=bandpass[2])
+            f = i -> hlpass(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
         end
     end
-    subrm(rm,fs,epochs,chs,fun=f)
+    epochsample(x,fs,epochs,chs,fun=f)
 end
 
 """
@@ -301,10 +300,10 @@ function getexpericafile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Z
     matchfile(expericafileregex(subject=subject,session=session,site=site,test=test,maxrepeat=maxrepeat,format=format),dir=dir,adddir=adddir)
 end
 
-"Get matched files in directory, optionally add directory to get file path"
-function matchfile(pattern::Regex;dir="",adddir::Bool=false)
+"Get matched file names in directory, optionally join directory to get file path"
+function matchfile(pattern::Regex;dir="",join::Bool=false)
     fs = filter!(f->occursin(pattern,f),readdir(dir))
-    if adddir
+    if join
         fs=joinpath.(dir,fs)
     end
     return fs

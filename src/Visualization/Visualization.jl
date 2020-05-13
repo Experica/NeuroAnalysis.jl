@@ -30,6 +30,7 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
     return fu
 end
 
+"scatter plot of spike trains"
 function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
     nt = isempty(x) ? 0 : maximum(y)
     s = min(size[2]/nt,1)
@@ -40,14 +41,14 @@ function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),ti
     end
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title),legend=false)
 end
-function plotspiketrain(sts::RVVector;uids::RVVector=RealVector[],sortvalues=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
+function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
     if isempty(uids)
         g=uids;uc=colors
     else
-        fuids = flatrvv(uids,sortvalues)[1]
+        fuids = flatspiketrains(uids,sortvalues)[1]
         g=map(i->"U$i",fuids);uc=colors[sort(unique(fuids)).+1]
     end
-    plotspiketrain(flatrvv(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title,size=size)
+    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title,size=size)
 end
 
 # function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xmax=maximum(x)+10,xgroup::Vector=[],
@@ -170,13 +171,13 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
     return p
 end
 
-function plotsta(ps;imagesize=size(ps),stisize=nothing,ppd=50,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
+function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
     nd = ndims(ps)
     if nd==1
         if isnothing(index)
-            sta = reshape(ps,imagesize)
+            sta = reshape(ps,sizepx)
         else
-            sta = fill(mean(ps),imagesize)
+            sta = fill(mean(ps),sizepx)
             sta[index] = ps
         end
     elseif nd==2
@@ -185,12 +186,12 @@ function plotsta(ps;imagesize=size(ps),stisize=nothing,ppd=50,index=nothing,filt
     if !isnothing(filter)
         sta = imfilter(sta,filter)
     end
-    if !isnothing(stisize)
-        ppd = first(imagesize./stisize)
+    if !isnothing(sizedeg)
+        ppd = first(sizepx./sizedeg)
     end
 
-    x = vec([(j-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
-    y = vec([(i-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
+    x = vec([(j-1)/ppd for i in 1:sizepx[1], j in 1:sizepx[2]])
+    y = vec([(i-1)/ppd for i in 1:sizepx[1], j in 1:sizepx[2]])
     z = vec(sta)
     if !isnothing(index)
         x=x[index];y=y[index];z=z[index]

@@ -1,45 +1,12 @@
 using NeuroAnalysis, Test, BenchmarkTools
 
-@testset "Spike" begin
-## subrvr and subrvr_ono
-spike = sort(rand(1:100000,1000))
-on = collect(10:100:95000)
-off = collect(90:100:95080)
-n1 = subrvr(spike,on,off,israte=false)
-n2 = subrvr_ono(spike,on,off,israte=false)
-@test n1==n2
-# @btime n1 = subrvr($(spike),$(on),$(off),israte=false)
-# @btime n2 = subrvr_ono($(spike),$(on),$(off),israte=false)
+@testset "NeuroAnalysis" begin
 
-end
+    include("spiketest.jl")
+    include("imagetest.jl")
+    include("conditiontest.jl")
 
-@testset "Image" begin
-## image and freqimage
-ppd = 30;ori=0.5π;sf=2
-img = grating(θ=ori,sf=sf,ppd=ppd)
-# heatmap(img,yflip=true)
-ps,f1,f2 = powerspectrum(img,ppd,freqrange=[-6,6])
-# heatmap(f1,f2,ps)
-eori,esf = freqimagestats(ps,f1,f2)
-@test sf≈esf
-@test ori≈eori
-## hartley space
-# @manipulate for kb in 0:4, ke in 1:5, dk in 0.4:0.2:1, p in 0:0.005:1, shape in [:square, :circle]
-#     plothartleyspace(hartleysubspace(kbegin=kb,kend=ke,dk=dk,phase=p,shape=shape),floor(Int,ke/dk),dk)
-# end
 
-hs = hartleysubspace(kbegin=0.2,kend=6.6,dk=0.2,addhalfcycle=true)
-mhg = mapreduce(i -> begin
-                ss = cas2sin(i...)
-                grating(θ = ss.θ, sf = ss.f, phase = ss.phase, sized = (5, 5), ppd = 30)
-                end, (i, j) -> i .+ j, hs) / length(hs)
-# mean of a hartley subspace gratings should be a uniform gray
-minv,maxv = extrema(mhg)
-@test minv≈maxv≈0.5
-
-end
-
-@testset "Function" begin
 ## 1D grating
 # @manipulate for f in 0:0.1:1, p in 0:0.001:1
 #     plot([x->gratingf(x,f=f,phase=p),x->cas(x,f=f,phase=sin2cas(p))],-2,2,labels=["sin" "cas"])
@@ -61,5 +28,10 @@ end
 #     heatmap!(p,subplot=6,cg.-csg,color=:grays,title="cas - cas2sin")
 #     p
 # end
+
+
+## colormap
+cgrad(RGB(1,0.0,0),RGB(0,1.0,0)).colors
+cgrad(RGB(1,0.0,0),RGB(0,1.0,0),RGB(0,0.0,1)).colors
 
 end

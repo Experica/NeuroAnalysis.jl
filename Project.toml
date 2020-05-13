@@ -1,7 +1,7 @@
 name = "NeuroAnalysis"
 uuid = "088af2c0-9cce-11e8-35da-81725c7f79e6"
 authors = ["Li Alex Zhang <fff008@gmail.com>"]
-version = "1.0.0"
+version = "1.1.0"
 
 [deps]
 ANOVA = "0825541b-7374-5e1e-93bd-72e337c8a986"
