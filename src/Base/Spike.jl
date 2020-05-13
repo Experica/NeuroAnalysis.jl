@@ -102,24 +102,24 @@ function subrvr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Boo
     return ns
 end
 
-function subrvr_onotest(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true)
+function subrvr_onotest(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true,isbin::Bool=true)
     n = length(mins)
     if n != length(maxs)
         error("Length of mins and maxs do not match.")
     end
-    ns = zeros(n)
-    ni=1
+    ns = zeros(n)  # store FR in condition on/off bins
+    ni=1  # bin counter
+    sp=0
     for v in rv
         @label start
-        if mins[ni]<=v
-            if v<maxs[ni]
-                ns[ni] += 1
-            else
-                ni+=1
-                ni>n && break
-                @goto start
-            end
+        if (mins[ni]<=v) && (v<maxs[ni])
+
+        else
+            ni+=1
+            ni>n && break
+            @goto start
         end
+        ns[ni] += 1
     end
     if israte
         ns = ns ./ ((maxs.-mins).*SecondPerUnit)

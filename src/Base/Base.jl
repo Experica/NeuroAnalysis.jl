@@ -534,10 +534,12 @@ function flin(ctc::DataFrame)
     return fl
 end
 
+
 """
-Find unique condition and indices, repetition for each
+In Condition Tests, find each unique condition, number of repeats and its indices
 """
 condin(ctc::Dict)=condin(DataFrame(ctc))
+condin(ctc::DataFrame) = combine(groupby([ctc DataFrame(i=1:nrow(ctc))], names(ctc), sort = true, skipmissing = true), :i => (x->[copy(x)]) => :i, nrow => :n)
 function condin(ctc::DataFrame)
     t = [ctc DataFrame(i=1:nrow(ctc))]
     t = by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:,:i]]))

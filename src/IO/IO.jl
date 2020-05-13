@@ -63,7 +63,7 @@ function readmat(f::AbstractString,vars...;varset=["spike","lfp","digital","anal
         end
     end
     if scalar || rvector || cvector
-        dropmatdim!(d,scalar=scalar,rvector=rvector,cvector=cvector)
+        d=dropmatdim!(d,scalar=scalar,rvector=rvector,cvector=cvector)
     end
     return d
 end
