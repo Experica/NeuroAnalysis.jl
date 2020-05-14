@@ -16,9 +16,9 @@ minv,maxv = extrema(mhg)
 ori=0.5π;sf=2;ppd=30
 img = grating(θ=ori,sf=sf,ppd=ppd)
 img .+= rand(size(img)...)/3
-# heatmap(img,yflip=true,aspect_ratio=:equal,frame=:none)
+heatmap(img,yflip=true,aspect_ratio=:equal,frame=:none)
 ps,f1,f2 = powerspectrum2(img,ppd,freqrange=[-6,6])
-# heatmap(f2,f1,ps,aspect_ratio=:equal,frame=:grid)
+heatmap(f2,f1,ps,aspect_ratio=:equal,frame=:grid)
 eori,esf = f1orisf(ps,f1,f2)
 @test sf≈esf
 @test ori≈eori

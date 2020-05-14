@@ -47,8 +47,8 @@ off = collect(100:150:95100)
 n1 = epochspiketrainresponse(spike,on,off,israte=false)
 n2 = epochspiketrainresponse_ono(spike,on,off,israte=false)
 @test n1==n2
-# @btime epochspiketrainresponse($(spike),$(on),$(off),israte=false)
-# @btime epochspiketrainresponse_ono($(spike),$(on),$(off),israte=false)
+@btime epochspiketrainresponse($(spike),$(on),$(off),israte=false)
+@btime epochspiketrainresponse_ono($(spike),$(on),$(off),israte=false)
 # mean psth of two spike trains
 m,se,x = psthspiketrains(st1st1,[10,20,30],israte=false)
 @test m==[10,10]
