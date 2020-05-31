@@ -1,7 +1,7 @@
 using Plots,StatsPlots,VegaLite
 import Plots: cgrad
 
-include("Colormap.jl")
+include("Color.jl")
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
