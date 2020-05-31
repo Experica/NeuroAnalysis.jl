@@ -57,6 +57,7 @@ function alphamask_diskfade(src,radius,sigma)
     return (y=dst,i=unmaskidx)
 end
 
+"clamp value to `min` and `max`, and linearly map range `[min, max]` to `[0, 1]`"
 function clampscale(x,min::Real,max::Real)
     scaleminmax(min,max).(x)
 end

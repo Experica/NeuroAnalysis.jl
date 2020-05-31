@@ -155,9 +155,6 @@ function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
 end
 function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing,n=[])
     xms = x*SecondPerUnit*1000
-    if color==:minmax
-        color = minmaxcolormap("RdBu",extrema(data)...,isreverse=true)
-    end
     p=heatmap(xms,y,data,color=color,colorbar_title="Spike/Sec",xlabel="Time (ms)",ylabel="Depth (um)")
     vline!(p,timeline,color=:gray,label="TimeLine")
     if !isempty(n)

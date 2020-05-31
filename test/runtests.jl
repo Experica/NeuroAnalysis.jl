@@ -30,6 +30,26 @@ using NeuroAnalysis, Test, BenchmarkTools, DataFrames, Plots
 # end
 
 
+plot(gratingf,-3,3)
+plot(gaussianf,-3,3)
+plot(gaborf,-3,3)
+plot(dogf,-3,3)
+
+funnames = ["grating","gaussian","gabor","dog"]
+plot([gratingf,gaussianf,gaborf,dogf],-3,3,labels=permutedims(funnames),lw=[2 2 3 3])
+
+
+x=y=-3:0.05:3;z=[]
+push!(z,[gratingf(i,j,θ=0.25π,f=0.5) for j in y,i in x])
+push!(z,[gaussianf(i,j,σ₁=0.8,σ₂=0.5,θ=0.25π) for j in y,i in x])
+push!(z,[gaborf(i,j,σ₁=0.8,σ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
+push!(z,[dogf(i,j,σₑ₁=0.8,σₑ₂=0.5,σᵢ₁=1,σᵢ₂=0.7,θₑ=0.25π,θᵢ=0.25π) for j in y,i in x])
+
+p = plot(layout=(2,2),legend=false,size=(600,600))
+foreach(i->heatmap!(p,z[i],subplot=i,aspect_ratio=:equal,frame=:none,color=:plasma,title=funnames[i]),1:4)
+p
+
+
 ## colormap
 cgrad(RGB(1,0.0,0),RGB(0,1.0,0)).colors
 cgrad(RGB(1,0.0,0),RGB(0,1.0,0),RGB(0,0.0,1)).colors
