@@ -1,5 +1,5 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageSegmentation,
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,ProgressMeter
 import Base: vec,range
 
 include("NeuroDataType.jl")
@@ -536,10 +536,9 @@ end
 
 
 """
-In Condition Tests, find each unique condition, number of repeats and its indices
+Find unique condition and indices, repetition for each
 """
 condin(ctc::Dict)=condin(DataFrame(ctc))
-condin(ctc::DataFrame) = combine(groupby([ctc DataFrame(i=1:nrow(ctc))], names(ctc), sort = true, skipmissing = true), :i => (x->[copy(x)]) => :i, nrow => :n)
 function condin(ctc::DataFrame)
     t = [ctc DataFrame(i=1:nrow(ctc))]
     t = by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:,:i]]))
