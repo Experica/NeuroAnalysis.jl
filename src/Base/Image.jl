@@ -218,6 +218,7 @@ function hartley(;kx,ky,bw,stisize=5,ppd=50,norm=true)
         g = (g .* bw ./ max(g...) .+ 1) ./ 2
     elseif norm == false
         g = g .* bw ./ max(g...)
+    end
     return g
 end
 
