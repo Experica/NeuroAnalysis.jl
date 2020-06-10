@@ -132,9 +132,7 @@ end
 """
 function cas(x,y;kx=1,ky=1, phase=0, isnorm::Bool=true)
     r = sum(sincos(2π * (kx * x + ky * y + phase)))
-    if isnorm
-        r /=sqrt(2)
-    end
+    isnorm && (r /=sqrt(2))
     return r
 end
 
@@ -374,21 +372,22 @@ end
 """
 Spike Triggered Average of Images
 
-- x: Matrix where each row is one image
-- y: Vector of image response
+1. x: Matrix where each row is one image
+2. y: Vector of image response
+
+- norm: normalization factor, default no normalization.
+        it could be ``sum(y)`` if y is number of spike or spike rate, then STA would be spiking probability.
+- whiten: whiten factor, default no whiten.
+        it could be ``(xᵀx)⁻¹`` or inverse of covariance matrix, that decorrelate STA.
 """
-function sta(x::AbstractMatrix,y::AbstractVector;isnorm=true,whiten=nothing)
+function sta(x::AbstractMatrix,y::AbstractVector;norm=nothing,whiten=nothing)
     r = x'*y
-    if isnorm
-        r/=sum(y)
-    end
-    if !isnothing(whiten)
-        r = whiten * r
-    end
-    # if iswhiten
-    #     r = x'*x\r
-    #     r=length(y)*inv(cov(x,dims=1))*r
-    # end
+    !isnothing(norm) && (r/=norm)
+    !isnothing(whiten) && (r=whiten*r)
+
+    # r = x'*x\r
+    # r=length(y)*inv(cov(x,dims=1))*r
+
     return r
 end
 

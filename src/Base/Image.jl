@@ -145,62 +145,63 @@ findclosestangle(a,theta) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(
 """
 Generate Grating Image, match the implementation in `Experica` grating shader.
 
-- θ: Orientation in radius, 0 is -, increase counter-clock wise
+- θ: Orientation (radius), 0 is -, increase counter-clock wise
 - sf: SpatialFreq (cycle/deg)
 - tf: TemporalFreq (cycle/sec)
 - t: Time (second)
 - phase: Phase of a cycle in [0, 1] scale
 - size: Tuple of image size in visual degree
 - ppd: pixel per degree
+- isnorm: return image in [0, 1] or [-1, 1]
 
-return image in [0, 1]
 """
-function grating(;θ=0,sf=1,phase=0,tf=1,t=0,size=(10,10),ppd=50)
-    pc = round.(Int,size.*ppd./2)
-    psize = pc.*2
-    g = fill(0.5,psize)
-    isnan(θ) && return g
-    sinθ,cosθ = sincos(θ)
-    for i in 1:psize[1], j in 1:psize[2]
-        x = (j-pc[2])/pc[2]/2
-        y = (-i+pc[1])/pc[1]/2
-        y′ = cosθ * y * size[1] - sinθ * x * size[2]
-        g[i,j] = (sin(2π * (sf * y′ - tf * t + phase)) + 1) / 2
+function grating(;θ=0,sf=1,phase=0,tf=1,t=0,size=(10,10),ppd=50,isnorm=true)
+    pr = round.(Int,size.*ppd./2);pc = pr.+1;psize = (pr.*2).+1
+    g = zeros(psize)
+    if !isnan(θ)
+        sinθ,cosθ = sincos(θ)
+        for i in 1:psize[2], j in 1:psize[1]
+            x = (i-pc[2])/pr[2]/2
+            y = (-j+pc[1])/pr[1]/2
+            y′ = cosθ * y * size[1] - sinθ * x * size[2]
+            g[i,j] = sin(2π * (sf * y′ - tf * t + phase))
+        end
     end
+    isnorm && (g=(g.+1)/2)
     return g
 end
 
 """
-Generate Hartley Subspace, where k is Frequency in cycle/unit_x/y. [^1]
+Generate Hartley Subspace, where k is frequency in cycle/unit_x/y. [^1]
 
 - kbegin: k >= kbegin
 - kend: k <= kend
 - dk: Δk, step on k axis
-- phase: phase in [0, 1] scale
-- shape: :square or :circle shape subspace
+- phase: phase in [0, 1] scale, default 0.
+- shape: `:square` or `:circle` shape subspace
 - addhalfcycle: add half cycle shifted hartleys
-- blank: element of hartley as blank
-- nblank: No. of blank
+- blank: the element of hartley as blank, default uniform gray.
+- nblank: number of blanks to add
 
 [^1]
 
 Ringach, D.L., Sapiro, G., and Shapley, R. (1997). A subspace reverse-correlation technique for the study of visual neurons. Vision Research 37, 2455–2464.
 """
-function hartleysubspace(;kbegin=0,kend=5,dk=1,phase=0,shape = :square,addhalfcycle=false,blank=(kx=0,ky=0,phase=0.375),nblank=0)
+function hartleysubspace(;kbegin=0.0,kend=5.0,dk=1.0,phase=0.0,shape=:square,addhalfcycle=false,blank=(kx=0.0,ky=0.0,phase=0.375),nblank=0)
     kr = 0:dk:kend; kaxis = sort(unique([kr;-kr]))
     ps = vec([(kx=kx,ky=ky,phase=phase) for ky in reverse(kaxis), kx in kaxis])
     if shape == :square
-        if kbegin > 0
+        if 0 < kbegin
             filter!(i->abs(i.kx) >= kbegin || abs(i.ky) >= kbegin,ps)
         end
     elseif shape == :circle
         filter!(i->kbegin <= sqrt(i.kx^2 + i.ky^2) <= kend,ps)
     end
     if addhalfcycle
-        ps = [ps;map(i->(kx=i.kx,ky=i.ky,phase=i.phase + 0.5),ps)]
+        append!(ps,map(i->(kx=i.kx,ky=i.ky,phase=i.phase + 0.5),ps))
     end
     if nblank > 0
-        ps = [ps;fill(blank,nblank)]
+        append!(ps,fill(blank,nblank))
     end
     ps
 end
