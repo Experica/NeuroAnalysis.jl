@@ -459,15 +459,19 @@ function plotunitpositionproperty(unitposition;ori=nothing,os=nothing,dir=nothin
 end
 
 function plotunitpositionimage(unitposition,image;width=800,height=600,markersize=20,title="",layer=nothing)
-    tempimagedir = joinpath(pwd(),"tempimage");nu=size(unitposition,1)
+    tempimagedir = "tempimage";nu=size(unitposition,1)
     isdir(tempimagedir) || mkpath(tempimagedir)
     urls = map(i->"tempimage/$(i).png",1:nu)
     foreach(i->save(urls[i],image[i]),1:nu)
 
     df = DataFrame(x=unitposition[:,1],y=unitposition[:,2],m=urls,s=markersize)
     l = DataFrame()
-    xlim = [minimum(df[:,:x])-4,maximum(df[:,:x])+2]
-    ylim = [minimum(df[:,:y])-100,maximum(df[:,:y])+100]
+    # xlim = [minimum(df[:,:x])-4,maximum(df[:,:x])+2]
+    # ylim = [minimum(df[:,:y])-100,maximum(df[:,:y])+100]
+    xlim = [minimum(df[:,:x])-0.2,maximum(df[:,:x])+0.2]
+    ylim = [minimum(df[:,:y])-0.2,maximum(df[:,:y])+0.2]
+    # xlim = [minimum(df[:,:x])-2,maximum(df[:,:x])+2]
+    # ylim = [minimum(df[:,:y])-2,maximum(df[:,:y])+2]
     if !isnothing(layer)
         l[!,:x] = fill(xlim[1],length(layer))
         l[!,:x2] .= xlim[2]

@@ -150,7 +150,7 @@ Generate Grating Image, match the implementation in `Experica` grating shader.
 - tf: TemporalFreq (cycle/sec)
 - t: Time (second)
 - phase: Phase of a cycle in [0, 1] scale
-- size: Tuple of image size in visual degree
+- size: Tuple of image size in degree
 - ppd: pixel per degree
 - isnorm: return image in [0, 1] or [-1, 1]
 
@@ -160,9 +160,9 @@ function grating(;θ=0,sf=1,phase=0,tf=1,t=0,size=(10,10),ppd=50,isnorm=true)
     g = zeros(psize)
     if !isnan(θ)
         sinθ,cosθ = sincos(θ)
-        for i in 1:psize[2], j in 1:psize[1]
-            x = (i-pc[2])/pr[2]/2
-            y = (-j+pc[1])/pr[1]/2
+        for i in 1:psize[1], j in 1:psize[2]
+            x = (j-pc[2])/pr[2]/2
+            y = (-i+pc[1])/pr[1]/2
             y′ = cosθ * y * size[1] - sinθ * x * size[2]
             g[i,j] = sin(2π * (sf * y′ - tf * t + phase))
         end
