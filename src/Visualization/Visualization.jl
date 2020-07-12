@@ -92,23 +92,30 @@ function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(ke
     mseuc = condresponse(urs,cond)
     plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
 end
-function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:ug])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
-    ugs = sort(unique(mseuc[:,[:u,:ug]]))
-    factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
+function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,projection=:cartesian,title="",grid=false,
+                            linestyle=:solid,linewidth=:auto,legend=:best,response=[],responsetype=:Response)
+    gs = unique(mseuugc[:,[:u,:ug]])
+    if nrow(gs)>1
+        gi=sortperm(gs);gs=gs[gi,:]
+        color isa Array && (color=permutedims(color[gi]))
+        linewidth isa Array && (linewidth=permutedims(linewidth[gi]))
+        linestyle isa Array && (linestyle=permutedims(linestyle[gi]))
+    end
+    factors=setdiff(propertynames(mseuugc),[:m,:se,:u,:ug])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
-        if typeof(mseuc[!,factor][1]) <: Array
-            map!(string,mseuc[factor],mseuc[factor])
-            style=:bar
-        end
+        # if typeof(mseuc[!,factor][1]) <: Array
+        #     map!(string,mseuc[factor],mseuc[factor])
+        #     style=:bar
+        # end
     elseif nfactor==2
-        fm,fse,fa = factorresponse(mseuc)
+        fm,fse,fa = factorresponse(mseuugc)
         clim=maximum(skipmissing(fm))
         yfactor,xfactor = collect(keys(fa))
         y,x = collect(values(fa))
     else
-        mseuc[:Condition]=condstring(mseuc[:,factors])
+        mseuugc[:Condition]=condstring(mseuugc[:,factors])
         factor=:Condition
         style=:bar
     end
@@ -117,22 +124,23 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:ug]))
         y=float.(y)
         heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(responsetype),clims=(0,clim))
     else
-        if projection==:polar
-            c0 = mseuc[mseuc[!,factor].==0,:]
-            c0[:,factor].=360
-            mseuc = [mseuc;c0]
-            mseuc[!,factor]=deg2rad.(mseuc[!,factor])
+        if projection==:polar # close curve
+            c0 = mseuugc[mseuugc[!,factor].==0,:]
+            c0[!,factor].=360
+            mseuugc = [mseuugc;c0]
+            mseuugc[!,factor]=deg2rad.(mseuugc[!,factor])
         end
-        sort!(mseuc,factor)
+        sort!(mseuugc,factor)
         if projection==:polar
-            p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:ug,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
+            p = @df mseuugc Plots.plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
+            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
+            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
         else
-            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:ug,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
+            p = @df mseuugc plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=:auto,color=reshape(color,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(gs)],1,:),
+            grid=grid,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
         end
-        if !isempty(responseline)
-            for i in responseline
+        if !isempty(response)
+            for i in response
                 hline!(p,[i[1]],ribbon=[i[2]],color=colors,legend=false)
             end
         end

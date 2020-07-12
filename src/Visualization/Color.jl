@@ -49,8 +49,22 @@ function range(x::T...;length=100) where T<:Colorant
     cs = push!(mapreduce(i->i[1:end-1],append!,segs),segs[end][end])
 end
 
-function plotcolormap(cm::Dict;title="",xlabel="",ylabel="",markersize=12)
-    yx = sincos.(2π*cm["values"])
-    scatter(map(i->i[2],yx),map(i->i[1],yx),aspectratio=:equal,color=cm["colors"],markersize=markersize,marker=:circle,
+"Predefined ColorMaps"
+ColorMaps=Dict()
+
+function plotcolormap(cm;title="",xlabel="",ylabel="",markersize=12,shape=:circle)
+    if shape == :circle
+        yx = sincos.(2π*range(0,1,length=length(cm)))
+        x = map(i->i[2],yx)
+        y = map(i->i[1],yx)
+        marker = :circle
+        ylims=[-1.2,1.2]
+    else
+        x = range(0,1,length=length(cm))
+        y = ones(length(cm))
+        marker = :rect
+        ylims=[0.5,1.5]
+    end
+    scatter(x,y,aspectratio=:equal,color=cm,markersize=markersize,marker=marker,ylims=ylims,
     markerstrokewidth=0,legend=false,xlabel=xlabel,ylabel=ylabel,title=title)
 end

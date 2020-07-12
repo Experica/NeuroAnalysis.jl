@@ -140,7 +140,8 @@ function angleabs(cmap)
     return amap,mmap
 end
 anglemode(a,theta) = theta[findclosestangle(a,theta)]
-findclosestangle(a,theta) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(theta),sin.(theta)))))
+"find the index `i` in `thetas` that `thetas[i]` is closest to `a`, all in radius"
+findclosestangle(a,thetas) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(thetas),sin.(thetas)))))
 
 """
 Generate Grating Image, match the implementation in `Experica` grating shader.

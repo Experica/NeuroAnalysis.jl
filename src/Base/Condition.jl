@@ -134,8 +134,8 @@ Find levels for each factor and indices, repetition for each level
 """
 flin(ctc::Dict)=flin(DataFrame(ctc))
 function flin(ctc::DataFrame)
-    fl=OrderedDict()
-    for f in names(ctc)
+    fl=OrderedDict{Symbol,DataFrame}()
+    for f in propertynames(ctc)
         fl[f] = condin(ctc[:,[f]])
     end
     return fl
@@ -145,10 +145,10 @@ end
 In Condition Tests, find each unique condition, number of repeats and its indices
 """
 condin(ctc::Dict)=condin(DataFrame(ctc))
-condin(ctc::DataFrame) = combine(groupby([ctc DataFrame(i=1:nrow(ctc))], names(ctc), sort = true, skipmissing = true), :i => (x->[copy(x)]) => :i, nrow => :n)
+condin(ctc::DataFrame) = combine(groupby([ctc DataFrame(i=1:nrow(ctc))], propertynames(ctc), sort = true, skipmissing = true), :i => (x->[copy(x)]) => :i, nrow => :n)
 
 "Get factors of conditions"
-condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])
+condfactor(cond::DataFrame)=setdiff(propertynames(cond),[:n,:i])
 
 "Get `Final` factors of conditions"
 function finalfactor(cond::DataFrame)
@@ -158,11 +158,11 @@ function finalfactor(cond::DataFrame)
 end
 
 "Condition in String"
-function condstring(cond::DataFrameRow,fs=names(cond))
-    join(["$f=$(cond[f])" for f in fs],", ")
+function condstring(cond::DataFrameRow;factor=names(cond))
+    join(["$f=$(cond[f])" for f in factor],", ")
 end
-function condstring(cond::DataFrame,fs=names(cond))
-    [condstring(r,fs) for r in eachrow(cond)]
+function condstring(cond::DataFrame;factor=names(cond))
+    [condstring(r;factor=factor) for r in eachrow(cond)]
 end
 
 """
@@ -175,37 +175,37 @@ function condresponse(rs,gi)
     grs = [rs[i] for i in gi]
     DataFrame(m=mean.(grs),se=sem.(grs))
 end
-function condresponse(rs,cond::DataFrame;u=0,ug="U")
-    crs = [rs[r[:i]] for r in eachrow(cond)]
+function condresponse(rs,cond::DataFrame;u=0,ug="SU")
+    crs = [rs[i] for i in cond.i]
     df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs)),ug=fill(ug,length(crs))) cond[:,condfactor(cond)]]
 end
 function condresponse(urs::Dict,cond::DataFrame)
     vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
 end
 function condresponse(urs::Dict,ctc::DataFrame,factors)
-    vf = filter(f->any(f.==factors),names(ctc))
+    vf = filter(f->any(f.==factors),propertynames(ctc))
     isempty(vf) && error("No Valid Factor Found.")
     condresponse(urs,condin(ctc[:,vf]))
 end
 
 "Condition Response in Factor Space"
-function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u,:ug]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
+function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[:,factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
     fm = missings(Float64, map(nrow,values(fl))...)
-    fse = copy(fm)
-    for i in 1:nrow(mseuc)
-        idx = [findfirst(mseuc[i:i,f].==fa[f]) for f in keys(fa)]
-        fm[idx...] = mseuc[i,:m]
-        fse[idx...] = mseuc[i,:se]
+    fse = deepcopy(fm)
+    for i in 1:nrow(df)
+        idx = [findfirst(df[i:i,f].==fa[f]) for f in keys(fa)]
+        fm[idx...] = df[i,:m]
+        fse[idx...] = df[i,:se]
     end
     return fm,fse,fa
 end
-function factorresponse(unitspike,ctc,condon,condoff;responsedelay=15)
-    fms=[];fses=[];fa=[];cond=condin(ctc);factors = condfactor(cond)
+function factorresponse(unitspike,cond,condon,condoff)
+    fms=[];fses=[];factors = condfactor(cond)
     fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
-    for u in 1:length(unitspike)
-        rs = subrvr(unitspike[u],condon.+responsedelay,condoff.+responsedelay)
-        mseuc = condresponse(rs,cond)
-        fm,fse,_ = factorresponse(mseuc,factors=factors,fl=fl,fa=fa)
+    for u in eachindex(unitspike)
+        rs = epochspiketrainresponse_ono(unitspike[u],condon,condoff,israte=true)
+        df = condresponse(rs,cond)
+        fm,fse,_ = factorresponse(df,factors=factors,fl=fl,fa=fa)
         push!(fms,fm);push!(fses,fse)
     end
     return fms,fses,fa

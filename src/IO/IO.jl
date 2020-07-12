@@ -1,4 +1,4 @@
-using FileIO,MAT,YAML
+using FileIO,JLD2,MAT,YAML
 import FileIO: save
 
 include("SpikeGLX.jl")
@@ -312,12 +312,12 @@ end
 function save(filepath::Union{AbstractString,IO},cm::Dict)
     ext = splitext(filepath)[2]
     if ext == ".yaml"
-        data = copy(cm)
-        data["colors"] = map(vec,data["colors"])
+        data = deepcopy(cm)
+        foreach(n->data[n]=Dict(k=>cm isa String ? cm : vec.(cm) for (k,cm) in pairs(data[n])),keys(data))
         YAML.write_file(filepath,data)
     elseif ext == ".mat"
-        data = copy(cm)
-        data["colors"] = mapreduce(c->vec(c)',vcat,data["colors"])
+        data = deepcopy(cm)
+        foreach(n->data[n]=Dict(k=>cm isa String ? cm : mapreduce(c->vec(c)',vcat,cm) for (k,cm) in pairs(data[n])),keys(data))
         matwrite(filepath,data)
     end
 end

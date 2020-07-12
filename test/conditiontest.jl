@@ -3,3 +3,11 @@ ctc = repeat(condtable,8)
 
 cond = condin(ctc)
 @test all(cond.n.==8)
+
+fl = flin(ctc)
+@test all(fl[:Ori].n.==16)
+@test all(fl[:SpatialFreq].n.==32)
+
+@test condfactor(cond) == collect(keys(fl))
+
+condstr = condstring(cond)

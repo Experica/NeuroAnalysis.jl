@@ -19,14 +19,14 @@ isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,resp
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
 
-"Check if any factors and their interactions significently modulate response by ANOVA"
+"Check if any factors and their interactions significently modulate response using ANOVA"
 function ismodulative(df;alpha=0.05,interact=true)
-    xns = filter(i->i!=:Y,names(df))
+    xns = filter(i->i!=:Y,propertynames(df))
     categorical!(df,xns)
     if interact
-        f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+        f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
     else
-        f = Term(:Y) ~ reduce(+,term.(xns))
+        f = term(:Y) ~ reduce(+,term.(xns))
     end
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
     anovatype = length(xns) <= 1 ? 2 : 3
@@ -58,7 +58,7 @@ Swindale, N.V. (1998). Orientation tuning curves: empirical description and esti
 - κ: width parameter
 - n: frequency parameter
 """
-vmf(α,β=1,μ=0,κ=1;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
+vmf(α;β=1,μ=0,κ=1,n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 """
 `Generalized von Mises` function [^1]
 
@@ -70,7 +70,7 @@ f(α) =  βe^{κ₁(cos(α - μ₁) - 1) + κ₂(cos2(α - μ₂) - 1)}
 
 Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.
 """
-gvmf(α,β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
+gvmf(α;β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
 
 """
 `Difference of Gaussians` function
@@ -182,18 +182,18 @@ end
 
 """
 Properties of Circular Tuning:
-    Prefered Direction/Orientation
-    Selectivity Index
-        version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
-        version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
-    Full Width at Half Maximum
+    - Prefered Direction/Orientation
+    - Selectivity Index
+        - version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
+        - version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
+    - Full Width at Half Maximum
 
-x: angles in radius
-y: responses
-od: opposing angle distance, π for DSI, 0.5π for OSI
-s: symbol name
+1. x: angles in radius
+2. y: responses
+- od: opposing angle distance, π for DSI, 0.5π for OSI
+- fn: factor name
 """
-function circtuningstats(x,y;od=π,s=od==π ? :d : :o)
+function circtuningfeature(x,y;od=π,fn=od==π ? :d : :o)
     maxi = argmax(y)
     maxr = y[maxi]
     px = x[maxi]
@@ -206,21 +206,21 @@ function circtuningstats(x,y;od=π,s=od==π ? :d : :o)
 
     # minr = minimum(y)
     # hmaxr = minr + (maxr-minr)/2
-    @eval ($(Symbol(:p,s)) = $(rad2deg(mod(px,2od))), $(Symbol(s,:si1)) = $si1, $(Symbol(s,:si2)) = $si2)
+    (;Symbol(:p,fn)=>rad2deg(mod(px,2od)), Symbol(fn,:si1)=>si1, Symbol(fn,:si2)=>si2)
 end
 
 """
 Tuning properties of factor response
 
-fl: factor levels
-fr: factor responses
+1. fl: factor levels
+2. fr: factor responses
 
     HueAngle, Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
     For cases where Orientation and Direction are interlocked(drifting grating):
         when Orientation is -(0), then Direction is ↑(90)
         when Direction is →(0), then Orientation is |(-90)
 """
-function factorresponsestats(fl,fr;factor=:Ori,isfit::Bool=true)
+function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
     if factor in [:Ori,:Ori_Final]
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -330,40 +330,43 @@ function factorresponsestats(fl,fr;factor=:Ori,isfit::Bool=true)
         # for hue axis
         aθ = mod.(θ,π)
         ham = circmean(2aθ,fr)
-        oha = rad2deg(mod(angle(ham),2π)/2)
+        oha = mod(angle(ham),2π)/2
         hacv = circvar(2aθ,fr,2d)
         # for hue
         hm = circmean(θ,fr)
-        oh = rad2deg(mod(angle(hm),2π))
+        oh = mod(angle(hm),2π)
         hcv = circvar(θ,fr,d)
         maxi = argmax(fr)
         maxh = fl[maxi]
         maxr = fr[maxi]
-        # fit Generalized von Mises for hue
+
         fit = ()
         if isfit
+            # fit Generalized von Mises for hue
             try
-                gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
+                gvmfun = (x,p)->gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
+                gvmfit = curve_fit(gvmfun,θ,fr,[maxr,oh,1,oh,1])
                 if gvmfit.converged
                     x = 0:0.004:2π # 0.004rad = 0.23deg
-                    y = gvmf.(x,gvmfit.param...)
-                    fit = (circtuningstats(x,y,od=π,s=:h)...,gvm=gvmfit)
+                    y = gvmfun(x,gvmfit.param)
+                    fit = (circtuningfeature(x,y,od=π,fn=:h)...,gvm=gvmfit)
                 end
             catch
             end
             # fit von Mises for hue axis
             try
-                vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
+                vmfun = (x,p)->vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
+                vmfit = curve_fit(vmfun,θ,fr,[maxr,oh,1])
                 if vmfit.converged
                     x = 0:0.004:2π
-                    y = vmf.(x,vmfit.param...,n=2)
-                    fit = (fit...,circtuningstats(x,y,od=0.5π,s=:ha)...,vm=vmfit)
+                    y = vmfun(x,vmfit.param)
+                    fit = (fit...,circtuningfeature(x,y,od=0.5π,fn=:ha)...,vm=vmfit)
                 end
             catch
             end
         end
 
-        return (ham=ham,oha=oha,hacv=hacv,hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr,fit=fit)
+        return (ham=ham,oha=rad2deg(oha),hacv=hacv,hm=hm,oh=rad2deg(oh),hcv=hcv,maxh=maxh,maxr=maxr,fit=fit)
     else
         return []
     end

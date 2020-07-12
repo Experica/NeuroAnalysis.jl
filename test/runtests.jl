@@ -1,10 +1,12 @@
-using NeuroAnalysis, Test, BenchmarkTools, DataFrames, Plots
+using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots
 
 @testset "NeuroAnalysis" begin
 
     include("spiketest.jl")
     include("imagetest.jl")
     include("conditiontest.jl")
+    include("visualizationtest.jl")
+
 
 
 ## 1D grating
@@ -29,7 +31,9 @@ using NeuroAnalysis, Test, BenchmarkTools, DataFrames, Plots
 #     p
 # end
 
-
+## functions
+plot(vmf,-π,π)
+plot(gvmf,-π,π)
 plot(gratingf,-3,3)
 plot(gaussianf,-3,3)
 plot(gaborf,-3,3)
@@ -49,9 +53,5 @@ p = plot(layout=(2,2),legend=false,size=(600,600))
 foreach(i->heatmap!(p,z[i],subplot=i,aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
 p
 
-
-## colormap
-cgrad(RGB(1,0.0,0),RGB(0,1.0,0)).colors
-cgrad(RGB(1,0.0,0),RGB(0,1.0,0),RGB(0,0.0,1)).colors
 
 end
