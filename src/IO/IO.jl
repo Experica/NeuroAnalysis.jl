@@ -253,11 +253,11 @@ function unitspike_kilosort(data::Dict;sortspike::Bool=true)
 
     chmap = data["chanmap"]
     chposition = data["channelposition"]
-    # first found template as unit template
-    unittemplatesindex = first.(unittemplate)
-    unitposition = vcat(map(i->data["templatesposition"][i:i,:],unittemplatesindex)...)
-    unittemplateamplitude = map(i->data["templatesamplitude"][i],unittemplatesindex)
-    unittemplatefeature = Dict(k=>data["templateswaveformfeature"][k][unittemplatesindex] for k in keys(data["templateswaveformfeature"]))
+    unittemplatesindex = unique.(unittemplate)
+    unitposition = vcat(map(i->mean(data["templatesposition"][i,:],dims=1),unittemplatesindex)...)
+    unittemplateamplitude = map(i->mean(data["templatesamplitude"][i]),unittemplatesindex)
+    # first found template feature as unit template feature
+    unittemplatefeature = Dict(k=>data["templateswaveformfeature"][k][first(unittemplatesindex)] for k in keys(data["templateswaveformfeature"]))
     unitfeature = haskey(data,"clusterwaveformfeature") ? data["clusterwaveformfeature"] : unittemplatefeature
 
     sortspike && foreach(sort!,unitspike)
