@@ -207,7 +207,7 @@ Generate gratings in Hartley space (PL)
 - stisize: stimulus size in visual angle (degree); note that sz[1]=sz[2]
 if norm=true,Return image in [0,1], otherwise return image in [-1,1]
 """
-function hartley(;kx,ky,bw,stisize=5,ppd=50,norm=true)
+function hartley(; kx,ky,bw,stisize=5,ppd=50,norm=false,scale=1)
     sz = round.(Int,stisize.*ppd./2).*2
     vect=collect(0:sz-1)
     nxmat = repeat(vect',sz,1)
@@ -215,9 +215,9 @@ function hartley(;kx,ky,bw,stisize=5,ppd=50,norm=true)
     kxy = 2π .* (kx .* nxmat + ky .* nymat) ./ sz
     g = (sin.(kxy) + cos.(kxy)) ./ sqrt(2)
     if norm == true
-        g = (g .* bw ./ max(g...) .+ 1) ./ 2
+        g = (g .* bw ./ max(g...) .+ 1) ./ 2 .*scale
     elseif norm == false
-        g = g .* bw ./ max(g...)
+        g = g .* bw ./ max(g...) .* scale
     end
     return g
 end
