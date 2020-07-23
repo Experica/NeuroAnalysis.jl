@@ -101,7 +101,9 @@ function roccurve(class_1, class_2)
 	# s_data(isnan(s_data)) = []                 # Delete NaN values
 	d_data = diff(s_data)                      # Difference between consecutive points
 	if isempty(d_data)
-	    @warn "Both class data are the same!"
+		AROC = 0
+		return AROC
+	    # @warn "Both class data are the same!"
 	end
 	d_data = vcat(d_data,d_data[end]) # Last point
 	thres=[];
