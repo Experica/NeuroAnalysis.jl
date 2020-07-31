@@ -5,6 +5,8 @@ df = [DataFrame(m=10 .+rand(10),se=randn(10),u=fill(0,10),ug=fill("SU",10),Ori=r
 
 plotcondresponse(df,projection=:polar,color=[:black,:gray70,:gray35],linewidth=[3,1,3],grid=true)
 
+plotanalog(randn(100,50),color=:vik,clims=(-3,3))
+
 ## color
 range(RGB(0,0,0),RGB(1,1,1))
 range(RGB(0,0,1),RGB(1,1,1),RGB(1,0,0))

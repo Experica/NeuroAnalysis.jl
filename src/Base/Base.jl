@@ -565,16 +565,19 @@ function checklayer!(ls::Dict)
     return ls
 end
 
-function assignlayer(ys,layer)
-    ls = []
-    for y in ys
-        for k in keys(layer)
-            if layer[k][1] <= y < layer[k][2]
-                push!(ls,k);break
-            end
+"""
+Try to locate cell layer.
+1. y coordinate of cell postion
+2. layer definition
+"""
+function assignlayer(y,layer)
+    l = missing
+    for k in keys(layer)
+        if layer[k][1] <= y < layer[k][2]
+            l=k;break
         end
     end
-    return ls
+    return l
 end
 
 function checkcircuit(projs,eunits,iunits,projweights)

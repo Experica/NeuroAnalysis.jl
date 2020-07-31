@@ -224,7 +224,7 @@ function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=
     # xlabel="Position_X (Deg)",ylabel="Position_Y (Deg)",xtick=xlim,ytick=[])
 end
 
-function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
+function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",clims=nothing,xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
     nd=ndims(data)
     if nd==1
         x=1:length(y)
@@ -247,26 +247,28 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
             end
         end
         df=1
-        if cunit==:v
-            lim = maximum(abs.(data))
-            clim = (-lim,lim)
-        elseif cunit==:uv
-            df = 1e6
-            lim = maximum(abs.(data))*df
-            clim = (-lim,lim)
-        elseif cunit == :fr
-            lim = maximum(data)
-            clim = (0,lim)
-        else
-            clim = :auto
+        if isnothing(clims)
+            if cunit==:v
+                lim = maximum(abs.(data))
+                clims = (-lim,lim)
+            elseif cunit==:uv
+                df = 1e6
+                lim = maximum(abs.(data))*df
+                clims = (-lim,lim)
+            elseif cunit == :fr
+                lim = maximum(data)
+                clims = (0,lim)
+            else
+                clims = :auto
+            end
         end
         if plottype==:heatmap
             if isnothing(y)
                 y = (1:size(data,1))*ystep
             end
-            p=heatmap(x,y,data.*df,color=color,clims=clim,xlabel="$xlabel ($xunit)")
+            p=heatmap(x,y,data.*df,color=color,clims=clims,xlabel="$xlabel ($xunit)")
         else
-            p=plot(x,data'.*df,legend=false,color_palette=color,grid=false,ylims=clim,xlabel="$xlabel ($xunit)")
+            p=plot(x,data'.*df,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)")
         end
     end
     !isempty(timeline) && vline!(p,timeline,line=(:grey),label="TimeLine")

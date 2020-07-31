@@ -134,6 +134,7 @@ Find levels for each factor and indices, repetition for each level
 """
 flin(ctc::Dict)=flin(DataFrame(ctc))
 function flin(ctc::DataFrame)
+    isempty(intersect(propertynames(ctc), [:i,:n])) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor names.")
     fl=OrderedDict{Symbol,DataFrame}()
     for f in propertynames(ctc)
         fl[f] = condin(ctc[:,[f]])
@@ -145,10 +146,13 @@ end
 In Condition Tests, find each unique condition, number of repeats and its indices
 """
 condin(ctc::Dict)=condin(DataFrame(ctc))
-condin(ctc::DataFrame) = combine(groupby([ctc DataFrame(i=1:nrow(ctc))], propertynames(ctc), sort = true, skipmissing = true), :i => (x->[copy(x)]) => :i, nrow => :n)
+function condin(ctc::DataFrame)
+    isempty(intersect(propertynames(ctc), [:i,:n])) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor names.")
+    combine(groupby([ctc DataFrame(i=1:nrow(ctc))], propertynames(ctc), sort = true, skipmissing = true), :i => (x->[deepcopy(x)]) => :i, nrow => :n)
+end
 
 "Get factors of conditions"
-condfactor(cond::DataFrame)=setdiff(propertynames(cond),[:n,:i])
+condfactor(cond)=setdiff(propertynames(cond),[:n,:i])
 
 "Get `Final` factors of conditions"
 function finalfactor(cond::DataFrame)
@@ -158,11 +162,11 @@ function finalfactor(cond::DataFrame)
 end
 
 "Condition in String"
-function condstring(cond::DataFrameRow;factor=names(cond))
+function condstring(cond::DataFrameRow;factor=condfactor(cond))
     join(["$f=$(cond[f])" for f in factor],", ")
 end
-function condstring(cond::DataFrame;factor=names(cond))
-    [condstring(r;factor=factor) for r in eachrow(cond)]
+function condstring(cond::DataFrame;factor=condfactor(cond))
+    [condstring(r,factor=factor) for r in eachrow(cond)]
 end
 
 """
