@@ -30,7 +30,8 @@ function ismodulative(df;alpha=0.05,interact=true)
         f = term(:Y) ~ reduce(+,term.(xns))
     end
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
-    anovatype = length(xns) <= 1 ? 2 : 3
+    # anovatype = length(xns) <= 1 ? 2 : 3
+    anovatype = 2
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
 end
 
