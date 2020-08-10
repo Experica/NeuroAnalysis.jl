@@ -58,3 +58,24 @@ m1,se1,x1 = psthspiketrains(st1st1,10:10:30,israte=false)
 @test m1==m
 @test se1==se
 @test x1==x
+
+
+## Poisson Model of Spike Generation, [David Heeger(2000), Poisson Model of Spike Generation](http://www.cns.nyu.edu/~david/handouts/poisson.pdf)
+rate = 50
+duration = 1000
+refractoryperiod = 2
+ntrain = 100
+
+## Homogeneous Poisson Process, where instantaneous ﬁring rate is constant
+
+# Inter-Spike-Interval Exponential Distribution Method
+sts = [poissonspiketrain(rate,duration,rp=refractoryperiod) for _ in 1:ntrain]
+plotspiketrain(sts,timeline=[0,duration])
+
+# Instantaneous Firing Rate Method
+sts = [poissonspiketrain(t->rate,duration,rp=refractoryperiod) for _ in 1:ntrain]
+plotspiketrain(sts,timeline=[0,duration])
+
+## Inhomogeneous Poisson Process, where instantaneous ﬁring rate is changing
+sts = [poissonspiketrain(t->rate*(sin(0.05t)+1),duration,rp=refractoryperiod) for _ in 1:ntrain]
+plotspiketrain(sts,timeline=[0,duration])
