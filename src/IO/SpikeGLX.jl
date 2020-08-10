@@ -1,61 +1,51 @@
 """
-Convert raw imec data to gain-corrected voltages. The saved-channel id subset in data
+Convert raw `Neuropixels` data to gain-corrected voltages. The saved-channel id subset in data
 will be used to get corresponding gain.
 
 The full conversion with gain is:
-   dataVolts = dataInt * fI2V / gain.
+
+``dataVolts = dataInt * fi2v / gain``
+
 Note that each channel may have its own gain.
 
-y: the saved epoch of all imec channels, excluding the last Sync channel.
+1. y: the saved data stream, excluding the last Sync channel.
+2. meta: corresponding meta for y
 """
-function gaincorrectim(y,meta)
-    chids = meta["savedchans"]
+function gaincorrectnp(y,meta)
+    yt = meta["from"]
     fi2v = meta["fi2v"]
-    apgain = meta["roapgain"]
-    lfgain = meta["rolfgain"]
-    nch=length(apgain)
+    gain = meta["ro$(yt)gain"]
+    nch = length(gain)
+    savechids = meta["savedchans"]
+    chids = yt == "ap" ? filter!(i->i<=nch,savechids) : filter!(i->i>nch,savechids).-nch
 
     cy=Array{Float64}(undef,size(y))
     for i in 1:size(y,1)
-        chid=chids[i]
-        if chid <= nch
-            f = fi2v/apgain[chid]
-        elseif chid <= 2nch
-            f = fi2v/lfgain[chid-nch]
-        end
-        cy[i,:]=y[i,:]*f
+        cy[i,:] = y[i,:] * fi2v / gain[chids[i]]
     end
     return cy
 end
-"Logical mask for `IMEC` channels in probe shape"
-function chmaskim(nch,chs,nrow,ncol)
+"Logical mask for `Neuropixels` channels in probe shape"
+function chmasknp(nch,chs,nrow,ncol)
     mask = falses(nch)
     mask[chs].=true
-    mask = reshape(mask,ncol,nrow) # Neuropixel Probe channel counting is from cols(left -> right), then rows(tip -> tail)
-    return mask' # rows are reverted and will be reverted back when XY plotting
+    mask = reshape(mask,ncol,nrow) # Neuropixel channel counting is from cols(left -> right), then rows(tip -> tail)
+    permutedims(mask)
 end
-"Logical mask for `IMEC` reference channels in probe shape"
-function refchmaskim(dataset;type="lf")
+"Logical mask for `Neuropixels` reference channels in probe shape"
+function refchmasknp(dataset)
     nch = dataset["ap"]["meta"]["acqApLfSy"][1]
     rorefch = dataset["ap"]["meta"]["rorefch"][1]
     if rorefch==0
-        refch = dataset[type]["meta"]["refch"]
+        refch = dataset["ap"]["meta"]["refch"]
     else
         refch = [rorefch]
     end
-    chmaskim(nch,refch,dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
+    chmasknp(nch,refch,dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
 end
-"Logical mask for `IMEC` bad and reference channels in probe shape"
-function badchmaskim(dataset;type="lf",badch::Vector{Int}=Int[])
+"Logical mask for `Neuropixels` excluded channels in probe shape"
+function exchmasknp(dataset;type="lf",exch::Vector{Int}=Int[])
     nch = dataset["ap"]["meta"]["acqApLfSy"][1]
-    rorefch = dataset["ap"]["meta"]["rorefch"][1]
-    if rorefch==0
-        refch = dataset[type]["meta"]["refch"]
-    else
-        refch = [rorefch]
-    end
-    if haskey(dataset[type]["meta"],"badch")
-        badch = union(badch,dataset[type]["meta"]["badch"])
-    end
-    chmaskim(nch,union(refch,badch),dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
+    exchs = dataset[type]["meta"]["excludechans"]
+    chmasknp(nch,union(exchs,exch),dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
 end

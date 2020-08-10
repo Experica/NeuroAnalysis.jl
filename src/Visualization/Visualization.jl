@@ -1,7 +1,7 @@
 using Plots,StatsPlots,VegaLite
 import Plots: cgrad
 
-include("Colormap.jl")
+include("Color.jl")
 
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
@@ -30,6 +30,7 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
     return fu
 end
 
+"scatter plot of spike trains"
 function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
     nt = isempty(x) ? 0 : maximum(y)
     s = min(size[2]/nt,1)
@@ -40,14 +41,14 @@ function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),ti
     end
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title),legend=false)
 end
-function plotspiketrain(sts::RVVector;uids::RVVector=RealVector[],sortvalues=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
+function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
     if isempty(uids)
         g=uids;uc=colors
     else
-        fuids = flatrvv(uids,sortvalues)[1]
+        fuids = flatspiketrains(uids,sortvalues)[1]
         g=map(i->"U$i",fuids);uc=colors[sort(unique(fuids)).+1]
     end
-    plotspiketrain(flatrvv(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title,size=size)
+    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title,size=size)
 end
 
 # function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xmax=maximum(x)+10,xgroup::Vector=[],
@@ -81,33 +82,42 @@ end
 # end
 # plotspiketrain1(rvs::RVVector;sortvar=[],xgroup::Vector=[],timemark=[0],theme=Theme(),colorkey="",colorfun=Scale.lab_gradient(colorant"white",colorant"red"),colorminv=[],colormaxv=[]) = plotspiketrain1(flatrvs(rvs,sortvar)...,xgroup=xgroup,timemark=timemark,theme=theme,colorkey=colorkey,colorfun=colorfun,colorminv=colorminv,colormaxv=colormaxv)
 
-
-plotcondresponse(rs,ctc;factors=names(ctc),u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best,responseline=[])=plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
-function plotcondresponse(urs::Dict,ctc::DataFrame,factors;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    mseuc = condresponse(urs,ctc,factors)
-    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
+"Plot `Mean` and `SEM` of responses for each condition"
+function plotcondresponse(rs,ctc;factors=propertynames(ctc),u=0,style=:path,title="",projection=:cartesian,linewidth=:auto,legend=:best,response=[])
+    plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
-function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    mseuc = condresponse(urs,cond)
-    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
+function plotcondresponse(urs::Dict,ctc::DataFrame,factors;color=unitcolors(collect(keys(urs))),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+    df = condresponse(urs,ctc,factors)
+    plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
-function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:ug])),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[],responsetype=:Response)
-    ugs = sort(unique(mseuc[:,[:u,:ug]]))
-    factors=setdiff(names(mseuc),[:m,:se,:u,:ug])
+function plotcondresponse(urs::Dict,cond::DataFrame;color=unitcolors(collect(keys(urs))),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+    df = condresponse(urs,cond)
+    plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
+end
+function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,projection=:cartesian,title="",grid=false,
+                            linestyle=:solid,linewidth=:auto,legend=:best,response=[],responsetype=:Response)
+    gs = unique(mseuugc[:,[:u,:ug]])
+    if nrow(gs)>1
+        gi=sortperm(gs);gs=gs[gi,:]
+        color isa Array && (color=permutedims(color[gi]))
+        linewidth isa Array && (linewidth=permutedims(linewidth[gi]))
+        linestyle isa Array && (linestyle=permutedims(linestyle[gi]))
+    end
+    factors=setdiff(propertynames(mseuugc),[:m,:se,:u,:ug])
     nfactor=length(factors)
     if nfactor==1
         factor=factors[1]
-        if typeof(mseuc[!,factor][1]) <: Array
-            map!(string,mseuc[factor],mseuc[factor])
-            style=:bar
-        end
+        # if typeof(mseuc[!,factor][1]) <: Array
+        #     map!(string,mseuc[factor],mseuc[factor])
+        #     style=:bar
+        # end
     elseif nfactor==2
-        fm,fse,fa = factorresponse(mseuc)
+        fm,fse,fa = factorresponse(mseuugc)
         clim=maximum(skipmissing(fm))
         yfactor,xfactor = collect(keys(fa))
         y,x = collect(values(fa))
     else
-        mseuc[:Condition]=condstring(mseuc[:,factors])
+        mseuugc[:Condition]=condstring(mseuugc[:,factors])
         factor=:Condition
         style=:bar
     end
@@ -116,22 +126,24 @@ function plotcondresponse(mseuc::DataFrame;colors=unitcolors(unique(mseuc[:ug]))
         y=float.(y)
         heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(responsetype),clims=(0,clim))
     else
-        if projection==:polar
-            c0 = mseuc[mseuc[!,factor].==0,:]
-            c0[:,factor].=360
-            mseuc = [mseuc;c0]
-            mseuc[!,factor]=deg2rad.(mseuc[!,factor])
+        if projection==:polar # close curve
+            c0 = mseuugc[mseuugc[!,factor].==0,:]
+            c0[!,factor].=360
+            mseuugc = [mseuugc;c0]
+            mseuugc[!,factor]=deg2rad.(mseuugc[!,factor])
         end
-        sort!(mseuc,factor)
+        sort!(mseuugc,factor)
         if projection==:polar
-            p = @df mseuc Plots.plot(cols(factor),:m,yerror=:se,group=:ug,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
+            p = @df mseuugc plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
+            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
+            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
         else
-            p = @df mseuc plot(cols(factor),:m,yerror=:se,group=:ug,line=style,markerstrokecolor=:auto,color=reshape(colors,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(ugs)],1,:),
-            grid=false,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
+            p = @df mseuugc plot(cols(factor),:m,ribbon=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
+            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
+            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
         end
-        if !isempty(responseline)
-            for i in responseline
+        if !isempty(response)
+            for i in response
                 hline!(p,[i[1]],ribbon=[i[2]],color=colors,legend=false)
             end
         end
@@ -154,9 +166,6 @@ function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
 end
 function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing,n=[])
     xms = x*SecondPerUnit*1000
-    if color==:minmax
-        color = minmaxcolormap("RdBu",extrema(data)...,isreverse=true)
-    end
     p=heatmap(xms,y,data,color=color,colorbar_title="Spike/Sec",xlabel="Time (ms)",ylabel="Depth (um)")
     vline!(p,timeline,color=:gray,label="TimeLine")
     if !isempty(n)
@@ -170,13 +179,13 @@ function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=
     return p
 end
 
-function plotsta(ps;imagesize=size(ps),stisize=nothing,ppd=50,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
+function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
     nd = ndims(ps)
     if nd==1
         if isnothing(index)
-            sta = reshape(ps,imagesize)
+            sta = reshape(ps,sizepx)
         else
-            sta = fill(mean(ps),imagesize)
+            sta = fill(mean(ps),sizepx)
             sta[index] = ps
         end
     elseif nd==2
@@ -185,12 +194,12 @@ function plotsta(ps;imagesize=size(ps),stisize=nothing,ppd=50,index=nothing,filt
     if !isnothing(filter)
         sta = imfilter(sta,filter)
     end
-    if !isnothing(stisize)
-        ppd = first(imagesize./stisize)
+    if !isnothing(sizedeg)
+        ppd = first(sizepx./sizedeg)
     end
 
-    x = vec([(j-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
-    y = vec([(i-1)/ppd for i in 1:imagesize[1], j in 1:imagesize[2]])
+    x = vec([(j-1)/ppd for i in 1:sizepx[1], j in 1:sizepx[2]])
+    y = vec([(i-1)/ppd for i in 1:sizepx[1], j in 1:sizepx[2]])
     z = vec(sta)
     if !isnothing(index)
         x=x[index];y=y[index];z=z[index]
@@ -218,7 +227,7 @@ function plotsta(ps;imagesize=size(ps),stisize=nothing,ppd=50,index=nothing,filt
     # xlabel="Position_X (Deg)",ylabel="Position_Y (Deg)",xtick=xlim,ytick=[])
 end
 
-function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
+function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",clims=nothing,xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
     nd=ndims(data)
     if nd==1
         x=1:length(y)
@@ -241,26 +250,28 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
             end
         end
         df=1
-        if cunit==:v
-            lim = maximum(abs.(data))
-            clim = (-lim,lim)
-        elseif cunit==:uv
-            df = 1e6
-            lim = maximum(abs.(data))*df
-            clim = (-lim,lim)
-        elseif cunit == :fr
-            lim = maximum(data)
-            clim = (0,lim)
-        else
-            clim = :auto
+        if isnothing(clims)
+            if cunit==:v
+                lim = maximum(abs.(data))
+                clims = (-lim,lim)
+            elseif cunit==:uv
+                df = 1e6
+                lim = maximum(abs.(data))*df
+                clims = (-lim,lim)
+            elseif cunit == :fr
+                lim = maximum(data)
+                clims = (0,lim)
+            else
+                clims = :auto
+            end
         end
         if plottype==:heatmap
             if isnothing(y)
                 y = (1:size(data,1))*ystep
             end
-            p=heatmap(x,y,data.*df,color=color,clims=clim,xlabel="$xlabel ($xunit)")
+            p=heatmap(x,y,data.*df,color=color,clims=clims,xlabel="$xlabel ($xunit)")
         else
-            p=plot(x,data'.*df,legend=false,color_palette=color,grid=false,ylims=clim,xlabel="$xlabel ($xunit)")
+            p=plot(x,data'.*df,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)")
         end
     end
     !isempty(timeline) && vline!(p,timeline,line=(:grey),label="TimeLine")
@@ -461,15 +472,19 @@ function plotunitpositionproperty(unitposition;ori=nothing,os=nothing,dir=nothin
 end
 
 function plotunitpositionimage(unitposition,image;width=800,height=600,markersize=20,title="",layer=nothing)
-    tempimagedir = joinpath(pwd(),"tempimage");nu=size(unitposition,1)
+    tempimagedir = "tempimage";nu=size(unitposition,1)
     isdir(tempimagedir) || mkpath(tempimagedir)
     urls = map(i->"tempimage/$(i).png",1:nu)
     foreach(i->save(urls[i],image[i]),1:nu)
 
     df = DataFrame(x=unitposition[:,1],y=unitposition[:,2],m=urls,s=markersize)
     l = DataFrame()
-    xlim = [minimum(df[:,:x])-4,maximum(df[:,:x])+2]
-    ylim = [minimum(df[:,:y])-100,maximum(df[:,:y])+100]
+    # xlim = [minimum(df[:,:x])-4,maximum(df[:,:x])+2]
+    # ylim = [minimum(df[:,:y])-100,maximum(df[:,:y])+100]
+    xlim = [minimum(df[:,:x])-0.2,maximum(df[:,:x])+0.2]
+    ylim = [minimum(df[:,:y])-0.2,maximum(df[:,:y])+0.2]
+    # xlim = [minimum(df[:,:x])-2,maximum(df[:,:x])+2]
+    # ylim = [minimum(df[:,:y])-2,maximum(df[:,:y])+2]
     if !isnothing(layer)
         l[!,:x] = fill(xlim[1],length(layer))
         l[!,:x2] .= xlim[2]
@@ -643,14 +658,15 @@ function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],p
     return p
 end
 
-function plothartleyspace(space,nk,dk)
+"plot hartley subspace"
+function plothartleysubspace(ps,nk,dk;color=:grays)
     n = 2nk+1
-    p=plot(layout=(n,n),size=(120n,120n),leg=false,clims=(-1,1),frame=:none,aspect_ratio=:equal,yflip=true)
-    x=y=0:0.01:1
-    for (kx,ky,phase) in space
+    p=plot(layout=(n,n),size=(120n,120n),leg=false,clims=(-1,1),frame=:none,aspect_ratio=:equal)
+    xy=0:0.01:1
+    for (kx,ky,phase) in ps
         r = -Int(ky/dk)+nk+1; c = Int(kx/dk)+nk+1
-        cg = [cas(i,j,kx=kx,ky=ky,phase=phase) for j in reverse(y),i in x]
-        heatmap!(p,subplot=c+n*(r-1),cg,color=:grays)
+        cg = [cas(i,j,kx=kx,ky=ky,phase=phase) for j in xy,i in xy]
+        heatmap!(p,subplot=c+n*(r-1),cg,color=color)
     end
     p
 end

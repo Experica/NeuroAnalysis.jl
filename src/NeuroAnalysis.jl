@@ -13,6 +13,8 @@ for n in names(@__MODULE__, all=true)
 end
 
 function __init__()
+    f = joinpath(@__DIR__,"Visualization","Colors","colormaps.jld2")
+    global ColorMaps = load(f)
 end
 
 end

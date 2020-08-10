@@ -1,12 +1,15 @@
 include("CSD.jl")
 
-function subrm(rm,fs,epochs,chs;fun=nothing)
+"""
+Epochs of Channel Sample.
+"""
+function epochsample(x,fs,epochs,chs;fun=nothing)
     nepoch = size(epochs,1)
-    epochis = floor.(Int,epochs.*SecondPerUnit.*fs)
+    epochis = round.(Int,epochs.*SecondPerUnit.*fs)
     minepochlength = minimum(diff(epochis,dims=2))
     ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
     for i in 1:nepoch
-        y = rm[chs,range(max(1,epochis[i,1]),length=minepochlength)]
+        y = x[chs,range(max(1,epochis[i,1]),length=minepochlength)]
         if !isnothing(fun)
             y=fun(y)
         end
@@ -15,13 +18,14 @@ function subrm(rm,fs,epochs,chs;fun=nothing)
     return nepoch==1 ? dropdims(ys,dims=3) : ys
 end
 
+"reshape data stream in the same shape of chmask, where masked channels are replaced with local average"
 function reshape2mask(ys, chmask; replacemask = true)
     nrow, ncol = size(chmask)
     yss = Array{Float64}(undef, nrow, ncol, size(ys)[2:end]...)
     for c = 1:ncol
         yss[:, c, :, :] = ys[c:ncol:end, :, :] # channel counting in chmask is from cols(left -> right), then rows(up -> down)
     end
-    if replacemask # Local non-mask channels averaging replacement for masking channels
+    if replacemask # Local unmasked channels averaging replacement for masked channels
         rchmask = copy(chmask)
         for (r, c) in Tuple.(findall(chmask))
             rd = r - 1;ru = r + 1
@@ -33,7 +37,7 @@ function reshape2mask(ys, chmask; replacemask = true)
             end
             if rd < 1
                 if ru > nrow
-                    @error "No Good Channels in Data to Replace Mask Channels."
+                    @error "No Unmasked Channels in Data to Replace Masked Channel[$r, $c]."
                 else
                     yss[r, c, :, :] = yss[ru, c, :, :]
                 end
@@ -50,13 +54,14 @@ function reshape2mask(ys, chmask; replacemask = true)
     return yss
 end
 
-function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm,2),hedgevalue=nothing)
+"Spatial and Temporal filter of data stream"
+function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm,2),hbordervalue=nothing)
     nd = ndims(rm)
     if nd==3
         nr,nc,n = size(rm)
         y = Array{Float64}(undef,nr,nc,n)
         for i in 1:n
-            y[:,:,i] = stfilter(rm[:,:,i],spatialtype=spatialtype,ir=ir,or=or,temporaltype=temporaltype,ti=ti,hedgevalue=hedgevalue)
+            y[:,:,i] = stfilter(rm[:,:,i],spatialtype=spatialtype,ir=ir,or=or,temporaltype=temporaltype,ti=ti,hbordervalue=hbordervalue)
         end
         return y
     else
@@ -70,8 +75,8 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
         elseif temporaltype == :sub
             rm .-= mean(rm[:,ti],dims=2)
         end
-        if !isnothing(hedgevalue)
-            rm[[1,end],:].=hedgevalue
+        if !isnothing(hbordervalue)
+            rm[[1,end],:].=hbordervalue
         end
         return rm
     end
@@ -88,7 +93,7 @@ function rmline!(y,fs;freq=60,nh=3,bw=3)
     return y
 end
 
-"High pass and low pass filters"
+"High pass and low pass filtering"
 function hlpass(y,fs;high=0,low=Inf)
     fy=copy(y)
     if high>0
@@ -106,15 +111,18 @@ function hlpass(y,fs;high=0,low=Inf)
     return fy
 end
 
-time2sample(t,fs;secondperunit=1,t0sample::Integer=1) = round(Int,t*secondperunit*fs)+t0sample
-sample2time(s,fs;secondperunit=1,t0sample::Integer=1) = (s-t0sample)/fs/secondperunit
+"time to sample index"
+time2sampleindex(t,fs;secondperunit=1,t0sampleindex::Integer=1) = round(Int,t*secondperunit*fs)+t0sampleindex
+"sample index to time"
+sampleindex2time(s,fs;secondperunit=1,t0sampleindex::Integer=1) = (s-t0sampleindex)/fs/secondperunit
 
-function epoch2samplerange(epochs,fs)
+"Convert epochs in time to sample index"
+function epoch2sampleindex(epochs,fs;t0sampleindex::Integer=1)
     nepoch = size(epochs,1)
-    epochis = floor.(Int,epochs.*SecondPerUnit.*fs)
+    epochis = time2sampleindex.(epochs,fs;secondperunit=SecondPerUnit,t0sampleindex=t0sampleindex)
     minepochlength = minimum(diff(epochis,dims=2))
-    sr = [range(max(1,epochis[i,1]),length=minepochlength) for i in 1:nepoch]
-    return nepoch==1 ? sr[1] : sr
+    si = [range(max(1,epochis[i,1]),length=minepochlength) for i in 1:nepoch]
+    return nepoch==1 ? si[1] : si
 end
 
 """
@@ -148,6 +156,7 @@ function parsedigitalinanalog(x,ht,lt=ht,n=length(x);activehigh=true)
     return di,dv
 end
 
+"Multi-Taper power spectrum estimation"
 function powerspectrum(x,fs;freqrange=[0,100],nw=4)
     nd=ndims(x)
     if nd==3

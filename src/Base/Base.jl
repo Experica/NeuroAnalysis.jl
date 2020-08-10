@@ -1,5 +1,6 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images,ImageSegmentation,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,ProgressMeter
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images
+using ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz
+using ImageSegmentation,ProgressMeter
 import Base: vec,range
 
 include("NeuroDataType.jl")
@@ -7,6 +8,7 @@ include("CircStats.jl")
 include("Spike.jl")
 include("LFP.jl")
 include("Image.jl")
+include("Condition.jl")
 include("2P.jl")
 
 vec(x::RGBA)=[x.r,x.g,x.b,x.alpha]
@@ -18,14 +20,14 @@ isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,resp
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
 
-"Check if any factors and their interactions significently modulate response by ANOVA"
+"Check if any factors and their interactions significently modulate response using ANOVA"
 function ismodulative(df;alpha=0.05,interact=true)
-    xns = filter(i->i!=:Y,names(df))
+    xns = filter(i->i!=:Y,propertynames(df))
     categorical!(df,xns)
     if interact
-        f = Term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+        f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
     else
-        f = Term(:Y) ~ reduce(+,term.(xns))
+        f = term(:Y) ~ reduce(+,term.(xns))
     end
     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
     anovatype = length(xns) <= 1 ? 2 : 3
@@ -57,7 +59,7 @@ Swindale, N.V. (1998). Orientation tuning curves: empirical description and esti
 - κ: width parameter
 - n: frequency parameter
 """
-vmf(α,β=1,μ=0,κ=1;n=1) = β*exp(κ*(cos(n*(α-μ))-1))
+vmf(α;β=1,μ=0,κ=1,n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 """
 `Generalized von Mises` function [^1]
 
@@ -69,7 +71,7 @@ f(α) =  βe^{κ₁(cos(α - μ₁) - 1) + κ₂(cos2(α - μ₂) - 1)}
 
 Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.
 """
-gvmf(α,β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
+gvmf(α;β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
 
 """
 `Difference of Gaussians` function
@@ -131,9 +133,7 @@ end
 """
 function cas(x,y;kx=1,ky=1, phase=0, isnorm::Bool=true)
     r = sum(sincos(2π * (kx * x + ky * y + phase)))
-    if isnorm
-        r /=sqrt(2)
-    end
+    isnorm && (r /=sqrt(2))
     return r
 end
 
@@ -181,20 +181,55 @@ function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
     a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2)) * sin(2π*(f * y′ + phase))
 end
 
+"Fit model to data"
+function fitmodel(model,x,y)
+    alb,aub = abs.(extrema(y))
+    ab = max(alb,aub)
+
+    rlt = fun = missing
+    if model == :vmn2
+        fun = (x,p) -> vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.3ab,   prevfloat(float(2π)),   20]
+        lb=[0.3ab,            0,              0]
+        p0=[ab,               π,              1]
+    elseif model == :gvm
+        fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.3ab,   prevfloat(float(2π)),   20,    prevfloat(float(2π)),    20]
+        lb=[0.3ab,            0,              0,             0,               0]
+        p0=[ab,               π,              1,             π,               1]
+    end
+    if !ismissing(fun)
+        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
+        param=ofit.minimizer
+
+        rlt = (;model,fun,param)
+    end
+    return rlt
+end
+
+function circtuningfeature(mfit;od=π,fn=od==π ? :d : :o)
+    x = 0:0.004:2π # 0.004rad = 0.23deg
+    circtuningfeature(x,mfit.fun(x,mfit.param),od=od,fn=fn)
+end
+
 """
 Properties of Circular Tuning:
-    Prefered Direction/Orientation
-    Selectivity Index
-        version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
-        version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
-    Full Width at Half Maximum
+    - Prefered Direction/Orientation
+    - Selectivity Index
+        - version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
+        - version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
+    - Full Width at Half Maximum
 
-x: angles in radius
-y: responses
-od: opposing angle distance, π for DSI, 0.5π for OSI
-s: symbol name
+1. x: angles in radius
+2. y: responses
+- od: opposing angle distance, π for DSI, 0.5π for OSI
+- fn: factor name
 """
-function circtuningstats(x,y;od=π,s=od==π ? :d : :o)
+function circtuningfeature(x,y;od=π,fn=od==π ? :d : :o)
     maxi = argmax(y)
     maxr = y[maxi]
     px = x[maxi]
@@ -207,21 +242,22 @@ function circtuningstats(x,y;od=π,s=od==π ? :d : :o)
 
     # minr = minimum(y)
     # hmaxr = minr + (maxr-minr)/2
-    @eval ($(Symbol(:p,s)) = $(rad2deg(mod(px,2od))), $(Symbol(s,:si1)) = $si1, $(Symbol(s,:si2)) = $si2)
+    (;Symbol(:p,fn)=>rad2deg(mod(px,2od)), Symbol(fn,:si1)=>si1, Symbol(fn,:si2)=>si2)
 end
 
 """
 Tuning properties of factor response
 
-fl: factor levels
-fr: factor responses
+1. fl: factor levels
+2. fr: factor responses
 
     HueAngle, Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
+
     For cases where Orientation and Direction are interlocked(drifting grating):
-        when Orientation is -(0), then Direction is ↑(90)
-        when Direction is →(0), then Orientation is |(-90)
+        - when Orientation is -(0), then Direction is ↑(90)
+        - when Direction is →(0), then Orientation is |(-90)
 """
-function factorresponsestats(fl,fr;factor=:Ori,isfit::Bool=true)
+function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
     if factor in [:Ori,:Ori_Final]
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -234,31 +270,24 @@ function factorresponsestats(fl,fr;factor=:Ori,isfit::Bool=true)
         dm = circmean(θ.+0.5π,fr)
         od = rad2deg(mod(angle(dm),2π))
         dcv = circvar(θ.+0.5π,fr,d)
-        # fit Generalized von Mises for direction
+
         fit = ()
         if isfit
+            # fit Generalized von Mises for direction
             try
-                gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ.+0.5π,fr,[1.0,0,1,0,1])
-                if gvmfit.converged
-                    x = 0:0.004:2π # 0.004rad = 0.23deg
-                    y = gvmf.(x,gvmfit.param...)
-                    fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
-                end
+                mfit = fitmodel(:gvm,θ.+0.5π,fr)
+                fit = (circtuningfeature(mfit,od=π,fn=:d)...,gvm=mfit)
             catch
             end
             # fit von Mises for orientation
             try
-                vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
-                if vmfit.converged
-                    x = 0:0.004:2π
-                    y = vmf.(x,vmfit.param...,n=2)
-                    fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
-                end
+                mfit = fitmodel(:vmn2,θ,fr)
+                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:o)...,vmn2=mfit)
             catch
             end
         end
 
-        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
+        return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :Dir
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -340,352 +369,66 @@ function factorresponsestats(fl,fr;factor=:Ori,isfit::Bool=true)
         maxi = argmax(fr)
         maxh = fl[maxi]
         maxr = fr[maxi]
-        # fit Generalized von Mises for hue
+
         fit = ()
         if isfit
+            # fit Generalized von Mises for hue
             try
-                gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
-                if gvmfit.converged
-                    x = 0:0.004:2π # 0.004rad = 0.23deg
-                    y = gvmf.(x,gvmfit.param...)
-                    fit = (circtuningstats(x,y,od=π,s=:h)...,gvm=gvmfit)
-                end
+                mfit = fitmodel(:gvm,θ,fr)
+                fit = (circtuningfeature(mfit,od=π,fn=:h)...,gvm=mfit)
             catch
             end
             # fit von Mises for hue axis
             try
-                vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
-                if vmfit.converged
-                    x = 0:0.004:2π
-                    y = vmf.(x,vmfit.param...,n=2)
-                    fit = (fit...,circtuningstats(x,y,od=0.5π,s=:ha)...,vm=vmfit)
-                end
+                mfit = fitmodel(:vmn2,θ,fr)
+                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:ha)...,vmn2=mfit)
             catch
             end
         end
 
-        return (ham=ham,oha=oha,hacv=hacv,hm=hm,oh=oh,hcv=hcv,maxh=maxh,maxr=maxr,fit=fit)
+        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     else
-        return []
+        return ()
     end
 end
 
 """
 Spike Triggered Average of Images
 
-- x: Matrix where each row is one image
-- y: Vector of image response
+1. x: Matrix where each row is one image
+2. y: Vector of image response
+
+- norm: normalization factor, default no normalization.
+        it could be ``sum(y)`` if y is number of spike or spike rate, then STA would be spiking probability.
+- whiten: whiten factor, default no whiten.
+        it could be ``(xᵀx)⁻¹`` or inverse of covariance matrix, that decorrelate STA.
 """
-function sta(x::AbstractMatrix,y::AbstractVector;isnorm=true,whiten=nothing)
+function sta(x::AbstractMatrix,y::AbstractVector;norm=nothing,whiten=nothing)
     r = x'*y
-    if isnorm
-        r/=sum(y)
-    end
-    if !isnothing(whiten)
-        r = whiten * r
-    end
-    # if iswhiten
-    #     r = x'*x\r
-    #     r=length(y)*inv(cov(x,dims=1))*r
-    # end
+    !isnothing(norm) && (r/=norm)
+    !isnothing(whiten) && (r=whiten*r)
+
+    # r = x'*x\r
+    # r=length(y)*inv(cov(x,dims=1))*r
+
     return r
 end
 
 
-# function drv(p,n=1,isfreq=false)
-#   d=Categorical(p)
-#   if n==1
-#     return rand(d)
-#   end
-#   if isfreq
-#     pn = round(p[1:end-1]*n)
-#     pn = [pn,n-sum(pn)]
-#
-#     pnc = zeros(Int,length(p))
-#     ps = zeros(Int,n)
-#     for i in 1:n
-#       while true
-#         v = rand(d)
-#         if pnc[v] < pn[v]
-#           pnc[v] += 1
-#           ps[i]=v
-#           break
-#         end
-#       end
-#     end
-#     return ps
-#   else
-#     rand(d,n)
-#   end
-# end
-#
-# function randvec3(xr::Vector,yr::Vector,zr::Vector)
-#   dx = Uniform(xr[1],xr[2])
-#   dy = Uniform(yr[1],yr[2])
-#   dz = Uniform(zr[1],zr[2])
-#   Vec3(rand(dx),rand(dy),rand(dz))
-# end
-# randvec3(;xmin=0,xmax=1,ymin=0,ymax=1,zmin=0,zmax=1)=randvec3([xmin,xmax],[ymin,ymax],[zmin,zmax])
-# function randvec3(absmin::Vector)
-#   d = Uniform(-1,1)
-#   av3 = zeros(3)
-#   for i=1:3
-#     while true
-#       r= rand(d)
-#       if abs(r) >= absmin[i]
-#         av3[i]=r
-#         break;
-#       end
-#     end
-#   end
-#   return convert(Vec3,av3)
-# end
-# randvec3(xabsmin,yabsmin,zabsmin)=randvec3([xabsmin,yabsmin,zabsmin])
-# function randvec3(radmin;is2d=false)
-#   innerabsmin = radmin*sin(pi/4)
-#   absmin = fill(innerabsmin,3)
-#   while true
-#     cv3 = randvec3(absmin)
-#     if is2d;cv3.z=0.0;end
-#     if length(cv3) >= radmin
-#       return cv3
-#     end
-#   end
-# end
-
-# function convert(::Type{DataFrame},ct::CoefTable)
-#    df = convert(DataFrame,ct.mat)
-#    names!(df,map(symbol,ct.colnms))
-#    [DataFrame(coefname=ct.rownms) df]
-#end
-
-
-
-# function flcond(fl,fs...)
-#   if length(fs)==0
-#     fs=collect(keys(fl))
-#   end
-#   ex = :([{(fs[1],l1)} for l1=fl[fs[1]]][:])
-#   for i=2:length(fs)
-#     lx=symbol("l$i")
-#     push!(ex.args[1].args,:($lx=fl[fs[$i]]))
-#     push!(ex.args[1].args[1].args,:((fs[$i],$lx)))
-#   end
-#   eval(ex)
-# end
-function flcond(fl,f1)
-    conds = [Any[(f1,l1)] for l1 in fl[f1]]
-end
-function flcond(fl,f1,f2)
-    conds = [Any[(f1,l1),(f2,l2)] for l1 in fl[f1],l2 in fl[f2]][:]
-end
-function flcond(fl,f1,f2,f3)
-    conds = [Any[(f1,l1),(f2,l2),(f3,l3)] for l1 in fl[f1],l2 in fl[f2],l3 in fl[f3]][:]
-end
-function subcond(conds,sc...)
-    sci = map(i->issubset(sc,i),conds)
-    return conds[sci]
-end
-
-
-function findcond(df::DataFrame,cond)
-    i = trues(size(df,1))
-    for f in keys(cond)
-        i .&= df[f].==cond[f]
-    end
-    return findall(i)
-end
-function findcond(df::DataFrame,cond::Vector{Any};roundingdigit=3)
-    i = trues(size(df,1))
-    condstr = ""
-    for fl in cond
-        f = fl[1]
-        l = fl[2]
-        i &= df[Symbol(f)].==l
-        if typeof(l)<:Real
-            lv=round(l,roundingdigit)
-        else
-            lv=l
-        end
-        condstr = "$condstr, $f=$lv"
-    end
-    return find(i),condstr[3:end]
-end
-function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
-    n = length(conds)
-    is = Array(Vector{Int},n)
-    ss = Array(String,n)
-    for i in 1:n
-        is[i],ss[i] = findcond(df,conds[i],roundingdigit=roundingdigit)
-    end
-    vi = map(i->!isempty(i),is)
-    return is[vi],ss[vi],conds[vi]
-end
-
-"""
-Find levels for each factor and indices, repetition for each level
-"""
-flin(ctc::Dict)=flin(DataFrame(ctc))
-function flin(ctc::DataFrame)
-    fl=OrderedDict()
-    for f in names(ctc)
-        fl[f] = condin(ctc[:,[f]])
-    end
-    return fl
-end
-
-
-"""
-Find unique condition and indices, repetition for each
-"""
-condin(ctc::Dict)=condin(DataFrame(ctc))
-function condin(ctc::DataFrame)
-    t = [ctc DataFrame(i=1:nrow(ctc))]
-    t = by(t, names(ctc),g->DataFrame(n=nrow(g), i=[g[:,:i]]))
-    sort!(t);return t
-end
-
-"Get factors of conditions"
-condfactor(cond::DataFrame)=setdiff(names(cond),[:n,:i])
-
-"Get `Final` factors of conditions"
-function finalfactor(cond::DataFrame)
-    fs = String.(condfactor(cond))
-    fs = filter(f->endswith(f,"_Final") || ∉("$(f)_Final",fs),fs)
-    Symbol.(fs)
-end
-
-"Condition in String"
-function condstring(cond::DataFrameRow,fs=names(cond))
-    join(["$f=$(cond[f])" for f in fs],", ")
-end
-function condstring(cond::DataFrame,fs=names(cond))
-    [condstring(r,fs) for r in eachrow(cond)]
-end
-
-"""
-Group repeats of Conditions, get `Mean` and `SEM` of responses
-
-rs: responses of each trial
-gi: trial indices of repeats for each condition
-"""
-function condresponse(rs,gi)
-    grs = [rs[i] for i in gi]
-    DataFrame(m=mean.(grs),se=sem.(grs))
-end
-function condresponse(rs,cond::DataFrame;u=0,ug="U")
-    crs = [rs[r[:i]] for r in eachrow(cond)]
-    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs)),ug=fill(ug,length(crs))) cond[:,condfactor(cond)]]
-end
-function condresponse(urs::Dict,cond::DataFrame)
-    vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
-end
-function condresponse(urs::Dict,ctc::DataFrame,factors)
-    vf = filter(f->any(f.==factors),names(ctc))
-    isempty(vf) && error("No Valid Factor Found.")
-    condresponse(urs,condin(ctc[:,vf]))
-end
-
-"Condition Response in Factor Space"
-function factorresponse(mseuc;factors = setdiff(names(mseuc),[:m,:se,:u,:ug]),fl = flin(mseuc[factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
-    fm = missings(Float64, map(nrow,values(fl))...)
-    fse = copy(fm)
-    for i in 1:nrow(mseuc)
-        idx = [findfirst(mseuc[i:i,f].==fa[f]) for f in keys(fa)]
-        fm[idx...] = mseuc[i,:m]
-        fse[idx...] = mseuc[i,:se]
-    end
-    return fm,fse,fa
-end
-function factorresponse(unitspike,ctc,condon,condoff;responsedelay=15)
-    fms=[];fses=[];fa=[];cond=condin(ctc);factors = condfactor(cond)
-    fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
-    for u in 1:length(unitspike)
-        rs = subrvr(unitspike[u],condon.+responsedelay,condoff.+responsedelay)
-        mseuc = condresponse(rs,cond)
-        fm,fse,_ = factorresponse(mseuc,factors=factors,fl=fl,fa=fa)
-        push!(fms,fm);push!(fses,fse)
-    end
-    return fms,fses,fa
-end
-
-function setfln(fl::Dict,n::Int)
-    fln=Dict()
-    for f in keys(fl)
-        for l in fl[f]
-            fln[(f,l)] = n
-        end
-    end
-    return fln
-end
-function setfln(fl::Dict,fn::Dict)
-    fln=Dict()
-    for f in keys(fl)
-        for i=1:length(fl[f])
-            fln[(f,fl[f][i])] = fn[f][i]
-        end
-    end
-    return fln
-end
-
-function testfln(fln::Dict,minfln::Dict;showmsg::Bool=true)
-    r=true
-    for mkey in keys(minfln)
-        if haskey(fln,mkey)
-            if fln[mkey] < minfln[mkey]
-                if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" repeats $(fln[mkey]) < $(minfln[mkey]).\n");end
-                r=false
-            end
-        else
-            if showmsg;print("Level $(mkey[2]) of factor \"$(mkey[1])\" is missing.\n");end
-            r=false
-        end
-    end
-    return r
-end
-function testfln(ds::Vector,minfln::Dict;showmsg::Bool=true)
-    vi = find(map(d->begin
-    if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
-    testfln(d["fln"],minfln,showmsg=showmsg)
-end,ds))
-end
-
-function condmean(rs,ridx,conds)
-    nc = length(conds)
-    m = Array(Float64,nc)
-    sd = similar(m)
-    n = Array(Int,nc)
-    for i=1:nc
-        r=rs[ridx[i]]
-        m[i]=mean(r)
-        sd[i]=std(r)
-        n[i]=length(r)
-    end
-    return m,sd,n
-end
-function condmean(rs,us,ridx,conds)
-    msdn = map(i->condmean(i,ridx,conds),rs)
-    m= map(i->i[1],msdn)
-    sd = map(i->i[2],msdn)
-    n=map(i->i[3],msdn)
-    return m,hcat(sd...),hcat(n...)
-end
-
-function psth(rvv::RVVector,binedges::RealVector,c;israte::Bool=true,normfun=nothing)
-    m,se,x = psth(rvv,binedges,israte=israte,normfun=normfun)
+function psthsts(xs::Vector,binedges::Vector,c;israte::Bool=true,normfun=nothing)
+    m,se,x = psth(xs,binedges,israte=israte,normfun=normfun)
     df = DataFrame(x=x,m=m,se=se,c=fill(c,length(x)))
 end
-function psth(rvv::RVVector,binedges::RealVector,cond::DataFrame;israte::Bool=true,normfun=nothing)
+function psthsts(xs::Vector,binedges::Vector,cond::DataFrame;israte::Bool=true,normfun=nothing)
     fs = finalfactor(cond)
-    vcat([psth(rvv[r[:i]],binedges,condstring(r,fs),israte=israte,normfun=normfun) for r in eachrow(cond)]...)
+    vcat([psth(xs[r[:i]],binedges,condstring(r,fs),israte=israte,normfun=normfun) for r in eachrow(cond)]...)
 end
-function psth(rvv::RVVector,binedges::RealVector,ctc::DataFrame,factor;israte::Bool=true,normfun=nothing)
-    vf = filter(f->any(f.==factor),names(ctc))
+function psthsts(xs::Vector,binedges::Vector,ctc::DataFrame,factor;israte::Bool=true,normfun=nothing)
+    vf = intersect(names(ctc),factor)
     isempty(vf) && error("No Valid Factor Found.")
-    psth(rvv,binedges,condin(ctc[:,vf]),israte=israte,normfun=normfun)
+    psth(xs,binedges,condin(ctc[:,vf]),israte=israte,normfun=normfun)
 end
-
-function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};normfun=nothing,spike=:spike,isse::Bool=true)
+function psth(ds::DataFrame,binedges::Vector,conds::Vector;normfun=nothing,spike=:spike,isse::Bool=true)
     is,ss = findcond(ds,conds)
     df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
     if isse
@@ -694,14 +437,14 @@ function psth(ds::DataFrame,binedges::RealVector,conds::Vector{Vector{Any}};norm
     end
     return df,ss
 end
-function psth(rvvs::RVVVector,binedges::RealVector,conds;normfun=nothing)
-    n = length(rvvs)
-    n!=length(conds) && error("Length of rvvs and conds don't match.")
-    dfs = [psth(rvvs[i],binedges,conds[i],normfun=normfun) for i=1:n]
+function psthstss(xss::Vector,binedges::Vector,conds;normfun=nothing)
+    n = length(xss)
+    n!=length(conds) && error("Length of xss and conds don't match.")
+    dfs = [psth(xss[i],binedges,conds[i],normfun=normfun) for i=1:n]
     return cat(1,dfs)
 end
-function spacepsth(unitpsth,unitposition;spacebinedges=range(0,step=20,length=ceil(Int,maximum(unitposition[:,2])/20)))
-    ys,ns,ws,is = subrv(unitposition[:,2],spacebinedges)
+function spacepsth(unitpsth,unitposition,spacebinedges)
+    ys,ns,ws,is = epochspiketrain(unitposition[:,2],spacebinedges)
     x = unitpsth[1][3]
     nbins = length(is)
     um = map(i->i[1],unitpsth)
@@ -826,7 +569,7 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,e
     return ps,ei,ii,pws
 end
 
-function checklayer(ls::Dict)
+function checklayer!(ls::Dict)
     ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"]
     n = length(ln)
     for i in 1:n-1
@@ -842,16 +585,19 @@ function checklayer(ls::Dict)
     return ls
 end
 
-function assignlayer(ys,layer)
-    ls = []
-    for y in ys
-        for k in keys(layer)
-            if layer[k][1] <= y < layer[k][2]
-                push!(ls,k);break
-            end
+"""
+Try to locate cell layer.
+1. y coordinate of cell postion
+2. layer definition
+"""
+function assignlayer(y,layer)
+    l = missing
+    for k in keys(layer)
+        if layer[k][1] <= y < layer[k][2]
+            l=k;break
         end
     end
-    return ls
+    return l
 end
 
 function checkcircuit(projs,eunits,iunits,projweights)
