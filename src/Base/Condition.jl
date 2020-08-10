@@ -134,7 +134,7 @@ Find levels for each factor and indices, repetition for each level
 """
 flin(ctc::Dict)=flin(DataFrame(ctc))
 function flin(ctc::DataFrame)
-    isempty(intersect(propertynames(ctc), [:i,:n])) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor names.")
+    isempty(intersect(propertynames(ctc), (:i,:n))) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor name.")
     fl=OrderedDict{Symbol,DataFrame}()
     for f in propertynames(ctc)
         fl[f] = condin(ctc[:,[f]])
@@ -147,12 +147,12 @@ In Condition Tests, find each unique condition, number of repeats and its indice
 """
 condin(ctc::Dict)=condin(DataFrame(ctc))
 function condin(ctc::DataFrame)
-    isempty(intersect(propertynames(ctc), [:i,:n])) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor names.")
-    combine(groupby([ctc DataFrame(i=1:nrow(ctc))], propertynames(ctc), sort = true, skipmissing = true), :i => (x->[deepcopy(x)]) => :i, nrow => :n)
+    isempty(intersect(propertynames(ctc), (:i,:n))) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor name.")
+    combine(groupby([ctc DataFrame(i=1:nrow(ctc))], propertynames(ctc), sort = true, skipmissing = true), :i => (x->[x]) => :i, nrow => :n)
 end
 
 "Get factors of conditions"
-condfactor(cond)=setdiff(propertynames(cond),[:n,:i])
+condfactor(cond)=setdiff(propertynames(cond),(:i,:n))
 
 "Get `Final` factors of conditions"
 function finalfactor(cond::DataFrame)
@@ -161,7 +161,7 @@ function finalfactor(cond::DataFrame)
     Symbol.(fs)
 end
 
-"Condition in String"
+"Print Condition in String"
 function condstring(cond::DataFrameRow;factor=condfactor(cond))
     join(["$f=$(cond[f])" for f in factor],", ")
 end
@@ -172,22 +172,22 @@ end
 """
 Group repeats of Conditions, get `Mean` and `SEM` of responses
 
-rs: responses of each trial
-gi: trial indices of repeats for each condition
+1. rs: responses of each trial
+2. ci: trial indices of repeats for each condition
 """
-function condresponse(rs,gi)
-    grs = [rs[i] for i in gi]
-    DataFrame(m=mean.(grs),se=sem.(grs))
+function condresponse(rs,ci)
+    crs = [rs[i] for i in ci]
+    DataFrame(m=mean.(crs),se=sem.(crs))
 end
 function condresponse(rs,cond::DataFrame;u=0,ug="SU")
     crs = [rs[i] for i in cond.i]
-    df = [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs)),ug=fill(ug,length(crs))) cond[:,condfactor(cond)]]
+    [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs)),ug=fill(ug,length(crs))) cond[:,condfactor(cond)]]
 end
 function condresponse(urs::Dict,cond::DataFrame)
-    vcat([condresponse(v,cond,u=k) for (k,v) in urs]...)
+    mapreduce(k->condresponse(urs[k],cond,u=k),append!,keys(urs))
 end
 function condresponse(urs::Dict,ctc::DataFrame,factors)
-    vf = filter(f->any(f.==factors),propertynames(ctc))
+    vf = intersect(propertynames(ctc),factors)
     isempty(vf) && error("No Valid Factor Found.")
     condresponse(urs,condin(ctc[:,vf]))
 end

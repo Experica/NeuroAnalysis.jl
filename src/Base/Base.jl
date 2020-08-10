@@ -1,4 +1,4 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,HypothesisTests,Colors,Images
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images
 using ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz
 using ImageSegmentation,ProgressMeter
 import Base: vec,range
@@ -181,6 +181,41 @@ function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
     a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2)) * sin(2π*(f * y′ + phase))
 end
 
+"Fit model to data"
+function fitmodel(model,x,y)
+    alb,aub = abs.(extrema(y))
+    ab = max(alb,aub)
+
+    rlt = fun = missing
+    if model == :vmn2
+        fun = (x,p) -> vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.3ab,   prevfloat(float(2π)),   20]
+        lb=[0.3ab,            0,              0]
+        p0=[ab,               π,              1]
+    elseif model == :gvm
+        fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.3ab,   prevfloat(float(2π)),   20,    prevfloat(float(2π)),    20]
+        lb=[0.3ab,            0,              0,             0,               0]
+        p0=[ab,               π,              1,             π,               1]
+    end
+    if !ismissing(fun)
+        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
+        param=ofit.minimizer
+
+        rlt = (;model,fun,param)
+    end
+    return rlt
+end
+
+function circtuningfeature(mfit;od=π,fn=od==π ? :d : :o)
+    x = 0:0.004:2π # 0.004rad = 0.23deg
+    circtuningfeature(x,mfit.fun(x,mfit.param),od=od,fn=fn)
+end
+
 """
 Properties of Circular Tuning:
     - Prefered Direction/Orientation
@@ -217,9 +252,10 @@ Tuning properties of factor response
 2. fr: factor responses
 
     HueAngle, Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
+
     For cases where Orientation and Direction are interlocked(drifting grating):
-        when Orientation is -(0), then Direction is ↑(90)
-        when Direction is →(0), then Orientation is |(-90)
+        - when Orientation is -(0), then Direction is ↑(90)
+        - when Direction is →(0), then Orientation is |(-90)
 """
 function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
     if factor in [:Ori,:Ori_Final]
@@ -234,31 +270,24 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         dm = circmean(θ.+0.5π,fr)
         od = rad2deg(mod(angle(dm),2π))
         dcv = circvar(θ.+0.5π,fr,d)
-        # fit Generalized von Mises for direction
+
         fit = ()
         if isfit
+            # fit Generalized von Mises for direction
             try
-                gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ.+0.5π,fr,[1.0,0,1,0,1])
-                if gvmfit.converged
-                    x = 0:0.004:2π # 0.004rad = 0.23deg
-                    y = gvmf.(x,gvmfit.param...)
-                    fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
-                end
+                mfit = fitmodel(:gvm,θ.+0.5π,fr)
+                fit = (circtuningfeature(mfit,od=π,fn=:d)...,gvm=mfit)
             catch
             end
             # fit von Mises for orientation
             try
-                vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
-                if vmfit.converged
-                    x = 0:0.004:2π
-                    y = vmf.(x,vmfit.param...,n=2)
-                    fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
-                end
+                mfit = fitmodel(:vmn2,θ,fr)
+                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:o)...,vmn2=mfit)
             catch
             end
         end
 
-        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
+        return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :Dir
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -331,11 +360,11 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         # for hue axis
         aθ = mod.(θ,π)
         ham = circmean(2aθ,fr)
-        oha = mod(angle(ham),2π)/2
+        oha = rad2deg(mod(angle(ham),2π)/2)
         hacv = circvar(2aθ,fr,2d)
         # for hue
         hm = circmean(θ,fr)
-        oh = mod(angle(hm),2π)
+        oh = rad2deg(mod(angle(hm),2π))
         hcv = circvar(θ,fr,d)
         maxi = argmax(fr)
         maxh = fl[maxi]
@@ -345,31 +374,21 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         if isfit
             # fit Generalized von Mises for hue
             try
-                gvmfun = (x,p)->gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
-                gvmfit = curve_fit(gvmfun,θ,fr,[maxr,oh,1,oh,1])
-                if gvmfit.converged
-                    x = 0:0.004:2π # 0.004rad = 0.23deg
-                    y = gvmfun(x,gvmfit.param)
-                    fit = (circtuningfeature(x,y,od=π,fn=:h)...,gvm=gvmfit)
-                end
+                mfit = fitmodel(:gvm,θ,fr)
+                fit = (circtuningfeature(mfit,od=π,fn=:h)...,gvm=mfit)
             catch
             end
             # fit von Mises for hue axis
             try
-                vmfun = (x,p)->vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
-                vmfit = curve_fit(vmfun,θ,fr,[maxr,oh,1])
-                if vmfit.converged
-                    x = 0:0.004:2π
-                    y = vmfun(x,vmfit.param)
-                    fit = (fit...,circtuningfeature(x,y,od=0.5π,fn=:ha)...,vm=vmfit)
-                end
+                mfit = fitmodel(:vmn2,θ,fr)
+                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:ha)...,vmn2=mfit)
             catch
             end
         end
 
-        return (ham=ham,oha=rad2deg(oha),hacv=hacv,hm=hm,oh=rad2deg(oh),hcv=hcv,maxh=maxh,maxr=maxr,fit=fit)
+        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     else
-        return []
+        return ()
     end
 end
 

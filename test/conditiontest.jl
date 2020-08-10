@@ -18,4 +18,9 @@ fl = flin(ctc)
 [condfactor(r) for r in eachrow(cond)]
 @test condfactor(cond) == collect(keys(fl))
 
-condstr = condstring(cond)
+condstring(cond)
+
+condresponse(rand(nrow(ctc)),cond.i)
+condresponse(rand(nrow(ctc)),cond)
+condresponse(Dict(1=>rand(nrow(ctc))),cond)
+condresponse(Dict(2=>rand(nrow(ctc))),ctc,[:Ori])

@@ -82,15 +82,17 @@ end
 # end
 # plotspiketrain1(rvs::RVVector;sortvar=[],xgroup::Vector=[],timemark=[0],theme=Theme(),colorkey="",colorfun=Scale.lab_gradient(colorant"white",colorant"red"),colorminv=[],colormaxv=[]) = plotspiketrain1(flatrvs(rvs,sortvar)...,xgroup=xgroup,timemark=timemark,theme=theme,colorkey=colorkey,colorfun=colorfun,colorminv=colorminv,colormaxv=colormaxv)
 
-
-plotcondresponse(rs,ctc;factors=names(ctc),u=0,style=:path,title="",projection=[],linewidth=:auto,legend=:best,responseline=[])=plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
-function plotcondresponse(urs::Dict,ctc::DataFrame,factors;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    mseuc = condresponse(urs,ctc,factors)
-    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
+"Plot `Mean` and `SEM` of responses for each condition"
+function plotcondresponse(rs,ctc;factors=propertynames(ctc),u=0,style=:path,title="",projection=:cartesian,linewidth=:auto,legend=:best,response=[])
+    plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
-function plotcondresponse(urs::Dict,cond::DataFrame;colors=unitcolors(collect(keys(urs))),style=:path,projection=[],title="",linewidth=:auto,legend=:best,responseline=[])
-    mseuc = condresponse(urs,cond)
-    plotcondresponse(mseuc,colors=colors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,responseline=responseline)
+function plotcondresponse(urs::Dict,ctc::DataFrame,factors;color=unitcolors(collect(keys(urs))),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+    df = condresponse(urs,ctc,factors)
+    plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
+end
+function plotcondresponse(urs::Dict,cond::DataFrame;color=unitcolors(collect(keys(urs))),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+    df = condresponse(urs,cond)
+    plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
 function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,projection=:cartesian,title="",grid=false,
                             linestyle=:solid,linewidth=:auto,legend=:best,response=[],responsetype=:Response)
@@ -132,12 +134,13 @@ function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,p
         end
         sort!(mseuugc,factor)
         if projection==:polar
-            p = @df mseuugc Plots.plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
+            p = @df mseuugc plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
             label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
             xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
         else
-            p = @df mseuugc plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=:auto,color=reshape(color,1,:),label=reshape(["$(k.ug)$(k.u)" for k in eachrow(gs)],1,:),
-            grid=grid,projection=projection,legend=legend,xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=(title),linewidth=linewidth)
+            p = @df mseuugc plot(cols(factor),:m,ribbon=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
+            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
+            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
         end
         if !isempty(response)
             for i in response

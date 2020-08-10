@@ -1,4 +1,4 @@
-using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots
+using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO
 
 @testset "NeuroAnalysis" begin
 
@@ -6,6 +6,7 @@ using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots
     include("imagetest.jl")
     include("conditiontest.jl")
     include("visualizationtest.jl")
+    include("regressiontest.jl")
 
 
 
