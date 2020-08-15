@@ -5,8 +5,9 @@ using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO
     include("spiketest.jl")
     include("imagetest.jl")
     include("conditiontest.jl")
-    include("visualizationtest.jl")
     include("regressiontest.jl")
+    include("visualizationtest.jl")
+    
 
 
 

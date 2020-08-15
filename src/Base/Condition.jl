@@ -129,6 +129,26 @@ function findcond(df::DataFrame,conds::Vector{Vector{Any}};roundingdigit=3)
     return is[vi],ss[vi],conds[vi]
 end
 
+"Check if `response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
+isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
+"Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
+isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
+isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
+
+"Check if any factors and their interactions significently modulate response using ANOVA"
+function ismodulative(df;alpha=0.05,interact=true)
+    xns = filter(i->i!=:Y,propertynames(df))
+    categorical!(df,xns)
+    if interact
+        f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+    else
+        f = term(:Y) ~ reduce(+,term.(xns))
+    end
+    lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
+    anovatype = length(xns) <= 1 ? 2 : 3
+    any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
+end
+
 """
 Find levels for each factor and indices, repetition for each level
 """
@@ -157,7 +177,7 @@ condfactor(cond)=setdiff(propertynames(cond),(:i,:n))
 "Get `Final` factors of conditions"
 function finalfactor(cond::DataFrame)
     fs = String.(condfactor(cond))
-    fs = filter(f->endswith(f,"_Final") || ∉("$(f)_Final",fs),fs)
+    filter!(f->endswith(f,"_Final") || ∉("$(f)_Final",fs),fs)
     Symbol.(fs)
 end
 
@@ -193,7 +213,7 @@ function condresponse(urs::Dict,ctc::DataFrame,factors)
 end
 
 "Condition Response in Factor Space"
-function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[:,factors]),fa = OrderedDict(f=>fl[f][f] for f in keys(fl)))
+function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[:,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))
     fm = missings(Float64, map(nrow,values(fl))...)
     fse = deepcopy(fm)
     for i in 1:nrow(df)
@@ -205,7 +225,7 @@ function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),
 end
 function factorresponse(unitspike,cond,condon,condoff)
     fms=[];fses=[];factors = condfactor(cond)
-    fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][f] for f in keys(fl))
+    fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl))
     for u in eachindex(unitspike)
         rs = epochspiketrainresponse_ono(unitspike[u],condon,condoff,israte=true)
         df = condresponse(rs,cond)
@@ -254,25 +274,4 @@ function testfln(ds::Vector,minfln::Dict;showmsg::Bool=true)
     if showmsg;print("Testing factor/level of \"$(d["datafile"])\" ...\n");end
     testfln(d["fln"],minfln,showmsg=showmsg)
 end,ds))
-end
-
-function condmean(rs,ridx,conds)
-    nc = length(conds)
-    m = Array(Float64,nc)
-    sd = similar(m)
-    n = Array(Int,nc)
-    for i=1:nc
-        r=rs[ridx[i]]
-        m[i]=mean(r)
-        sd[i]=std(r)
-        n[i]=length(r)
-    end
-    return m,sd,n
-end
-function condmean(rs,us,ridx,conds)
-    msdn = map(i->condmean(i,ridx,conds),rs)
-    m= map(i->i[1],msdn)
-    sd = map(i->i[2],msdn)
-    n=map(i->i[3],msdn)
-    return m,hcat(sd...),hcat(n...)
 end

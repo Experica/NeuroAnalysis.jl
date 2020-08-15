@@ -31,24 +31,24 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
 end
 
 "scatter plot of spike trains"
-function plotspiketrain(x,y;group::Vector=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
+function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,550))
     nt = isempty(x) ? 0 : maximum(y)
-    s = min(size[2]/nt,1)
+    s = min(size[2]/nt,3)
     if isempty(group)
-        scatter(x,y,label="SpikeTrain",markershape=:vline,size=size,markersize=s,markerstrokewidth = s,markerstrokecolor=RGBA(0.1,0.1,0.3,0.8),legend=false)
+        scatter(x,y,label="SpikeTrain",markershape=:vline,size=size,markersize=s,markerstrokewidth = s,color=RGB(0.1,0.1,0.1),legend=false)
     else
-        scatter(x,y,group=group,markershape=:vline,size=size,markersize=s,markerstrokewidth = s,markerstrokecolor=reshape(colors,1,:))
+        scatter(x,y,group=group,markershape=:vline,size=size,markersize=s,markerstrokewidth = s,color=permutedims(color))
     end
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title),legend=false)
 end
-function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],colors=unitcolors(),title="",size=(800,550))
+function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],color=huecolors(0),title="",size=(800,550))
     if isempty(uids)
-        g=uids;uc=colors
+        g=uids;uc=color
     else
         fuids = flatspiketrains(uids,sortvalues)[1]
-        g=map(i->"U$i",fuids);uc=colors[sort(unique(fuids)).+1]
+        g=map(i->"U$i",fuids);uc=huecolors(length(unique(fuids)))
     end
-    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...,group=g,timeline=timeline,colors=uc,title=title,size=size)
+    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...,group=g,timeline=timeline,color=uc,title=title,size=size)
 end
 
 # function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xmax=maximum(x)+10,xgroup::Vector=[],
@@ -86,11 +86,11 @@ end
 function plotcondresponse(rs,ctc;factors=propertynames(ctc),u=0,style=:path,title="",projection=:cartesian,linewidth=:auto,legend=:best,response=[])
     plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
-function plotcondresponse(urs::Dict,ctc::DataFrame,factors;color=unitcolors(collect(keys(urs))),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+function plotcondresponse(urs::Dict,ctc::DataFrame,factors;color=huecolors(length(urs)),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
     df = condresponse(urs,ctc,factors)
     plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
-function plotcondresponse(urs::Dict,cond::DataFrame;color=unitcolors(collect(keys(urs))),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+function plotcondresponse(urs::Dict,cond::DataFrame;color=huecolors(length(urs)),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
     df = condresponse(urs,cond)
     plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
 end
@@ -113,7 +113,7 @@ function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,p
         # end
     elseif nfactor==2
         fm,fse,fa = factorresponse(mseuugc)
-        clim=maximum(skipmissing(fm))
+        clim = skipmissing(fm) |> extrema .|> abs |> maximum
         yfactor,xfactor = collect(keys(fa))
         y,x = collect(values(fa))
     else
@@ -122,9 +122,8 @@ function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,p
         style=:bar
     end
     if nfactor==2
-        x=float.(x)
-        y=float.(y)
-        heatmap(x,y,fm,color=:fire,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(responsetype),clims=(0,clim))
+        heatmap(x,y,fm,color=:coolwarm,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),
+        colorbar_title=factorunit(responsetype),clims=(-clim,clim))
     else
         if projection==:polar # close curve
             c0 = mseuugc[mseuugc[!,factor].==0,:]

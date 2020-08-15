@@ -1,6 +1,5 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images
-using ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz
-using ImageSegmentation,ProgressMeter
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz, ImageSegmentation,ProgressMeter
 import Base: vec,range
 
 include("NeuroDataType.jl")
@@ -13,27 +12,6 @@ include("2P.jl")
 
 vec(x::RGBA)=[x.r,x.g,x.b,x.alpha]
 anscombe(x) = 2*sqrt(x+(3/8))
-
-"Check if `response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
-isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
-"Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
-isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
-isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
-
-"Check if any factors and their interactions significently modulate response using ANOVA"
-function ismodulative(df;alpha=0.05,interact=true)
-    xns = filter(i->i!=:Y,propertynames(df))
-    categorical!(df,xns)
-    if interact
-        f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
-    else
-        f = term(:Y) ~ reduce(+,term.(xns))
-    end
-    lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
-    # anovatype = length(xns) <= 1 ? 2 : 3
-    anovatype = 2
-    any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
-end
 
 "`Gaussian` function"
 gaussianf(x;a=1,μ=0,σ=1) = a*exp(-0.5((x-μ)/σ)^2)
@@ -184,46 +162,104 @@ end
 
 "Fit model to data"
 function fitmodel(model,x,y)
-    alb,aub = abs.(extrema(y))
+    lb,ub = extrema(y)
+    bm = (lb+ub)/2
+    alb,aub = abs.((lb,ub))
     ab = max(alb,aub)
+
+    xlb,xub = extrema(x)
+    xbm = (xlb+xub)/2
+    xalb,xaub = abs.((xlb,xub))
+    xab = max(xalb,xaub)
 
     rlt = fun = missing
     if model == :vmn2
         fun = (x,p) -> vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
-        ub=[1.3ab,   prevfloat(float(2π)),   20]
+        ub=[1.3ab,   prevfloat(float(2π)),   30]
         lb=[0.3ab,            0,              0]
         p0=[ab,               π,              1]
     elseif model == :gvm
         fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
-        ub=[1.3ab,   prevfloat(float(2π)),   20,    prevfloat(float(2π)),    20]
+        ub=[1.3ab,   prevfloat(float(2π)),   30,    prevfloat(float(2π)),    30]
         lb=[0.3ab,            0,              0,             0,               0]
         p0=[ab,               π,              1,             π,               1]
+    elseif model == :dog
+        fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.3ab,   10xab,   10xab,    1.3ab,   10xab,   10xab,    ub]
+        lb=[0,      -10xab,     0,        0,    -10xab,     0,      lb]
+        p0=[ab,        0,       1,       ab,       0,       1,      bm]
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
-        param=ofit.minimizer
+        param=ofit.minimizer; yy = fun(x,param); r = cor(y,yy)
 
-        rlt = (;model,fun,param)
+        rlt = (;model,fun,param,r)
     end
     return rlt
 end
 
+function searchclosest(v,vs;start::Integer=1,step::Integer=1,circ=false)
+    n=length(vs);ssign = sign(vs[start]-v)
+    i = start
+    for _ in 1:n
+        if !circ
+            i<1 && return -Inf
+            n<i && return Inf
+        end
+        sign(vs[i]-v) != ssign && return i
+        i += step
+        if circ
+            i<1 && (i+=n)
+            n<i && (i-=n)
+        end
+    end
+    Inf
+end
+
+"""
+left and right half width of `v` relative to `y[start]`, -Inf/Inf when no `v` is found.
+
+- start: index of `y` which is the center of the width
+- v: value on which width is cutoff
+- circ: whether `y` is defined on circular domain and width can wrap around
+- x: domain of `y`, return width when `x` provided, otherwise return cutoff indices
+"""
+function halfwidth(y;start=argmax(y),v=y[start]/2,circ=false,x=nothing)
+    li = searchclosest(v,y;start,step=-1,circ)
+    ri = searchclosest(v,y;start,step=1,circ)
+    if isnothing(x)
+        return li,ri
+    else
+        if circ
+            lw = isinf(li) ? li : li<=start ? abs(x[start]-x[li]) : abs(x[start]-x[1])+abs(x[end]-x[li])
+            rw = isinf(ri) ? ri : ri>=start ? abs(x[ri]-x[start]) : abs(x[ri]-x[1])+abs(x[end]-x[start])
+        else
+            lw = isinf(li) ? li : abs(x[start]-x[li])
+            rw = isinf(ri) ? ri : abs(x[ri]-x[start])
+        end
+        return lw,rw
+    end
+end
+
 function circtuningfeature(mfit;od=π,fn=od==π ? :d : :o)
-    x = 0:0.004:2π # 0.004rad = 0.23deg
+    x = 0:0.002:2π # 0.002rad ≈ 0.11deg
     circtuningfeature(x,mfit.fun(x,mfit.param),od=od,fn=fn)
 end
 
 """
-Properties of Circular Tuning:
+Properties of Circular Tuning
+
     - Prefered Direction/Orientation
     - Selectivity Index
         - version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
         - version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
-    - Full Width at Half Maximum
+    - Half Width at Half Peak-to-Trough
 
 1. x: angles in radius
 2. y: responses
@@ -232,7 +268,9 @@ Properties of Circular Tuning:
 """
 function circtuningfeature(x,y;od=π,fn=od==π ? :d : :o)
     maxi = argmax(y)
+    mini = argmin(y)
     maxr = y[maxi]
+    minr = y[mini]
     px = x[maxi]
     ox = px+od
     oi = findclosestangle(ox,x)
@@ -240,10 +278,39 @@ function circtuningfeature(x,y;od=π,fn=od==π ? :d : :o)
 
     si1 = 1-or/maxr
     si2 = (maxr-or)/(maxr+or)
+    hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=true,x=x)
 
-    # minr = minimum(y)
-    # hmaxr = minr + (maxr-minr)/2
-    (;Symbol(:p,fn)=>rad2deg(mod(px,2od)), Symbol(fn,:si1)=>si1, Symbol(fn,:si2)=>si2)
+    (;Symbol(:p,fn)=>rad2deg(mod(px,2od)), Symbol(fn,:hw)=>rad2deg.(hw), Symbol(fn,:si1)=>si1, Symbol(fn,:si2)=>si2)
+end
+
+function sftuningfeature(mfit)
+    x = 0:0.002:10
+    sftuningfeature(x,mfit.fun(x,mfit.param))
+end
+
+"""
+Properties of Spatial Frequency Tuning
+
+    - Prefered Spatial Frequency
+    - Half Width at Half Peak-to-Trough
+    - Freq Passing Type {N,H,L,B}
+    - Bandwidth ``log2(H_cut/L_cut)``
+
+1. x: sf in cycle/degree
+2. y: responses
+"""
+function sftuningfeature(x,y)
+    maxi = argmax(y)
+    mini = argmin(y)
+    maxr = y[maxi]
+    minr = y[mini]
+    px = x[maxi]
+
+    hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=false,x=x)
+    pt = all(isinf.(hw)) ? 'N' : isinf(hw[1]) ? 'L' : isinf(hw[2]) ? 'H' : 'B'
+    bw = log2((px+hw[2])/(px-hw[1]))
+
+    (;psf=px,sfhw=hw,sftype=pt,sfbw=bw)
 end
 
 """
@@ -328,19 +395,21 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
     elseif factor == :SpatialFreq
         osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
-        fit=()
+        maxi = argmax(fr)
+        maxsf = fl[maxi]
+        maxr = fr[maxi]
+
+        fit = ()
         if isfit
-            # fit difference of gaussians
+            # fit difference of gaussians for SpatialFreq
             try
-                dogfit = curve_fit((x,p)->dogf.(x,p...),fl,fr,[1.0,0,1,1,0,1])
-                if dogfit.converged
-                    fit = (dog=dogfit,)
-                end
+                mfit = fitmodel(:dog,fl,fr)
+                fit = (sftuningfeature(mfit)...,dog=mfit)
             catch
             end
         end
 
-        return (osf = osf,fit=fit)
+        return (;osf,maxsf,maxr,fit)
     elseif factor == :ColorID
         # transform colorId to hue angle
         ucid = sort(unique(fl))
@@ -458,7 +527,7 @@ function spacepsth(unitpsth,unitposition,spacebinedges)
     end
     binwidth = ws[1][2]-ws[1][1]
     bincenters = [ws[i][1]+binwidth/2.0 for i=1:nbins]
-    return spsth,x,bincenters,ns
+    return (;psth=spsth,x,y=bincenters,n=ns)
 end
 
 

@@ -1,3 +1,18 @@
+## Tuning Feature
+x = -3:0.002:3
+y = gaussianf.(x,σ=1)
+hw = halfwidth(y,circ=false,x=x)
+
+x = -5:0.002:1
+y = gaussianf.(x,σ=1)
+hw = halfwidth(y,circ=false,x=x)
+hw = halfwidth(y,circ=true,x=x)
+
+x = -1:0.002:5
+y = gaussianf.(x,σ=1)
+hw = halfwidth(y,circ=false,x=x)
+hw = halfwidth(y,circ=true,x=x)
+
 ## Circular Tuning Regression
 
 # save(joinpath(@__DIR__,"circdata.jld2"),"y",y,"x",x,"y1",y1,"x1",x1)

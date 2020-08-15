@@ -28,7 +28,7 @@ function epochspiketrain(x,min::Real,max::Real;isminzero::Bool=false,ismaxzero::
     if israte
         n /= ((max-min)*SecondPerUnit)
     end
-    return (y=y,n=n,w=w,i=i)
+    return (;y,n,w,i)
 end
 function epochspiketrain(x,mins,maxs;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     yn = length(mins)
@@ -209,7 +209,7 @@ function vmeanse(mat::AbstractMatrix;normfun=nothing)
     end
     m = dropdims(mean(mat,dims=1),dims=1)
     se = dropdims(std(mat,dims=1),dims=1)/sqrt(n)
-    return (m=m,se=se)
+    return (;m,se)
 end
 
 "PSTH of Spike Trains"
@@ -220,8 +220,8 @@ function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,normfun
     mat = vstack(nss)
     if ismean
         m,se = vmeanse(mat,normfun=normfun)
-        return (m=m,se=se,x=x)
+        return (;m,se,x)
     else
-        return (mat=mat,x=x)
+        return (;mat,x)
     end
 end

@@ -1,30 +1,8 @@
-huecolors(n::Int;alpha=0.8,saturation=1,brightness=1)=[HSVA(((i-1)/n)*360,saturation,brightness,alpha) for i=1:n]
-
-# function minmaxcolormap(cname,min,max;isreverse=false)
-#     c=colormap(cname,101,mid=max/(abs(min)+abs(max)))
-#     if isreverse
-#         c=reverse(c)
-#     end
-#     ColorGradient(c,0:0.01:1)
-# end
-# function minmaxcolorgradient(minc,maxc;n=100)
-#     d = maxc-minc
-#     r = range(0,1,length=n)
-#     ColorGradient(map(i->minc+i*d,r),r)
-# end
-# function mapcolor(data,cg::ColorGradient)
-#     minv,maxv = extrema(data)
-#     r=maxv-minv
-#     map(i->RGBA(cg[(i-minv)/r]),data)
-# end
-
-function unitcolors(uids=[];n=5,alpha=0.8,saturation=1,brightness=1)
-    uc = huecolors(n,alpha=alpha,saturation=saturation,brightness=brightness)
-    insert!(uc,1,HSVA(0,0,0,alpha))
-    if !isempty(uids)
-        uc=uc[sort(unique(uids)).+1]
-    end
-    return uc
+function huecolors(n::Integer=100;alpha=0.8,saturation=1,brightness=1,precolors=[HSVA(0,1,0,alpha)],sufcolors=[])
+    hc = [HSVA(360(i-1)/n,saturation,brightness,alpha) for i in 1:n]
+    prepend!(hc,precolors)
+    append!(hc,sufcolors)
+    hc
 end
 
 "Generates linearly interpolated `ColorGradient`"
