@@ -411,7 +411,6 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         hm = circmean(ha,fr)
         oh = mod(rad2deg(angle(hm)),360)
         hcv = circvar(ha,fr,hstep)
-        ohr = circr(ha,fr,,hstep)
         maxi = argmax(fr)
         maxh = rad2deg(ha[maxi])
         maxr = fr[maxi]
@@ -432,7 +431,7 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
             end
         end
 
-        return (;ham,oha,hacv,hm,oh,hcv,ohr,maxh,maxr,fit)
+        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     elseif factor == :HueAngle
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -445,7 +444,6 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         hm = circmean(θ,fr)
         oh = rad2deg(mod(angle(hm),2π))
         hcv = circvar(θ,fr,d)
-        ohr = circvar(θ,fr,d)
         maxi = argmax(fr)
         maxh = fl[maxi]
         maxr = fr[maxi]
@@ -466,7 +464,7 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
             end
         end
 
-        return (;ham,oha,hacv,hm,oh,hcv,ohr,maxh,maxr,fit)
+        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     else
         return ()
     end
