@@ -372,27 +372,19 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         fit = ()
         if isfit
             try
-                gvmfit = curve_fit((x,p)->gvmf.(x,p...),θ,fr,[1.0,0,1,0,1])
-                if gvmfit.converged
-                    x = 0:0.004:2π # 0.004rad = 0.23deg
-                    y = gvmf.(x,gvmfit.param...)
-                    fit = (circtuningstats(x,y,od=π,s=:d)...,gvm=gvmfit)
-                end
+                mfit = fitmodel(:gvm,θ,fr)
+                fit = (circtuningfeature(mfit,od=π,fn=:d)...,gvm=mfit)
             catch
             end
             # fit von Mises for orientation
             try
-                vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ.-0.5π,fr,[1.0,0,1])
-                if vmfit.converged
-                    x = 0:0.004:2π
-                    y = vmf.(x,vmfit.param...,n=2)
-                    fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
-                end
+                mfit = fitmodel(:vmn2, θ.-0.5π,fr)
+                fit =(fit...,circtuningfeature(mfit, od=0.5π,fn=:o)...,vmn2=mfit)
             catch
             end
         end
 
-        return (dm=dm,od=od,dcv=dcv,om=om,oo=oo,ocv=ocv,fit=fit)
+        return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :SpatialFreq
         osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
         maxi = argmax(fr)
@@ -415,15 +407,31 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         ucid = sort(unique(fl))
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
-        oh = mod(rad2deg(circmean(ha,fr)),360)
-        ohv = circmeanv(ha,fr)
-        ohr = circr(ha,fr)
-        hcv = circvar(ha,fr)
+        # for hue direction
         hm = circmean(ha,fr)
         oh = mod(rad2deg(angle(hm)),360)
         hcv = circvar(ha,fr,hstep)
+        maxi = argmax(fr)
+        maxh = rad2deg(ha[maxi])
+        maxr = fr[maxi]
 
-        return (hm=hm,oh=oh,hcv=hcv)
+        fit = ()
+        if isfit
+            # fit Generalized von Mises for hue
+            try
+                mfit = fitmodel(:gvm,θ,fr)
+                fit = (circtuningfeature(mfit,od=π,fn=:h)...,gvm=mfit)
+            catch
+            end
+            # fit von Mises for hue axis
+            try
+                mfit = fitmodel(:vmn2,θ,fr)
+                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:ha)...,vmn2=mfit)
+            catch
+            end
+        end
+
+        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     elseif factor == :HueAngle
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
