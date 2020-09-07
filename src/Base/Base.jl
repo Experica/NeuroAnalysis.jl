@@ -616,7 +616,7 @@ function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspi
 end
 function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,esdfactor=5,isdfactor=5)
     midi = Int((length(cc)+1)/2)
-    base = vcat(cc[midi+minbaselag:end],cc[1:midi-minbaselag])
+    base = [cc[midi+minbaselag:end];cc[1:midi-minbaselag]]
     bm,bsd = mean_and_std(base);hl = bm + esdfactor*bsd;ll = bm - isdfactor*bsd
     forwardlags = midi+1:midi+maxprojlag
     backwardlags = midi-maxprojlag:midi-1
@@ -639,8 +639,8 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,e
     return ps,ei,ii,pws
 end
 
-function checklayer!(ls::Dict)
-    ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"]
+"Check Layer Boundaries"
+function checklayer!(ls::Dict;ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"])
     n = length(ln)
     for i in 1:n-1
         if haskey(ls,ln[i])
@@ -657,10 +657,11 @@ end
 
 """
 Try to locate cell layer.
+
 1. y coordinate of cell postion
 2. layer definition
 """
-function assignlayer(y,layer)
+function assignlayer(y,layer::Dict)
     l = missing
     for k in keys(layer)
         if layer[k][1] <= y < layer[k][2]
@@ -670,12 +671,14 @@ function assignlayer(y,layer)
     return l
 end
 
+"Check circuit consistency and remove duplicates"
 function checkcircuit(projs,eunits,iunits,projweights)
     ivu = intersect(eunits,iunits)
     veunits = setdiff(eunits,ivu)
     viunits = setdiff(iunits,ivu)
-    ivp = map(p->any(i->i in ivu,p),projs)
-    vprojs = deleteat!(copy(projs),ivp)
-    vprojweights = deleteat!(copy(projweights),ivp)
-    return vprojs,veunits,viunits,vprojweights
+    ivp = map(p->p[1] in ivu,projs)
+    vprojs = projs[.!ivp]
+    vprojweights = projweights[.!ivp]
+    ui = indexin(unique(vprojs),vprojs)
+    return vprojs[ui],veunits,viunits,vprojweights[ui]
 end
