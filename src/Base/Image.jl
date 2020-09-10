@@ -6,10 +6,15 @@ function alphablend(src::Colorant,dst::Colorant)
     srcfactor.*src+(1-srcfactor).*dst
 end
 
+function alphamask(img;color=:coolwarm,radius=0.5,sigma=0.35,masktype="Gaussian")
+    cg = cgrad(color)
+    m = maximum(abs.(img))
+    alphamask(get(cg,img,(-m,m));radius,sigma,masktype)[1]
+end
 """
 Masking alpha channel of an image, match the implementation in `Experica` shaders.
 """
-function alphamask(src;radius=0.5,sigma=0.15,masktype="Disk")
+function alphamask(src::Matrix{Colorant};radius=0.5,sigma=0.15,masktype="Disk")
     if masktype in ["Disk","disc"]
         alphamask_disk(src,radius)
     elseif masktype=="Gaussian"
@@ -261,4 +266,59 @@ function f1orisf(x,freqd1,freqd2)
     ori = mod(atan(f1freqd2d1...),π)
     sf = norm(f1freqd2d1)
     return ori,sf
+end
+
+"extrema value of max amplitude and it's delay index"
+function exd(sta)
+    exi = [argmin(sta),argmax(sta)]
+    ex = sta[exi]
+    absexi = argmax(abs.(ex))
+    (ex=ex[absexi],d=exi[absexi][3])
+end
+"""
+local RMS contrast of each image, highlighting local structure regions
+"""
+function localcontrast(csta,w::Integer)
+    dims = size(csta)
+    clc = Array{Float64}(undef,dims)
+    w = iseven(w) ? w+1 : w
+    for d in 1:dims[3], c in 1:dims[4]
+        clc[:,:,d,c] = mapwindow(std,csta[:,:,d,c],(w,w))
+    end
+    return clc
+end
+function localcontrast(data::Matrix,w::Integer)
+    w = iseven(w) ? w+1 : w
+    mapwindow(std,data,(w,w))
+end
+"peak ROI square region and its delay"
+function peakroi(clc)
+    ds = size(clc)[1:2]
+    pi = [Tuple(argmax(clc))...]
+    plc = clc[:,:,pi[3:end]...]
+    return (peakroi(plc,ds=ds,pi=pi[1:2])...,pd=pi[3])
+end
+function peakroi(data::Matrix;ds = size(data),pi = [Tuple(argmax(data))...])
+    segs = seeded_region_growing(data,[(CartesianIndex(1,1),1),(CartesianIndex(1,ds[2]),1),(CartesianIndex(ds[1],1),1),
+                            (CartesianIndex(ds...),1),(CartesianIndex(pi...),2)])
+    idx = findall(labels_map(segs).==2)
+    roi = roiwindow(idx)
+    return (i=idx,center=roi.center,radius=round(Int,maximum(roi.hw)/2))
+end
+"Get ROI region from indices"
+function roiwindow(idx)
+    idxlims = dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2)
+    hw = map(i->i[2]-i[1],idxlims)
+    center = round.(Int,mean.(idxlims))
+    return (;center,hw)
+end
+"Get the minimum ROI region encompass all rois"
+function mergeroi(rois,ds;roimargin=0)
+    cs = mapfoldl(r->r.center,hcat,rois,init=zeros(Int,2,0))
+    center = round.(Int,vec(mean(cs,dims=2)))
+    cdev = maximum(Distances.colwise(Euclidean(),cs,center))
+    radius = round(Int,(maximum(map(r->r.radius,rois))+cdev)*(1+roimargin))
+    vr = map(i->intersect(center[i].+(-radius:radius),1:ds[i]),1:2)
+    radius = (minimum ∘ mapreduce)((r,c)->abs.([r[begin],r[end]].-c),append!,vr,center)
+    return (;center,radius)
 end
