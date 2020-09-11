@@ -246,9 +246,9 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
         ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
 
         ori,sf = f1orisf(powerspectrum2(data,ppu)...)
-        ub=[1.5ab,   0.5r+c[1],   0.6r,    0.5r+c[2],    0.6r,      prevfloat(float(π)),     10sf,     prevfloat(1.0)]
-        lb=[0.5ab,  -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.1r,                0,             0.1sf,           0]
-        p0=[ab,      c[1],        0.3r,     c[2],        0.3r,               ori,              sf,            0.5]
+        ub=[1.5ab,   0.5r+c[1],   0.6r,    0.5r+c[2],    0.6r,      prevfloat(float(π)),     10,     prevfloat(1.0)]
+        lb=[0.5ab,  -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.1r,                0,             0.1,           0]
+        p0=[ab,      c[1],        0.3r,     c[2],        0.3r,               ori,            sf,            0.5]
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))

@@ -14,7 +14,7 @@ end
 """
 Masking alpha channel of an image, match the implementation in `Experica` shaders.
 """
-function alphamask(src::Matrix{Colorant};radius=0.5,sigma=0.15,masktype="Disk")
+function alphamask(src::Matrix{<:Colorant};radius=0.5,sigma=0.15,masktype="Disk")
     if masktype in ["Disk","disc"]
         alphamask_disk(src,radius)
     elseif masktype=="Gaussian"
@@ -318,7 +318,11 @@ function mergeroi(rois,ds;roimargin=0)
     center = round.(Int,vec(mean(cs,dims=2)))
     cdev = maximum(Distances.colwise(Euclidean(),cs,center))
     radius = round(Int,(maximum(map(r->r.radius,rois))+cdev)*(1+roimargin))
+    radius = clamproi(center,radius,ds)
+    return (;center,radius)
+end
+"Confine ROI radius so ROI is in the image"
+function clamproi(center,radius,ds)
     vr = map(i->intersect(center[i].+(-radius:radius),1:ds[i]),1:2)
     radius = (minimum ∘ mapreduce)((r,c)->abs.([r[begin],r[end]].-c),append!,vr,center)
-    return (;center,radius)
 end

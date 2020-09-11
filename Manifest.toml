@@ -456,9 +456,9 @@ version = "0.3.5"
 
 [[ImageCore]]
 deps = ["Colors", "FixedPointNumbers", "Graphics", "MappedArrays", "MosaicViews", "OffsetArrays", "PaddedViews", "Reexport", "Requires"]
-git-tree-sha1 = "f83c4b1835be5bf6665a1627ec43f964cc19b256"
+git-tree-sha1 = "8628794375a87e8006e489a8575ddbb98b779370"
 uuid = "a09fc81d-aa75-5fe9-8630-4744c3626534"
-version = "0.8.15"
+version = "0.8.16"
 
 [[ImageDistances]]
 deps = ["ColorVectorSpace", "Distances", "ImageCore", "LinearAlgebra", "MappedArrays", "Statistics"]
