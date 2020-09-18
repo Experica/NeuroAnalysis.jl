@@ -1,6 +1,7 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,Distances,
 ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz, ImageSegmentation,ProgressMeter
 import Base: vec,range
+import StatsBase: predict
 
 include("NeuroDataType.jl")
 include("CircStats.jl")
@@ -204,6 +205,71 @@ function fitmodel(model,x,y)
     return rlt
 end
 
+"Fit 2D model to image"
+function fitmodel2(model,data::Matrix,ppu;w=0.5)
+    rpx = (size(data)[1]-1)/2
+    radius = rpx/ppu
+    x = (mapreduce(i->[i[2] -i[1]],vcat,CartesianIndices(data)) .+ [-(rpx+1) (rpx+1)])/ppu
+    y = vec(data)
+
+    # try estimate solution
+    roi = peakroi(localcontrast(data,round(Int,w*ppu)))
+    alb,aub = abs.(extrema(data[roi.i]))
+    ab = max(alb,aub)
+    r = roi.radius/ppu
+    c = [roi.center[2] - (rpx+1), -roi.center[1] + (rpx+1)]/ppu
+
+    rlt = fun = missing
+    if model == :dog
+        if aub >= alb
+            ai = 3.5alb
+            ae = aub + ai
+            es = 0.2r;esl=0.15r;esu=0.3r
+            ier=2;ierl = 1.1;ieru = 3
+        else
+            ae = 3.5aub
+            ai = alb + ae
+            es = 0.4r;esl=0.16r;esu=0.6r
+            ier=0.5;ierl = 0.3;ieru = 0.9
+        end
+        # rfdog(x,y,p...) = dogf(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3]*p[5],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2]+p[8],σᵢ₁=p[3]*p[9],μᵢ₂=p[4]+p[10],σᵢ₂=p[3]*p[9]*p[5],θᵢ=p[6])
+        fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[3]*p[6],μᵢ₂=p[4],σᵢ₂=p[3]*p[6],θᵢ=0)
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
+        # lb=[0,          -0.4sr,    0.1sr,   -0.4sr,    0.5,    0,     0,       -0.1sr,     0.1,    -0.1sr]
+        # ub=[10,         0.4sr,    0.5sr,    0.4sr,    2,      π,     Inf,      0.1sr,     10,       0.1sr]
+        # p0=[0,       0,        0.3sr,    0,        1,      π/4,   aei[2],    0,         0.25,       0]
+        ub=[1.5ae,    0.36r,    esu,    0.36r,     1.5ai,    ieru]
+        lb=[0.5ae,   -0.36r,    esl,   -0.36r,     0.5ai,    ierl]
+        p0=[ae,       0,        es,     0,          ai,      ier]
+    elseif model == :gabor
+        fun = (x,y,p) -> gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5],θ=p[6],f=p[7],phase=p[8])
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
+
+        ori,sf = f1orisf(powerspectrum2(data,ppu)...)
+        ub=[1.5ab,   0.5r+c[1],   0.6r,    0.5r+c[2],    0.6r,      prevfloat(float(π)),     10,     prevfloat(1.0)]
+        lb=[0.5ab,  -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.1r,                0,             0.1,           0]
+        p0=[ab,      c[1],        0.3r,     c[2],        0.3r,               ori,            sf,            0.5]
+    end
+    if !ismissing(fun)
+        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
+        param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param); resid = y .- yy; r = cor(y,yy)
+
+        rlt = (;model,fun,param,radius,resid,r)
+    end
+    return rlt
+end
+
+predict(fit,x) = fit.fun(x,fit.param)
+function predict(fit,x,y;xygrid=true,yflip=false)
+    if xygrid
+        z = [fit.fun(i,j,fit.param) for j in y, i in x]
+        yflip && reverse!(z,dims=1)
+    else
+        z = fit.fun(x,y,fit.param)
+    end
+    z
+end
+
 function searchclosest(v,vs;start::Integer=1,step::Integer=1,circ=false)
     n=length(vs);ssign = sign(vs[start]-v)
     i = start
@@ -249,7 +315,7 @@ end
 
 function circtuningfeature(mfit;od=π,fn=od==π ? :d : :o)
     x = 0:0.002:2π # 0.002rad ≈ 0.11deg
-    circtuningfeature(x,mfit.fun(x,mfit.param),od=od,fn=fn)
+    circtuningfeature(x,predict(mfit,x),od=od,fn=fn)
 end
 
 """
@@ -285,7 +351,7 @@ end
 
 function sftuningfeature(mfit)
     x = 0:0.002:10
-    sftuningfeature(x,mfit.fun(x,mfit.param))
+    sftuningfeature(x,predict(mfit,x))
 end
 
 """
@@ -624,7 +690,7 @@ function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspi
 end
 function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,esdfactor=5,isdfactor=5)
     midi = Int((length(cc)+1)/2)
-    base = vcat(cc[midi+minbaselag:end],cc[1:midi-minbaselag])
+    base = [cc[midi+minbaselag:end];cc[1:midi-minbaselag]]
     bm,bsd = mean_and_std(base);hl = bm + esdfactor*bsd;ll = bm - isdfactor*bsd
     forwardlags = midi+1:midi+maxprojlag
     backwardlags = midi-maxprojlag:midi-1
@@ -647,8 +713,8 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,e
     return ps,ei,ii,pws
 end
 
-function checklayer!(ls::Dict)
-    ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"]
+"Check Layer Boundaries"
+function checklayer!(ls::Dict;ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"])
     n = length(ln)
     for i in 1:n-1
         if haskey(ls,ln[i])
@@ -665,10 +731,11 @@ end
 
 """
 Try to locate cell layer.
+
 1. y coordinate of cell postion
 2. layer definition
 """
-function assignlayer(y,layer)
+function assignlayer(y,layer::Dict)
     l = missing
     for k in keys(layer)
         if layer[k][1] <= y < layer[k][2]
@@ -678,12 +745,14 @@ function assignlayer(y,layer)
     return l
 end
 
+"Check circuit consistency and remove duplicates"
 function checkcircuit(projs,eunits,iunits,projweights)
     ivu = intersect(eunits,iunits)
     veunits = setdiff(eunits,ivu)
     viunits = setdiff(iunits,ivu)
-    ivp = map(p->any(i->i in ivu,p),projs)
-    vprojs = deleteat!(copy(projs),ivp)
-    vprojweights = deleteat!(copy(projweights),ivp)
-    return vprojs,veunits,viunits,vprojweights
+    ivp = map(p->p[1] in ivu,projs)
+    vprojs = projs[.!ivp]
+    vprojweights = projweights[.!ivp]
+    ui = indexin(unique(vprojs),vprojs)
+    return vprojs[ui],veunits,viunits,vprojweights[ui]
 end

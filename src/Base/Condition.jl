@@ -134,6 +134,20 @@ isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,resp
 "Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
+"Check if any `Mean` or `SD` of a spatial-temporal kernal within response time window significently different from that of the baseline time window"
+function isresponsive(st::Matrix,bti::Vector;mfactor=3,sdfactor=3)
+    sd = dropdims(std(st,dims=1),dims=1)
+    m = dropdims(mean(st,dims=1),dims=1)
+    sdmaxt = argmax(sd); sdmax = sd[sdmaxt]
+    mmaxt = argmax(m); mmax = m[mmaxt]
+    mmint = argmin(m); mmin = m[mmint]
+    bmm = mean(m[bti]);bmsd=std(m[bti])
+    bsdm = mean(sd[bti]);bsdsd=std(sd[bti])
+
+    (!(sdmaxt in bti) && sdmax > bsdm+sdfactor*bsdsd) ||
+    (!(mmaxt in bti) && mmax > bmm+mfactor*bmsd) ||
+    (!(mmint in bti) && mmin < bmm-mfactor*bmsd)
+end
 
 "Check if any factors and their interactions significently modulate response using ANOVA"
 function ismodulative(df;alpha=0.05,interact=true)

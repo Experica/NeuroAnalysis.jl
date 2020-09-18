@@ -230,19 +230,6 @@ function sbxjoinsta(stas,lbTime,ubTime,blkTime)
 end
 
 
-"local RMS contrast of each image, highlighting local structure regions"
-function localcontrast(csta;ws=0.5,ppd=46)
-    dims = size(csta)
-    clc = Array{Float64}(undef,dims)
-    w = round(Int,ws*ppd)
-    w = iseven(w) ? w+1 : w
-    for d in 1:dims[3], c in 1:dims[4]
-        clc[:,:,d,c] = mapwindow(std,csta[:,:,d,c],(w,w))
-    end
-    return clc
-end
-
-
 "peak ROI region and its delay"
 function sbxpeakroi(clc)
     pi = [Tuple(argmax(clc))...]  # peak index
@@ -302,7 +289,7 @@ function sbxresponsivesta!(dataset,lbTime,ubTime,respThres;ws=0.5,msdfactor=3.5,
     p = ProgressMeter.Progress(length(usta),desc="Test STAs ... ")
     for u in keys(usta)
         # u=671
-        clc = localcontrast(usta[u],ws=ws,ppd=ppd)
+        clc = localcontrast(usta[u],round(Int,ws*ppd))
         # cproi = map(c->sbxpeakroi(clc[:,:,:,c]),1:size(clc,4))
         cproi = map(c->sbxpeakroi(clc[:,:,:,c]),1:size(clc,4))
         # idx,c,cpd = sbxpeakroi(clc)
