@@ -245,10 +245,10 @@ end
 
 "peak ROI region and its delay"
 function sbxpeakroi(clc)
-    pi = [Tuple(argmax(clc))...]
-    plc = clc[:,:,pi[3:end]...]
-    segs = seeded_region_growing(plc,[(CartesianIndex(1,1),1),(CartesianIndex(pi[1:2]...),2)])
-    idx = findall(labels_map(segs).==2)
+    pi = [Tuple(argmax(clc))...]  # peak index
+    plc = clc[:,:,pi[3:end]...]   # peak local contrast at best delay
+    segs = seeded_region_growing(plc,[(CartesianIndex(1,1),1),(CartesianIndex(pi[1:2]...),2)])  # find ROI in STA image at best delay
+    idx = findall(labels_map(segs).==2)   # find pixels in ROI
     idxlims = dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2)
     hw = map(i->i[2]-i[1],idxlims)
     center = round.(Int,mean.(idxlims))
@@ -266,13 +266,13 @@ end
 # end
 
 function sbxisresponsive(sta,idx,bdi,badTimeidx;mfactor=3.0,cfactor=3.0)
-    lc = [std(sta[idx,j]) for j in 1:size(sta,3)]
-    lm = [mean(sta[idx,j]) for j in 1:size(sta,3)]
-    lcmaxd = argmax(lc); lcmax = lc[lcmaxd]
-    lmmaxd = argmax(lm); lmmax = lm[lmmaxd]
-    lmmind = argmin(lm); lmmin = lm[lmmind]
-    bmm = mean(lm[bdi]);bmsd=std(lm[bdi])
-    bcm = mean(lc[bdi]);bcsd=std(lc[bdi])
+    lc = [std(sta[idx,j]) for j in 1:size(sta,3)]   # local variance of ROI for each delay
+    lm = [mean(sta[idx,j]) for j in 1:size(sta,3)]  # local mean of ROI for each delay
+    lcmaxd = argmax(lc); lcmax = lc[lcmaxd]  # maxi local variance
+    lmmaxd = argmax(lm); lmmax = lm[lmmaxd]  # maxi local mean
+    lmmind = argmin(lm); lmmin = lm[lmmind]  # min local mean
+    bmm = mean(lm[bdi]);bmsd=std(lm[bdi])  # mean and std of local mean of blank condition 
+    bcm = mean(lc[bdi]);bcsd=std(lc[bdi])  # mean and std of local variance of blank condition 
 
     (!(lcmaxd in badTimeidx) && lcmax > bcm+cfactor*bcsd) ||
     (!(lmmaxd in badTimeidx) && lmmax > bmm+mfactor*bmsd) ||
