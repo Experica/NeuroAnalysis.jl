@@ -43,3 +43,11 @@ heatmap(f2,f1,ps,aspect_ratio=:equal,frame=:grid)
 eori,esf = f1orisf(ps,f1,f2)
 @test sf≈esf
 @test ori≈eori
+
+
+
+img = grating(θ=0.25π,sf=6,ppd=60,size=(3,3))
+heatmap(img,yflip=true,aspect_ratio=:equal,frame=:none)
+
+imgra = imresize_antialiasing(img,(64,64))
+heatmap(imgra,yflip=true,aspect_ratio=:equal,frame=:none)

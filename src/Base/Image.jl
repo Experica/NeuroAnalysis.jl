@@ -237,7 +237,7 @@ end
 """
 2D powerspectrum of an image.
 """
-function powerspectrum2(x,fs;freqrange=[-15,15])
+function powerspectrum2(x::Matrix,fs;freqrange=[-15,15])
     ps = periodogram(x,fs=fs)
     p = power(ps);freqd1,freqd2 = freq(ps)
     fi1 = freqrange[1].<=freqd1.<=freqrange[2]
@@ -245,6 +245,17 @@ function powerspectrum2(x,fs;freqrange=[-15,15])
     p = p[fi1,fi2];freqd1 = freqd1[fi1];freqd2 = freqd2[fi2]
     si1=sortperm(freqd1);si2=sortperm(freqd2)
     return p[si1,si2],freqd1[si1],freqd2[si2]
+end
+
+"2D powerspectrums of images in same size."
+function powerspectrums2(xs::Vector,fs;freqrange=[-15,15])
+    pss=[]
+    ps,f1,f2 = powerspectrum2(xs[1],fs;freqrange)
+    push!(pss,ps)
+    for i in 2:length(xs)
+        push!(pss,powerspectrum2(xs[i],fs;freqrange)[1])
+    end
+    return pss,f1,f2
 end
 
 """
@@ -325,4 +336,16 @@ end
 function clamproi(center,radius,ds)
     vr = map(i->intersect(center[i].+(-radius:radius),1:ds[i]),1:2)
     radius = (minimum ∘ mapreduce)((r,c)->abs.([r[begin],r[end]].-c),append!,vr,center)
+end
+
+function imresize_antialiasing(img,sz)
+    isz = size(img)
+    iisz = isz[1:2]
+    iisz == sz && return img
+    if any(sz .< iisz)
+        σ = (map((o,n)->0.2*o/n, iisz, sz)...,zeros(length(isz)-2)...)
+        return imresize(imfilter(img, KernelFactors.gaussian(σ), NA()), sz)
+    else
+        return imresize(img, sz)
+    end
 end
