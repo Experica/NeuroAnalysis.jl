@@ -94,13 +94,13 @@ function subcond(conds,sc...)
     return conds[sci]
 end
 
-
-function findcond(df::DataFrame,cond)
+"Find Condition with Factor=level"
+function findcond(df::DataFrame;fl...)
     i = trues(size(df,1))
-    for f in keys(cond)
-        i .&= df[f].==cond[f]
+    for f in keys(fl)
+        i .&= df[!,f].==fl[f]
     end
-    return findall(i)
+    return df[findall(i),:]
 end
 function findcond(df::DataFrame,cond::Vector{Any};roundingdigit=3)
     i = trues(size(df,1))

@@ -192,10 +192,11 @@ else
 end
 end
 
-function getparam(d::Dict,name,fromobject="")
+function getparam(d::Dict{String,Any},name,fromobject="")
     for k in keys(d)
         startswith(k,name) && endswith(k,fromobject) && return d[k]
     end
+    nothing
 end
 
 "Get `CondTestCond` DataFrame"
