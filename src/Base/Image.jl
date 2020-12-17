@@ -1,12 +1,11 @@
-function alphablend(src,dst,srcfactor,dstfactor=1-srcfactor)
-    srcfactor.*src+dstfactor.*dst
-end
-function alphablend(src::Colorant,dst::Colorant)
-    srcfactor = alpha(src)
-    srcfactor.*src+(1-srcfactor).*dst
+alphablend(fg,bg,ff,bf=1-ff) = ff.*fg .+ bf.*bg
+"alpha weighted average of foreground and background colors"
+function alphablend(fg::Colorant,bg::Colorant)
+    a = alpha(fg)
+    a*color(fg) + (1-a)*color(bg)
 end
 
-function alphamask(img;color=:coolwarm,radius=0.5,sigma=0.35,masktype="Gaussian")
+function alphamask(img;color=:bwr,radius=0.5,sigma=0.35,masktype="Gaussian")
     cg = cgrad(color)
     m = maximum(abs.(img))
     alphamask(get(cg,img,(-m,m));radius,sigma,masktype)[1]
@@ -22,12 +21,12 @@ function alphamask(src::Matrix{<:Colorant};radius=0.5,sigma=0.15,masktype="Disk"
     elseif masktype=="DiskFade"
         alphamask_diskfade(src,radius,sigma)
     else
-        return (y=deepcopy(src),i=Int[])
+        return (y=coloralpha.(src),i=Int[])
     end
 end
 function alphamask_disk(src,radius)
     dims = size(src);hh,hw = dims./2;id=minimum(dims)
-    dst = deepcopy(src);unmaskidx=Int[];li = LinearIndices(dims)
+    dst = coloralpha.(src);unmaskidx=Int[];li = LinearIndices(dims)
     for i=1:dims[1],j=1:dims[2]
         d = sqrt((i-hh)^2+(j-hw)^2)/id-radius
         if d>0
@@ -40,7 +39,7 @@ function alphamask_disk(src,radius)
 end
 function alphamask_gaussian(src,sigma)
     dims = size(src);hh,hw = dims./2;ir=min(hh,hw)
-    dst = deepcopy(src);unmaskidx=Int[];li = LinearIndices(dims)
+    dst = coloralpha.(src);unmaskidx=Int[];li = LinearIndices(dims)
     for i=1:dims[1],j=1:dims[2]
         r2 = ((i-hh)^2+(j-hw)^2)/ir^2
         dst[i,j]=coloralpha(color(dst[i,j]),alpha(dst[i,j])*exp(-0.5r2/sigma^2))
@@ -50,7 +49,7 @@ function alphamask_gaussian(src,sigma)
 end
 function alphamask_diskfade(src,radius,sigma)
     dims = size(src);hh,hw = dims./2;id=minimum(dims)
-    dst = deepcopy(src);unmaskidx=Int[];li = LinearIndices(dims)
+    dst = coloralpha.(src);unmaskidx=Int[];li = LinearIndices(dims)
     for i=1:dims[1],j=1:dims[2]
         d = sqrt((i-hh)^2+(j-hw)^2)/id-radius
         if d>0
