@@ -552,10 +552,10 @@ uuid = "787d08f9-d448-5407-9aad-5290dd7ab264"
 version = "0.2.9"
 
 [[ImageQualityIndexes]]
-deps = ["ColorVectorSpace", "ImageCore", "ImageDistances", "ImageFiltering", "MappedArrays", "Statistics"]
-git-tree-sha1 = "3af30042a8fe85612a6a106cb20ca2fa1eb67bd6"
+deps = ["ColorVectorSpace", "ImageCore", "ImageDistances", "ImageFiltering", "MappedArrays", "OffsetArrays", "Statistics"]
+git-tree-sha1 = "7811be6a6df3414f167ba597634acbf986dca1b6"
 uuid = "2996bd0c-7a13-11e9-2da2-2f5ce47296a9"
-version = "0.1.4"
+version = "0.2.0"
 
 [[ImageSegmentation]]
 deps = ["Clustering", "DataStructures", "Distances", "ImageFiltering", "Images", "LightGraphs", "LinearAlgebra", "RegionTrees", "SimpleWeightedGraphs", "StaticArrays", "Statistics"]
@@ -576,10 +576,10 @@ uuid = "02fcd773-0e25-5acc-982a-7f6622650795"
 version = "0.8.7"
 
 [[Images]]
-deps = ["AxisArrays", "Base64", "ColorVectorSpace", "FileIO", "Graphics", "ImageAxes", "ImageContrastAdjustment", "ImageCore", "ImageDistances", "ImageFiltering", "ImageMetadata", "ImageMorphology", "ImageQualityIndexes", "ImageShow", "ImageTransformations", "IndirectArrays", "MappedArrays", "OffsetArrays", "Random", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "TiledIteration"]
-git-tree-sha1 = "d0081c23c034f808fb24356be2c8b7283324a8f6"
+deps = ["AxisArrays", "Base64", "ColorVectorSpace", "FileIO", "Graphics", "ImageAxes", "ImageContrastAdjustment", "ImageCore", "ImageDistances", "ImageFiltering", "ImageMetadata", "ImageMorphology", "ImageQualityIndexes", "ImageShow", "ImageTransformations", "IndirectArrays", "OffsetArrays", "Random", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "TiledIteration"]
+git-tree-sha1 = "964c70f13ff782fb2435774bbb3dac97a414c832"
 uuid = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
-version = "0.22.5"
+version = "0.23.1"
 
 [[IndirectArrays]]
 git-tree-sha1 = "c2a145a145dc03a7620af1444e0264ef907bd44f"
@@ -642,10 +642,10 @@ uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
 
 [[JLD2]]
-deps = ["CodecZlib", "DataStructures", "FileIO", "Mmap", "Pkg", "Printf", "UUIDs"]
-git-tree-sha1 = "9353b717ee4e27beab4e902c92a06bb5f160d2cf"
+deps = ["CodecZlib", "DataStructures", "MacroTools", "Mmap", "Pkg", "Printf", "Requires", "UUIDs"]
+git-tree-sha1 = "1b8168c14939e43c7c4d2c9e8f0ddd8718965430"
 uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
-version = "0.1.14"
+version = "0.2.4"
 
 [[JLLWrappers]]
 git-tree-sha1 = "c70593677bbf2c3ccab4f7500d0f4dacfff7b75c"
