@@ -163,20 +163,6 @@ function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
     @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(responsetype)),title=(title))
 end
-function plotpsth(data::RealMatrix,x,y;color=:Reds,timeline=[0],hlines=[],layer=nothing,n=[])
-    xms = x*SecondPerUnit*1000
-    p=heatmap(xms,y,data,color=color,colorbar_title="Spike/Sec",xlabel="Time (ms)",ylabel="Depth (um)")
-    vline!(p,timeline,color=:gray,label="TimeLine")
-    if !isempty(n)
-        pn = n./maximum(n) .* maximum(x) .* 0.2 .+ minimum(x)
-        plot!(p,pn,y,label="Number of Units",color=:seagreen)
-    end
-    if !isnothing(layer)
-        lx = minimum(xms)+5
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
-    end
-    return p
-end
 
 function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
     nd = ndims(ps)
@@ -226,36 +212,49 @@ function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=
     # xlabel="Position_X (Deg)",ylabel="Position_Y (Deg)",xtick=xlim,ytick=[])
 end
 
-function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",clims=nothing,xunit=:ms,cunit=:v,plottype=:heatmap,ystep=20,color=:coolwarm,layer=nothing)
-    nd=ndims(data)
+"Plot Analog Signals"
+function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",ylabel="Depth",clims=nothing,
+    xunit=:ms,yunit=:um,cunit=:v,plottype=:heatmap,hy=0,color=:coolwarm,layer=nothing,n=nothing)
+    nd=ndims(data);ds=1
     if nd==1
-        x=1:length(y)
-        if fs>0
-            x = x./fs.-xext
-            if timeunit==:ms
-                x*=1000
-            end
-        end
-        ylim=maximum(abs.(y))
-        p=plot(x,y,ylims=(-ylim,ylim))
-    elseif nd==2
         if isnothing(x)
-            x=1:size(data,2)
+            x=1:length(data)
             if fs>0
                 x = x./fs.-xext
-                if xunit==:ms
-                    x*=1000
-                end
+                xunit==:ms && (x*=1000)
             end
         end
-        df=1
         if isnothing(clims)
             if cunit==:v
                 lim = maximum(abs.(data))
                 clims = (-lim,lim)
             elseif cunit==:uv
-                df = 1e6
-                lim = maximum(abs.(data))*df
+                ds = 1e6
+                lim = maximum(abs.(data))*ds
+                clims = (-lim,lim)
+            elseif cunit == :fr
+                lim = maximum(data)
+                clims = (0,lim)
+            else
+                clims = :auto
+            end
+        end
+        p=plot(x,data*ds,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)",ylabel="$ylabel ($cunit)")
+    elseif nd==2
+        if isnothing(x)
+            x=1:size(data,2)
+            if fs>0
+                x = x./fs.-xext
+                xunit==:ms && (x*=1000)
+            end
+        end
+        if isnothing(clims)
+            if cunit==:v
+                lim = maximum(abs.(data))
+                clims = (-lim,lim)
+            elseif cunit==:uv
+                ds = 1e6
+                lim = maximum(abs.(data))*ds
                 clims = (-lim,lim)
             elseif cunit == :fr
                 lim = maximum(data)
@@ -266,14 +265,19 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
         end
         if plottype==:heatmap
             if isnothing(y)
-                y = (1:size(data,1))*ystep
+                y = (1:size(data,1))
+                hy>0 && (y*=hy)
             end
-            p=heatmap(x,y,data.*df,color=color,clims=clims,xlabel="$xlabel ($xunit)")
+            p=heatmap(x,y,data*ds,color=color,clims=clims,xlabel="$xlabel ($xunit)",ylabel="$ylabel ($yunit)")
+            if !isnothing(n)
+                pn = n./maximum(n) .* maximum(x) .* 0.2 .+ minimum(x)
+                plot!(p,pn,y,label="Number of Units",color=:seagreen,leg=false)
+            end
         else
-            p=plot(x,data'.*df,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)")
+            p=plot(x,data'*ds,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)",ylabel="$ylabel ($cunit)")
         end
     end
-    !isempty(timeline) && vline!(p,timeline,line=(:grey),label="TimeLine")
+    isempty(timeline) || vline!(p,timeline,line=(:grey),label="TimeLine",leg=false)
     if !isnothing(layer)
         lx = minimum(x)+5
         hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)

@@ -238,9 +238,12 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
         # lb=[0,          -0.4sr,    0.1sr,   -0.4sr,    0.5,    0,     0,       -0.1sr,     0.1,    -0.1sr]
         # ub=[10,         0.4sr,    0.5sr,    0.4sr,    2,      π,     Inf,      0.1sr,     10,       0.1sr]
         # p0=[0,       0,        0.3sr,    0,        1,      π/4,   aei[2],    0,         0.25,       0]
-        ub=[1.5ae,    0.36r,    esu,    0.36r,     1.5ai,    ieru]
-        lb=[0.5ae,   -0.36r,    esl,   -0.36r,     0.5ai,    ierl]
-        p0=[ae,       0,        es,     0,          ai,      ier]
+        ub=[1.5ae,    0.5r+c[1],    esu,    0.5r+c[2],     1.5ai,    ieru]
+        lb=[0.5ae,   -0.5r+c[1],    esl,   -0.5r+c[2],     0.5ai,    ierl]
+        p0=[ae,       c[1],        es,     c[2],          ai,      ier]
+        # ub=[1.5ae,    0.5r+c[1],    0.6r,    0.5r+c[2],     1.5ai,    ieru]
+        # lb=[0.5ae,   -0.5r+c[1],    0.1r,   -0.5r+c[2],     0.5ai,    ierl]
+        # p0=[ae,       c[1],        0.3r,     c[2],          ai,      ier]
     elseif model == :gabor
         fun = (x,y,p) -> gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5],θ=p[6],f=p[7],phase=p[8])
         ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
@@ -263,7 +266,7 @@ predict(fit,x) = fit.fun(x,fit.param)
 function predict(fit,x,y;xygrid=true,yflip=false)
     if xygrid
         z = [fit.fun(i,j,fit.param) for j in y, i in x]
-        yflip && reverse!(z,dims=1)
+        yflip && (z=reverse(z,dims=1))
     else
         z = fit.fun(x,y,fit.param)
     end

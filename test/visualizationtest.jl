@@ -13,8 +13,9 @@ plotcondresponse(df,color=[:black,:gray70,:gray35],linewidth=[3,1,3],grid=true)
 plotcondresponse(df,projection=:polar,color=[:black,:gray70,:gray35],linewidth=[3,1,3],grid=true)
 
 
-
-plotanalog(randn(100,50),color=:vik,clims=(-3,3))
+plotanalog(randn(100))
+plotanalog(randn(50,100),plottype=:line)
+plotanalog(rand(100,100),color=:vik,clims=(-3,3),n=rand(100))
 
 ## color
 huecolors()

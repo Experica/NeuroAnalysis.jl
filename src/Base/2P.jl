@@ -84,20 +84,34 @@ function sbxjoinhartleyFourier(harts)
     uids = length(harts[1]["result"].cellId)
     kernsize = size(harts[1]["result"].kernnor[1])
     dataset = Dict()
-    kerns=Dict();kernraws=Dict();kernests=Dict();deltas=Dict();oris=Dict();oriidxs=Dict(); orifits=Dict(); sfidxs=Dict(); sffits=Dict();sfs=Dict();
-    for u in 1:uids
+    signifs=Dict();taumaxs=Dict();kstdmaxs=Dict();kdeltas=Dict();slambdas=Dict();
+    orimaxs=Dict();sfmaxs=Dict();orimeans=Dict();sfmeans=Dict();
+    kerns=Dict();kernraws=Dict();kernests=Dict();oris=Dict();oriidxs=Dict();
+    orifits=Dict();sfidxs=Dict(); sffits=Dict();sfs=Dict();
 
+    for u in 1:uids
         kern = Array{Float64}(undef,kernsize...,cn)  # Normlized kernels of all hartley
         kernraw = Array{Float64}(undef,kernsize...,cn)  # Raw kernels of all hartley
         kernest = Array{Float64}(undef,kernsize...,cn)  # Estimated kernels of all hartley
-        delta = zeros(1,cn)
+        signif = zeros(1,cn);taumax = zeros(1,cn);kstdmax = zeros(1,cn);
+        kdelta = zeros(1,cn);slambda = zeros(1,cn);orimax = zeros(1,cn);
+        sfmax = zeros(1,cn);orimean = zeros(1,cn);sfmean = zeros(1,cn);
         ori=[]; oriidx=[]; sf=[]; sfidx=[]; orifit=[]; sffit=[];
 
         for c in 1:cn
+            signif[1,c] = harts[c]["result"].signif[u]
+            taumax[1,c] = harts[c]["result"].taumax[u]
+            kstdmax[1,c] = harts[c]["result"].kstdmax[u]
+            kdelta[1,c] = harts[c]["result"].kdelta[u]
+            slambda[1,c] = harts[c]["result"].slambda[u]
+            orimax[1,c] = harts[c]["result"].orimax[u]
+            sfmax[1,c] = harts[c]["result"].sfmax[u]
+            orimean[1,c] = harts[c]["result"].orimean[u]
+            sfmean[1,c] = harts[c]["result"].sfmean[u]
+
             kern[:,:,c] = harts[c]["result"].kernnor[u]
             kernraw[:,:,c] = harts[c]["result"].kernraw[u]
             kernest[:,:,c] = harts[c]["result"].kernest[u]
-            delta[1,c] = harts[c]["result"].kdelta[u]
 
             θ = deg2rad.(harts[c]["result"].oriidx[u])
             fr = harts[c]["result"].oricurve[u]
@@ -107,12 +121,14 @@ function sbxjoinhartleyFourier(harts)
             # fit von Mises for orientation
             fit=()
             try
-                vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
-                if vmfit.converged
-                    x = 0:0.004:2π
-                    y = vmf.(x,vmfit.param...,n=2)
-                    fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
-                end
+                # vmfit = curve_fit((x,p)->vmf.(x,p...,n=2),θ,fr,[1.0,0,1])
+                # if vmfit.converged
+                #     x = 0:0.004:2π
+                #     y = vmf.(x,vmfit.param...,n=2)
+                #     fit = (fit...,circtuningstats(x,y,od=0.5π,s=:o)...,vm=vmfit)
+                # end
+                mfit = fitmodel(:vmn2,θ,fr)
+                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:o)...,vmn2=mfit)
             catch
             end
             push!(orifit,fit)
@@ -125,19 +141,31 @@ function sbxjoinhartleyFourier(harts)
             # fit difference of gaussians
             fit=()
             try
-                dogfit = curve_fit((x,p)->sfdog.(x,p...),fl,fr,[1.0,0,1,1,0,1])
-                if dogfit.converged
-                    fit = (dog=dogfit)
-                end
+                # dogfit = curve_fit((x,p)->sfdog.(x,p...),fl,fr,[1.0,0,1,1,0,1])
+                # if dogfit.converged
+                #     fit = (dog=dogfit)
+                # end
+                mfit = fitmodel(:dog,fl,fr)
+                fit = (sftuningfeature(mfit)...,dog=mfit)
             catch
             end
             push!(sffit,fit)
 
         end
+        signifs[u] = signif
+        taumaxs[u] = taumax
+        kstdmaxs[u] = kstdmax
+        kdeltas[u] = kdelta
+        slambdas[u] = slambda
+        orimaxs[u] = orimax
+        sfmaxs[u] = sfmax
+        orimeans[u] = orimean
+        sfmeans[u] = sfmean
+
         kerns[u] = kern
         kernraws[u] = kernraw
         kernests[u] = kernest
-        deltas[u] = delta
+
         oriidxs[u] = oriidx
         oris[u] = ori
         orifits[u] = orifit
@@ -145,14 +173,24 @@ function sbxjoinhartleyFourier(harts)
         sfs[u] = sf
         sffits[u] = sffit
     end
+    dataset["signif"] = signifs
+    dataset["taumax"] = taumaxs
+    dataset["kstdmax"] = kstdmaxs
+    dataset["kdelta"] = kdeltas
+    dataset["slambda"] = slambdas
+    dataset["orimax"] = orimaxs
+    dataset["sfmax"] = sfmaxs
+    dataset["orimean"] = orimeans
+    dataset["sfmean"] = sfmeans
+
     dataset["kern"] = kerns
     dataset["kernraw"] = kernraws
     dataset["kernest"] = kernests
-    dataset["delta"] = deltas
-    dataset["ori"] = oris
+
+    dataset["oriraw"] = oris
     dataset["oriidx"] = oriidxs
     dataset["orifit"] = orifits
-    dataset["sf"] = sfs
+    dataset["sfraw"] = sfs
     dataset["sfidx"] = sfidxs
     dataset["sffit"] = sffits
 
@@ -258,8 +296,8 @@ function sbxisresponsive(sta,idx,bdi,badTimeidx;mfactor=3.0,cfactor=3.0)
     lcmaxd = argmax(lc); lcmax = lc[lcmaxd]  # maxi local variance
     lmmaxd = argmax(lm); lmmax = lm[lmmaxd]  # maxi local mean
     lmmind = argmin(lm); lmmin = lm[lmmind]  # min local mean
-    bmm = mean(lm[bdi]);bmsd=std(lm[bdi])  # mean and std of local mean of blank condition 
-    bcm = mean(lc[bdi]);bcsd=std(lc[bdi])  # mean and std of local variance of blank condition 
+    bmm = mean(lm[bdi]);bmsd=std(lm[bdi])  # mean and std of local mean of blank condition
+    bcm = mean(lc[bdi]);bcsd=std(lc[bdi])  # mean and std of local variance of blank condition
 
     (!(lcmaxd in badTimeidx) && lcmax > bcm+cfactor*bcsd) ||
     (!(lmmaxd in badTimeidx) && lmmax > bmm+mfactor*bmsd) ||
