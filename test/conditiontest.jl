@@ -28,6 +28,7 @@ condresponse(Dict(2=>rand(nrow(ctc))),ctc,[:Ori])
 
 factorresponse(df)
 
+findcond(cond,Ori=0,SpatialFreq=2)
 @test isresponsive(randn(nrow(ctc)),randn(nrow(ctc)).+1)
 @test isresponsive(randn(nrow(ctc)),randn(nrow(ctc)).+1,cond.i)
 ismodulative([DataFrame(Y=randn(nrow(ctc))) ctc])
