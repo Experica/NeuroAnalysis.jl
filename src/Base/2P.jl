@@ -86,8 +86,8 @@ function sbxjoinhartleyFourier(harts)
     dataset = Dict()
     signifs=Dict();taumaxs=Dict();kstdmaxs=Dict();kdeltas=Dict();slambdas=Dict();
     orimaxs=Dict();sfmaxs=Dict();orimeans=Dict();sfmeans=Dict();
-    kerns=Dict();kernraws=Dict();kernests=Dict();oris=Dict();oriidxs=Dict();
-    orifits=Dict();sfidxs=Dict(); sffits=Dict();sfs=Dict();
+    kerns=Dict();kernraws=Dict();kernests=Dict();oris=Dict();oriLevels=Dict();
+    orifits=Dict();sfLevels=Dict(); sffits=Dict();sfs=Dict();
 
     for u in 1:uids
         kern = Array{Float64}(undef,kernsize...,cn)  # Normlized kernels of all hartley
@@ -96,7 +96,7 @@ function sbxjoinhartleyFourier(harts)
         signif = zeros(1,cn);taumax = zeros(1,cn);kstdmax = zeros(1,cn);
         kdelta = zeros(1,cn);slambda = zeros(1,cn);orimax = zeros(1,cn);
         sfmax = zeros(1,cn);orimean = zeros(1,cn);sfmean = zeros(1,cn);
-        ori=[]; oriidx=[]; sf=[]; sfidx=[]; orifit=[]; sffit=[];
+        ori=[]; oriLevel=[]; sf=[]; sfLevel=[]; orifit=[]; sffit=[];
 
         for c in 1:cn
             signif[1,c] = harts[c]["result"].signif[u]
@@ -113,10 +113,10 @@ function sbxjoinhartleyFourier(harts)
             kernraw[:,:,c] = harts[c]["result"].kernraw[u]
             kernest[:,:,c] = harts[c]["result"].kernest[u]
 
-            θ = deg2rad.(harts[c]["result"].oriidx[u])
-            fr = harts[c]["result"].oricurve[u]
+            θ = deg2rad.(harts[c]["result"].oriLevel[u])
+            fr = harts[c]["result"].oriResp[u]
 
-            push!(oriidx,θ);
+            push!(oriLevel,θ);
             push!(ori,fr);
             # fit von Mises for orientation
             fit=()
@@ -133,10 +133,10 @@ function sbxjoinhartleyFourier(harts)
             end
             push!(orifit,fit)
 
-            fl = harts[c]["result"].sfidx[u]
-            fr = harts[c]["result"].sfcurve[u]
+            fl = harts[c]["result"].sfLevel[u]
+            fr = harts[c]["result"].sfResp[u]
 
-            push!(sfidx,fl);
+            push!(sfLevel,fl);
             push!(sf,fr);
             # fit difference of gaussians
             fit=()
@@ -166,10 +166,10 @@ function sbxjoinhartleyFourier(harts)
         kernraws[u] = kernraw
         kernests[u] = kernest
 
-        oriidxs[u] = oriidx
+        oriLevels[u] = oriLevel
         oris[u] = ori
         orifits[u] = orifit
-        sfidxs[u] = sfidx
+        sfLevels[u] = sfLevel
         sfs[u] = sf
         sffits[u] = sffit
     end
@@ -188,10 +188,10 @@ function sbxjoinhartleyFourier(harts)
     dataset["kernest"] = kernests
 
     dataset["oriraw"] = oris
-    dataset["oriidx"] = oriidxs
+    dataset["oriLevel"] = oriLevels
     dataset["orifit"] = orifits
     dataset["sfraw"] = sfs
-    dataset["sfidx"] = sfidxs
+    dataset["sfLevel"] = sfLevels
     dataset["sffit"] = sffits
 
     return dataset
@@ -363,81 +363,107 @@ function sbxresponsivesta!(dataset,lbTime,ubTime,respThres;ws=0.5,msdfactor=3.5,
     return dataset
 end
 
-rfgabor(x,y,p...) = gaborf(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[3]*p[5],θ=p[6],f=p[7],phase=p[8])
-# rfdog(x,y,p...) = dogf(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3]*p[5],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2]+p[8],σᵢ₁=p[3]*p[9],μᵢ₂=p[4]+p[10],σᵢ₂=p[3]*p[9]*p[5],θᵢ=p[6])
-rfdog(x,y,p...) = dogf(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[3]*p[6],μᵢ₂=p[4],σᵢ₂=p[3]*p[6],θᵢ=0)
+# rfgabor(x,y,p...) = gaborf(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[3]*p[5],θ=p[6],f=p[7],phase=p[8])
+# # rfdog(x,y,p...) = dogf(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3]*p[5],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2]+p[8],σᵢ₁=p[3]*p[9],μᵢ₂=p[4]+p[10],σᵢ₂=p[3]*p[9]*p[5],θᵢ=p[6])
+# rfdog(x,y,p...) = dogf(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[3]*p[6],μᵢ₂=p[4],σᵢ₂=p[3]*p[6],θᵢ=0)
 
-function sbxmodelfit(data,ppd;model=:gabor)
-    alb,aub = abs.(extrema(data))
-    ab = max(alb,aub)
-    rpx = (size(data)[1]-1)/2
-    r = rpx/ppd
+# function sbxmodelfit(data,ppd;model=:gabor)
+#     alb,aub = abs.(extrema(data))
+#     ab = max(alb,aub)
+#     rpx = (size(data)[1]-1)/2
+#     r = rpx/ppd
 
-    x = (mapreduce(i->[i[2] -i[1]],vcat,CartesianIndices(data)) .+ [-(rpx+1) rpx+1])/ppd
-    y = vec(data)
-    rlt = mfun = missing
-    try
-        if model == :dog
-            if aub >= alb
-                ai = 3.5alb
-                ae = aub + ai
-                es = 0.2r;esl=0.15r;esu=0.3r
-                ier=2;ierl = 1.1;ieru = 3
-            else
-                ae = 3.5aub
-                ai = alb + ae
-                es = 0.4r;esl=0.16r;esu=0.6r
-                ier=0.5;ierl = 0.3;ieru = 0.9
-            end
-            # lb=[0,          -0.4sr,    0.1sr,   -0.4sr,    0.5,    0,     0,       -0.1sr,     0.1,    -0.1sr]
-            # ub=[10,         0.4sr,    0.5sr,    0.4sr,    2,      π,     Inf,      0.1sr,     10,       0.1sr]
-            # p0=[0,       0,        0.3sr,    0,        1,      π/4,   aei[2],    0,         0.25,       0]
-            ub=[1.5ae,    0.6r,    esu,    0.6r,     1.5ai,    ieru]
-            lb=[0.2ae,   -0.6r,    esl,   -0.6r,     0.5ai,    ierl]
-            p0=[ae,       0,        es,     0,          ai,    ier]
-            mfun = (x,p) -> rfdog.(x[:,1],x[:,2],p...)
-        elseif model == :gabor
-            ori,sf = freqimagestats(powerspectrum2(data,ppd)...)
-            fub = min(1.5sf,8);flb=max(0.5sf,0.2)
-            ub=[1.5ab,   0.6r,   1.0r,   0.6r,   2.3r,    π,    fub,   1]
-            lb=[0.2ab,  -0.6r,   0.1r,  -0.6r,   0.3r,    0,    flb,   0]
-            p0=[ab,      0,      0.2r,    0,     0.2r,  ori,     sf,   0]
-            mfun = (x,p) -> rfgabor.(x[:,1],x[:,2],p...)
-        end
-        if !ismissing(mfun)
-            mfit = curve_fit(mfun,x,y,p0,lower=lb,upper=ub,
-            maxIter=3000,x_tol=1e-11,g_tol=1e-15,min_step_quality=1e-4,good_step_quality=0.25,lambda_increase=5,lambda_decrease=0.2)
-            rlt = (model=model,radius=r,param=mfit.param,converged=mfit.converged,resid=mfit.resid,r=cor(y,mfun(x,mfit.param)))
-        end
-    catch
-    end
-    return rlt
-end
+#     x = (mapreduce(i->[i[2] -i[1]],vcat,CartesianIndices(data)) .+ [-(rpx+1) rpx+1])/ppd
+#     y = vec(data)
+#     rlt = mfun = missing
+#     try
+#         if model == :dog
+#             if aub >= alb
+#                 ai = 3.5alb
+#                 ae = aub + ai
+#                 es = 0.2r;esl=0.15r;esu=0.3r
+#                 ier=2;ierl = 1.1;ieru = 3
+#             else
+#                 ae = 3.5aub
+#                 ai = alb + ae
+#                 es = 0.4r;esl=0.16r;esu=0.6r
+#                 ier=0.5;ierl = 0.3;ieru = 0.9
+#             end
+#             # lb=[0,          -0.4sr,    0.1sr,   -0.4sr,    0.5,    0,     0,       -0.1sr,     0.1,    -0.1sr]
+#             # ub=[10,         0.4sr,    0.5sr,    0.4sr,    2,      π,     Inf,      0.1sr,     10,       0.1sr]
+#             # p0=[0,       0,        0.3sr,    0,        1,      π/4,   aei[2],    0,         0.25,       0]
+#             ub=[1.5ae,    0.6r,    esu,    0.6r,     1.5ai,    ieru]
+#             lb=[0.2ae,   -0.6r,    esl,   -0.6r,     0.5ai,    ierl]
+#             p0=[ae,       0,        es,     0,          ai,    ier]
+#             mfun = (x,p) -> rfdog.(x[:,1],x[:,2],p...)
+#         elseif model == :gabor
+#             ori,sf = freqimagestats(powerspectrum2(data,ppd)...)
+#             fub = min(1.5sf,8);flb=max(0.5sf,0.2)
+#             ub=[1.5ab,   0.6r,   1.0r,   0.6r,   2.3r,    π,    fub,   1]
+#             lb=[0.2ab,  -0.6r,   0.1r,  -0.6r,   0.3r,    0,    flb,   0]
+#             p0=[ab,      0,      0.2r,    0,     0.2r,  ori,     sf,   0]
+#             mfun = (x,p) -> rfgabor.(x[:,1],x[:,2],p...)
+#         end
+#         if !ismissing(mfun)
+#             mfit = curve_fit(mfun,x,y,p0,lower=lb,upper=ub,
+#             maxIter=3000,x_tol=1e-11,g_tol=1e-15,min_step_quality=1e-4,good_step_quality=0.25,lambda_increase=5,lambda_decrease=0.2)
+#             rlt = (model=model,radius=r,param=mfit.param,converged=mfit.converged,resid=mfit.resid,r=cor(y,mfun(x,mfit.param)))
+#         end
+#     catch
+#     end
+#     return rlt
+# end
 "fit responsive sta to each type of models"
-function sbxrffit!(dataset;model=[:gabor,:dog])
+# function sbxrffit!(dataset;model=[:gabor,:dog])
+#     ulsta = dataset["ulsta"]
+#     ulroi = dataset["ulroi"]
+#     ppd = dataset["ppd"]
+#     uconeresponsive = dataset["uconeresponsive"]
+
+#     if !haskey(dataset,"urf")
+#         dataset["urf"]=Dict()
+#     end
+#     urf = dataset["urf"]
+#     p = ProgressMeter.Progress(length(ulsta),desc="Fit RFs ... ")
+#     for u in keys(ulsta)
+#         if !haskey(urf,u)
+#             urf[u] = Dict()
+#         end
+#         exs=map(i->i.ex,dataset["ucex"][u])
+#         ds=map(i->i.d,dataset["ucex"][u])
+#         for m in model
+#             urf[u][m] = map(i->isequal(uconeresponsive[u][i],false) ? nothing : sbxmodelfit(ulsta[u][:,:,ds[i],i],ppd,model=m),1:length(exs))
+#         end
+#         next!(p)
+#     end
+#     return dataset
+# end
+
+function sbxfitsta!(dataset;model=[:gabor,:dog])
     ulsta = dataset["ulsta"]
-    ulroi = dataset["ulroi"]
     ppd = dataset["ppd"]
     uconeresponsive = dataset["uconeresponsive"]
 
-    if !haskey(dataset,"urf")
-        dataset["urf"]=Dict()
+    if !haskey(dataset,"ulfit")
+        dataset["ulfit"]=Dict()
     end
-    urf = dataset["urf"]
-    p = ProgressMeter.Progress(length(ulsta),desc="Fit RFs ... ")
+    ulfit = dataset["ulfit"]
+    p = ProgressMeter.Progress(length(ulsta),desc="Fit STAs ... ")
     for u in keys(ulsta)
-        if !haskey(urf,u)
-            urf[u] = Dict()
+        if !haskey(ulfit,u)
+            ulfit[u] = Dict()
         end
-        exs=map(i->i.ex,dataset["ucex"][u])
-        ds=map(i->i.d,dataset["ucex"][u])
+        exs=map(i->i.ex,dataset["ulcex"][u])
+        ds=map(i->i.pd,dataset["ulcex"][u])
         for m in model
-            urf[u][m] = map(i->isequal(uconeresponsive[u][i],false) ? nothing : sbxmodelfit(ulsta[u][:,:,ds[i],i],ppd,model=m),1:length(exs))
+            ulfit[u][m] = map(i->isequal(uconeresponsive[u][i],false) ? missing : fitmodel2(m,ulsta[u][:,:,ds[i],i],ppd), 1:length(exs))
         end
         next!(p)
     end
     return dataset
 end
+
+
 
 function sbxgetbestconesta(dataset)
     uconeresponsive = dataset["uconeresponsive"]
