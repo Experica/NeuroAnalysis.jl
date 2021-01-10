@@ -222,36 +222,25 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
     rlt = fun = missing
     if model == :dog
         if aub >= alb
-            ai = 3.5alb
+            ai = 5alb
             ae = aub + ai
-            es = 0.2r;esl=0.15r;esu=0.3r
-            ier=2;ierl = 1.1;ieru = 3
         else
-            ae = 3.5aub
+            ae = 5aub
             ai = alb + ae
-            es = 0.4r;esl=0.16r;esu=0.6r
-            ier=0.5;ierl = 0.3;ieru = 0.9
         end
-        # rfdog(x,y,p...) = dogf(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3]*p[5],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2]+p[8],σᵢ₁=p[3]*p[9],μᵢ₂=p[4]+p[10],σᵢ₂=p[3]*p[9]*p[5],θᵢ=p[6])
-        fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[3]*p[6],μᵢ₂=p[4],σᵢ₂=p[3]*p[6],θᵢ=0)
+        fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[6],μᵢ₂=p[4],σᵢ₂=p[6],θᵢ=0)
         ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
-        # lb=[0,          -0.4sr,    0.1sr,   -0.4sr,    0.5,    0,     0,       -0.1sr,     0.1,    -0.1sr]
-        # ub=[10,         0.4sr,    0.5sr,    0.4sr,    2,      π,     Inf,      0.1sr,     10,       0.1sr]
-        # p0=[0,       0,        0.3sr,    0,        1,      π/4,   aei[2],    0,         0.25,       0]
-        ub=[1.5ae,    0.5r+c[1],    esu,    0.5r+c[2],     1.5ai,    ieru]
-        lb=[0.5ae,   -0.5r+c[1],    esl,   -0.5r+c[2],     0.5ai,    ierl]
-        p0=[ae,       c[1],        es,     c[2],          ai,      ier]
-        # ub=[1.5ae,    0.5r+c[1],    0.6r,    0.5r+c[2],     1.5ai,    ieru]
-        # lb=[0.5ae,   -0.5r+c[1],    0.1r,   -0.5r+c[2],     0.5ai,    ierl]
-        # p0=[ae,       c[1],        0.3r,     c[2],          ai,      ier]
+        ub=[5ae,    0.5r+c[1],    0.9r,    0.5r+c[2],     5ai,    0.9r]
+        lb=[0,     -0.5r+c[1],    0.1r,   -0.5r+c[2],     0,      0.1r]
+        p0=[ae,      c[1],        0.3r,     c[2],         ai,     0.3r]
     elseif model == :gabor
         fun = (x,y,p) -> gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5],θ=p[6],f=p[7],phase=p[8])
         ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
 
         ori,sf = f1orisf(powerspectrum2(data,ppu)...)
-        ub=[1.5ab,   0.5r+c[1],   0.6r,    0.5r+c[2],    0.6r,      prevfloat(float(π)),     10,     prevfloat(1.0)]
-        lb=[0.5ab,  -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.1r,                0,             0.1,           0]
-        p0=[ab,      c[1],        0.3r,     c[2],        0.3r,               ori,            sf,            0.5]
+        ub=[5ab,   0.5r+c[1],   0.9r,    0.5r+c[2],    0.9r,      prevfloat(float(π)),     12,     prevfloat(1.0)]
+        lb=[0,    -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.1r,                0,             0.05,           0]
+        p0=[ab,    c[1],        0.3r,     c[2],        0.3r,               ori,            sf,            0.5]
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
@@ -717,7 +706,7 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,e
 end
 
 "Check Layer Boundaries"
-function checklayer!(ls::Dict;ln=["WM","6","5","5/6","4Cb","4Ca","4C","4B","4A","4A/B","3","2","2/3","1","Out"])
+function checklayer!(ls::Dict;ln=["WM","6","5","56","4Cb","4Ca","4C","4B","4A","4AB","3","2","23","1","Out"])
     n = length(ln)
     for i in 1:n-1
         if haskey(ls,ln[i])
