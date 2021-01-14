@@ -40,9 +40,9 @@ version = "3.5.0+3"
 
 [[ArrayInterface]]
 deps = ["LinearAlgebra", "Requires", "SparseArrays"]
-git-tree-sha1 = "60afb1d1c04370bbcce43f5ec805bfdb81037627"
+git-tree-sha1 = "a0c202d58f0f99156bd77972fe75ae8498fd9f4b"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "2.14.11"
+version = "2.14.13"
 
 [[Artifacts]]
 deps = ["Pkg"]
@@ -270,10 +270,10 @@ deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[Distributions]]
-deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "StaticArrays", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "44707146bef189b05872742c96cfeee89e2400a3"
+deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns"]
+git-tree-sha1 = "5c6a645ea65af6aac4f96b5dedaae660b7b56267"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.24.7"
+version = "0.24.10"
 
 [[DocStringExtensions]]
 deps = ["LibGit2", "Markdown", "Pkg", "Test"]
@@ -353,15 +353,15 @@ version = "0.8.1"
 
 [[FilePathsBase]]
 deps = ["Dates", "Mmap", "Printf", "Test", "UUIDs"]
-git-tree-sha1 = "74b340c6f78b6ee2699f8bd2f790a97f0122349f"
+git-tree-sha1 = "2c04f566b1d57cc67e75cb058c2b4080d055156c"
 uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
-version = "0.9.6"
+version = "0.9.7"
 
 [[FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays"]
-git-tree-sha1 = "c1cf9e87a5c45f0c05dc31ae95757f706e70865a"
+git-tree-sha1 = "ff537e5a3cba92fb48f30fec46723510450f2c0e"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.10.1"
+version = "0.10.2"
 
 [[FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "SparseArrays", "StaticArrays"]
@@ -475,9 +475,9 @@ version = "1.5.0"
 
 [[HDF5]]
 deps = ["Blosc", "Compat", "HDF5_jll", "Libdl", "Mmap", "Random", "Requires"]
-git-tree-sha1 = "8be8b31df938483ba2ab27f38a8bc91a9e43ae92"
+git-tree-sha1 = "a7ba439762caed0b98d1c7f00621b8b058c62891"
 uuid = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
-version = "0.14.3"
+version = "0.15.0"
 
 [[HDF5_jll]]
 deps = ["Artifacts", "JLLWrappers", "LibCURL_jll", "Libdl", "OpenSSL_jll", "Pkg", "Zlib_jll"]
@@ -799,9 +799,9 @@ version = "1.9.2+2"
 
 [[MAT]]
 deps = ["BufferedStreams", "CodecZlib", "HDF5", "SparseArrays"]
-git-tree-sha1 = "2b8a117b0748d0e0cd1b8a8edfea24898e2b00d1"
+git-tree-sha1 = "5c62992f3d46b8dce69bdd234279bb5a369db7d5"
 uuid = "23992714-dd62-5051-b70f-ba57cb901cac"
-version = "0.10.0"
+version = "0.10.1"
 
 [[MKL_jll]]
 deps = ["IntelOpenMP_jll", "Libdl", "Pkg"]
@@ -929,9 +929,9 @@ version = "0.5.3+4"
 
 [[Optim]]
 deps = ["Compat", "FillArrays", "LineSearches", "LinearAlgebra", "NLSolversBase", "NaNMath", "Parameters", "PositiveFactorizations", "Printf", "SparseArrays", "StatsBase"]
-git-tree-sha1 = "bc382053437572df944d02be10b5142808afab7e"
+git-tree-sha1 = "9f563aaabe98c0e5b21697b963d1e64377e9de5a"
 uuid = "429524aa-4258-5aef-a3af-852621145aeb"
-version = "1.2.1"
+version = "1.2.2"
 
 [[OptimBase]]
 deps = ["NLSolversBase", "Printf", "Reexport"]
