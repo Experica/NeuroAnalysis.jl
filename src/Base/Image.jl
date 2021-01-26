@@ -283,7 +283,7 @@ function exd(sta)
     exi = [argmin(sta),argmax(sta)]
     ex = sta[exi]
     absexi = argmax(abs.(ex))
-    (ex=ex[absexi],d=exi[absexi][3])
+    (ex=ex[absexi],d=ndims(sta) > 2 ? exi[absexi][3] : missing)
 end
 """
 local RMS contrast of each image, highlighting local structure regions
@@ -301,21 +301,21 @@ function localcontrast(data::Matrix,w::Integer)
     w = iseven(w) ? w+1 : w
     mapwindow(std,data,(w,w))
 end
-"peak ROI square region and its delay"
+"peak ROI region and its delay index"
 function peakroi(clc)
     ds = size(clc)[1:2]
-    pi = [Tuple(argmax(clc))...]
-    plc = clc[:,:,pi[3:end]...]
-    return (peakroi(plc,ds=ds,pi=pi[1:2])...,pd=pi[3])
+    i = [Tuple(argmax(clc))...]
+    plc = clc[:,:,i[3:end]...]
+    return (peakroi(plc,ds=ds,i=i[1:2])...,pdi=i[3])
 end
-function peakroi(data::Matrix;ds = size(data),pi = [Tuple(argmax(data))...])
+function peakroi(data::Matrix;ds = size(data),i = [Tuple(argmax(data))...])
     segs = seeded_region_growing(data,[(CartesianIndex(1,1),1),(CartesianIndex(1,ds[2]),1),(CartesianIndex(ds[1],1),1),
-                            (CartesianIndex(ds...),1),(CartesianIndex(pi...),2)])
+                            (CartesianIndex(ds...),1),(CartesianIndex(i...),2)])
     idx = findall(labels_map(segs).==2)
     roi = roiwindow(idx)
     return (i=idx,center=roi.center,radius=round(Int,maximum(roi.hw)/2))
 end
-"Get ROI region from indices"
+"Get ROI from indices"
 function roiwindow(idx)
     idxlims = dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2)
     hw = map(i->i[2]-i[1],idxlims)
@@ -327,11 +327,11 @@ function mergeroi(rois,ds;roimargin=0)
     cs = mapfoldl(r->r.center,hcat,rois,init=zeros(Int,2,0))
     center = round.(Int,vec(mean(cs,dims=2)))
     cdev = maximum(Distances.colwise(Euclidean(),cs,center))
-    radius = round(Int,(maximum(map(r->r.radius,rois))+cdev)*(1+roimargin))
+    radius = round(Int,(maximum(r->r.radius,rois)+cdev)*(1+roimargin))
     radius = clamproi(center,radius,ds)
     return (;center,radius)
 end
-"Confine ROI radius so ROI is in the image"
+"Confine ROI radius so that ROI is within the image"
 function clamproi(center,radius,ds)
     vr = map(i->intersect(center[i].+(-radius:radius),1:ds[i]),1:2)
     radius = (minimum ∘ mapreduce)((r,c)->abs.([r[begin],r[end]].-c),append!,vr,center)

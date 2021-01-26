@@ -161,7 +161,7 @@ function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
     a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2)) * sin(2π*(f * y′ + phase))
 end
 
-"Fit model to data"
+"Fit 1D model to data"
 function fitmodel(model,x,y)
     lb,ub = extrema(y)
     bm = (lb+ub)/2
@@ -198,9 +198,9 @@ function fitmodel(model,x,y)
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
-        param=ofit.minimizer; yy = fun(x,param); r = cor(y,yy)
+        param=ofit.minimizer; yy = fun(x,param)
 
-        rlt = (;model,fun,param,r)
+        rlt = (;model,fun,param,goodnessoffit(y,yy,k=length(param))...)
     end
     return rlt
 end
@@ -244,9 +244,9 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
-        param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param); resid = y .- yy; r = cor(y,yy)
+        param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param); resid = y .- yy
 
-        rlt = (;model,fun,param,radius,resid,r)
+        rlt = (;model,fun,param,radius,resid,goodnessoffit(y,yy,e=resid,k=length(param))...)
     end
     return rlt
 end
@@ -260,6 +260,49 @@ function predict(fit,x,y;xygrid=true,yflip=false)
         z = fit.fun(x,y,fit.param)
     end
     z
+end
+
+"""
+Goodness of Fit Metrics:
+
+- r: Pearson Correlation Coefficient
+- mae: Mean Absolute Error
+- rmse: Root Mean Squared Error
+- rae: Relative Absolute Error
+- rse: Relative Squared Error
+- r2: R Squared
+- adjr2: Adjusted-R²
+- s: Residual Standard Error
+- aic: Akaike Information Criterion
+- bic: Bayesian Information Criterion
+
+1. y: responses
+2. ŷ: model predictions
+
+- n: sample size
+- e: errors(y - ŷ)
+- k: number of predictors
+- df: degree of freedom(n - k - 1)
+"""
+function goodnessoffit(y,ŷ;n = length(y),e = y .- ŷ,k=missing,df = n-k-1)
+    r = cor(y,ŷ)
+    ae = abs.(e)
+    e2 = e.^2
+    ssᵣ = sum(e2)
+    mae = mean(ae)
+    rmse = sqrt(mean(e2))
+    ydm = y .- mean(y)
+    ssₜ = sum(ydm.^2)
+    rae = sum(ae)/sum(abs.(ydm))
+    fvu = ssᵣ/ssₜ
+    rse = sqrt(fvu)
+    r2 = 1 - fvu
+    s = ssᵣ/df
+    s = s < 0 ? missing : sqrt(s)
+    adjr2 = 1 - fvu*(n-1)/df
+    aic = n*log(ssᵣ) + 2k
+    bic = n*log(ssᵣ/n) + k*log(n)
+    (;r,mae,rmse,rae,rse,r2,adjr2,s,aic,bic)
 end
 
 function searchclosest(v,vs;start::Integer=1,step::Integer=1,circ=false)
@@ -541,8 +584,8 @@ Spike Triggered Average of Images
 """
 function sta(x::AbstractMatrix,y::AbstractVector;norm=nothing,whiten=nothing)
     r = x'*y
-    !isnothing(norm) && (r/=norm)
-    !isnothing(whiten) && (r=whiten*r)
+    isnothing(norm) || (r/=norm)
+    isnothing(whiten) || (r=whiten*r)
 
     # r = x'*x\r
     # r=length(y)*inv(cov(x,dims=1))*r
