@@ -394,14 +394,14 @@ Properties of Spatial Frequency Tuning
 
     - Prefered Spatial Frequency
     - Half Width at Half Peak-to-Trough
-    - Freq Passing Type {N,H,L,B}
+    - Freq Passing Type {A:All Pass, H:High Pass, L:Low Pass, B:Band Pass}
     - Bandwidth ``log2(H_cut/L_cut)``
-    - Half height Bandwidth: for plotting SF bandwidth distribution map
+    - Passwidth at Half Peak-to-Trough constrained by low freq lim and high freq lim
 
 1. x: sf in cycle/degree
 2. y: responses
 """
-function sftuningfeature(x,y)
+function sftuningfeature(x,y;low=minimum(x),high=maximum(x))
     maxi = argmax(y)
     mini = argmin(y)
     maxr = y[maxi]
@@ -409,11 +409,12 @@ function sftuningfeature(x,y)
     px = x[maxi]
 
     hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=false,x=x)
-    pt = all(isinf.(hw)) ? 'N' : isinf(hw[1]) ? 'L' : isinf(hw[2]) ? 'H' : 'B'
+    pt = all(isinf.(hw)) ? 'A' : isinf(hw[1]) ? 'L' : isinf(hw[2]) ? 'H' : 'B'
     bw = log2((px+hw[2])/(px-hw[1]))
-    bw1 = (all(isinf.(hw)) & maxr != 0) ? 10 : (all(isinf.(hw)) & maxr == 0) ? 0 : isinf(hw[1]) ? px+hw[2] : isinf(hw[2]) ? 10-px+hw[1] : hw[1]+hw[2]
+    pw = pt == 'A' ? high-low : pt == 'L' ? px-low+hw[2] : pt == 'H' ? high-px+hw[1] : sum(hw)
+    # bw1 = (all(isinf.(hw)) & maxr != 0) ? 10 : (all(isinf.(hw)) & maxr == 0) ? 0 : isinf(hw[1]) ? px+hw[2] : isinf(hw[2]) ? 10-px+hw[1] : hw[1]+hw[2]
 
-    (;psf=px,sfhw=hw,sftype=pt,sfbw=bw,sfbw1=bw1)
+    (;psf=px,sfhw=hw,sftype=pt,sfbw=bw,sfpw=pw)
 end
 
 """
