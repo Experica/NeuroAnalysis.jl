@@ -112,16 +112,16 @@ function hlpass(y,fs;high=0,low=Inf)
 end
 
 "time to sample index"
-time2sampleindex(t,fs;secondperunit=1,t0sampleindex::Integer=1) = round(Int,t*secondperunit*fs)+t0sampleindex
+time2sampleindex(t,fs;secondperunit=1,minsampleindex::Integer=0,maxsampleindex::Integer=typemax(Int64)) = clamp(round(Int,t*secondperunit*fs),minsampleindex,maxsampleindex)
 "sample index to time"
-sampleindex2time(s,fs;secondperunit=1,t0sampleindex::Integer=1) = (s-t0sampleindex)/fs/secondperunit
+sampleindex2time(s,fs;secondperunit=1,mintime::Real=0,maxtime::Real=typemax(Float64)) = clamp(s/fs/secondperunit,mintime,maxtime)
 
 "Convert epochs in time to sample index"
-function epoch2sampleindex(epochs,fs;t0sampleindex::Integer=1)
+function epoch2sampleindex(epochs,fs;minsampleindex::Integer=1,maxsampleindex::Integer=typemax(Int64))
     nepoch = size(epochs,1)
-    epochis = time2sampleindex.(epochs,fs;secondperunit=SecondPerUnit,t0sampleindex=t0sampleindex)
+    epochis = time2sampleindex.(epochs,fs;secondperunit=SecondPerUnit,minsampleindex,maxsampleindex)
     minepochlength = minimum(diff(epochis,dims=2))
-    si = [range(max(1,epochis[i,1]),length=minepochlength) for i in 1:nepoch]
+    si = [range(epochis[i,1],length=minepochlength) for i in 1:nepoch]
     return nepoch==1 ? si[1] : si
 end
 
@@ -183,4 +183,27 @@ function powerspectrum(x,fs;freqrange=[0,100],nw=4)
         freqs = freq(ps)[fi];p = power(ps)[fi]
     end
     return p,freqs
+end
+
+@doc raw"""
+Discrete Fourier Transform at a frequency
+
+```math
+DFT[k] = \sum_{n=0}^{N-1} x[n] e^{\frac{-2\Pi ink}{N}}, k = 0:N-1, N = length(x), fₛ sampling x, fₖ = fₛ/N sampling DTFT
+```
+
+1. signal
+2. simpling frequency of signal
+3. at which frequency DFT is directly evaluated
+"""
+function dft(x,fs,f)
+    N = length(x)
+    fₖ = fs/N
+    k = round(Int,f/fₖ)
+    F = zero(ComplexF64)
+    Ω = [exp(-im*2π*n/N) for n in 0:(N-1)]
+    @inbounds for n in 0:(N-1)
+        F += x[n+1] * Ω[((n*k)%N)+1]
+    end
+    return F
 end

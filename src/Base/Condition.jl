@@ -219,6 +219,19 @@ function condresponse(urs::Dict,ctc::DataFrame,factors)
     isempty(vf) && error("No Valid Factor Found.")
     condresponse(urs,condin(ctc[:,vf]))
 end
+"""
+Mean image responses of each conditions
+
+1. rs: responses of each epoch [height, width, nepoch]
+2. ci: epoch indices of repeats for each condition
+"""
+function condimageresponse(rs,ci)
+    cr = Array{Float64}(undef,size(rs)[1:2]...,length(ci))
+    @inbounds for i in eachindex(ci)
+        @views cr[:,:,i] = dropdims(mean(rs[:,:,ci[i]],dims=3),dims=3)
+    end
+    cr
+end
 
 "Condition Response in Factor Space"
 function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[:,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))

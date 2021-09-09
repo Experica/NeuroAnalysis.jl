@@ -82,6 +82,17 @@ function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     end
     return r
 end
+"""
+Frame Response, (R - R₀) / R₀
+"""
+function frameresponse(frames;frameindex=1:size(frames,3),baseframeindex=[],reducefun=mean)
+    @views r = dropdims(reducefun(frames[:,:,frameindex],dims=3),dims=3)
+    if !isempty(baseframeindex)
+        @views b = dropdims(reducefun(frames[:,:,baseframeindex],dims=3),dims=3)
+        return r ./ b .- 1
+    end
+    return r
+end
 function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli=0,
     stimuligroup=Any[1:length(findall(ustimuli.!=blankstimuli))],filter=nothing,sdfactor=nothing)
     if filter==nothing
@@ -138,6 +149,43 @@ function oicomplexmap(maps,angles;isangledegree=true,isangleinpi=true,presdfacto
     amap,mmap = angleabs(cmap)
     return Dict("complex"=>cmap,"angle"=>amap,"abs"=>mmap,"rad"=>sort(angles),"deg"=>angledegree)
 end
+"""
+Complex sum of angles and corresponding image responses
+
+1. image responses [height, width, n]
+2. angles in radius [n]
+
+- centerfun: function to get center for sdfactor (median)
+- presdfactor: center +- sdfactor * sd, for clamping before filtering
+- filter: filter kernel
+- sufsdfactor: center +- sdfactor * sd, for clamping after filtering
+- responsesign: increasing/decreasing(+/-) response
+
+return complex map, angle map, and magnitude map
+"""
+function complexmap(maps,angles;centerfun=median,presdfactor=3,filter=Kernel.DoG((3,3,0)),sufsdfactor=3,responsesign=-1)
+    if !isnothing(presdfactor)
+        c = centerfun(maps,dims=(1,2));sd = std(maps,dims=(1,2))
+        maps = clamp.(maps,c.-presdfactor.*sd,c.+presdfactor.*sd)
+    end
+    if !isnothing(filter)
+        # remove high/low freq artifacts [~2mm, ~0.1mm]
+        maps = imfilter(maps,filter)
+    end
+    if !isnothing(sufsdfactor)
+        c = centerfun(maps,dims=(1,2));sd = std(maps,dims=(1,2))
+        maps = clamp.(maps,c.-sufsdfactor.*sd,c.+sufsdfactor.*sd)
+    end
+    maps = sign(responsesign)*maps
+    maps .-= minimum(maps)
+    cmap = dropdims(sum(maps .* reshape(exp.(im*angles),1,1,:),dims=3),dims=3)
+    amap = mod2pi.(angle.(cmap) .+ 2π)
+    mmap = abs.(cmap)
+    rad = sort(angles)
+    deg = rad2deg.(rad)
+    return (;cmap,amap,mmap,rad,deg)
+end
+
 function angleabs(cmap)
     amap = angle.(cmap);amap[amap.<0]=amap[amap.<0] .+ 2pi
     mmap = clampscale(abs.(cmap))

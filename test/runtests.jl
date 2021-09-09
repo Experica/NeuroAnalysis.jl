@@ -7,7 +7,7 @@ using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO
     include("conditiontest.jl")
     include("regressiontest.jl")
     include("visualizationtest.jl")
-    
+
 
 
 
@@ -54,6 +54,20 @@ push!(z,[dogf(i,j,σₑ₁=0.8,σₑ₂=0.5,σᵢ₁=1,σᵢ₂=0.7,θₑ=0.25π
 p = plot(layout=(2,2),legend=false,size=(600,600))
 foreach(i->heatmap!(p,z[i],subplot=i,aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
 p
+
+
+fs = 20
+f = 2
+t = 0:1/fs:10
+x = cos.(2π*(f*t))
+plot(t,x,xlabel="Second")
+F = dft(x,fs,f)
+FF = rfft(x)
+plot(abs.(FF))
+
+i = round(Int,f*length(x)/fs) + 1
+@test FF[i] ≈ F
+
 
 
 end

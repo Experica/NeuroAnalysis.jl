@@ -1,7 +1,8 @@
-using FileIO,JLD2,MAT,YAML
+using FileIO,JLD2,MAT,YAML,Mmap,LoopVectorization
 import FileIO: save
 
 include("SpikeGLX.jl")
+include("Imager.jl")
 
 """
 Drop array dims according to `MATLAB` convention.

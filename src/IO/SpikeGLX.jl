@@ -41,11 +41,11 @@ function refchmasknp(dataset)
     else
         refch = [rorefch]
     end
-    chmasknp(nch,refch,dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
+    chmasknp(nch,refch,dataset["ap"]["meta"]["nrowsaved"],dataset["ap"]["meta"]["ncolsaved"])
 end
 "Logical mask for `Neuropixels` excluded channels in probe shape"
 function exchmasknp(dataset;type="lf",exch::Vector{Int}=Int[])
     nch = dataset["ap"]["meta"]["acqApLfSy"][1]
     exchs = dataset[type]["meta"]["excludechans"]
-    chmasknp(nch,union(exchs,exch),dataset["ap"]["meta"]["nrow"],dataset["ap"]["meta"]["ncol"])
+    chmasknp(nch,union(exchs,exch),dataset["ap"]["meta"]["nrowsaved"],dataset["ap"]["meta"]["ncolsaved"])
 end
