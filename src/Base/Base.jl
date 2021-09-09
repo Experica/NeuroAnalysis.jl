@@ -1,4 +1,4 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,Distances,
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,Distances,CategoricalArrays,
 ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz, ImageSegmentation,ProgressMeter
 import Base: vec,range
 import StatsBase: predict

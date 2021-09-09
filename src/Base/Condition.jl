@@ -146,7 +146,7 @@ end
 "Check if any factors and their interactions significently modulate response using ANOVA"
 function ismodulative(df;alpha=0.05,interact=true)
     xns = filter(i->i!=:Y,propertynames(df))
-    categorical!(df,xns)
+    foreach(i->df[!,i]=categorical(df[!,i]),xns)
     if interact
         f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
     else
