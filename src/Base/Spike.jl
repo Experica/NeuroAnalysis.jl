@@ -44,7 +44,7 @@ function epochspiketrain(x,mins,maxs;isminzero::Bool=false,ismaxzero::Bool=false
     end
     return (y=ys,n=ns,w=ws,i=is)
 end
-epochspiketrain(x,minmaxs::AbstractMatrix;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false) = epochspiketrain(x,minmaxs[:,1],minmaxs[:,2],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
+epochspiketrain(x,minmaxs::AbstractMatrix;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false) = @views epochspiketrain(x,minmaxs[:,1],minmaxs[:,2],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
 "Epochs of a Spike Train in between binedges"
 function epochspiketrain(x,binedges;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     nbinedges = length(binedges); nbinedges<2 && error("Have $nbinedges binedges, need at least two binedges.")
@@ -78,6 +78,7 @@ Response of each epoch of a Spike Train, could be mean firing rate or number of 
 !!! note
     This is a faster(~500x) version compared to [`epochspiketrainresponse`](@ref), but only works when `x`, `mins` and `maxs` are ascendingly ordered, and each `maxs-mins` range are none-overlapping.
 """
+epochspiketrainresponse_ono(x,minmaxs::AbstractMatrix;israte::Bool=true,isnan2zero::Bool=true) = @views epochspiketrainresponse_ono(x,minmaxs[:,1],minmaxs[:,2];israte,isnan2zero)
 function epochspiketrainresponse_ono(x,mins,maxs;israte::Bool=true,isnan2zero::Bool=true)
     n = length(mins)
     if n != length(maxs)

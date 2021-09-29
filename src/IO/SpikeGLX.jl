@@ -12,7 +12,7 @@ Note that each channel may have its own gain.
 2. meta: corresponding meta for y
 """
 function gaincorrectnp(y,meta)
-    yt = meta["from"]
+    yt = meta["from"][1:2]
     fi2v = meta["fi2v"]
     gain = meta["ro$(yt)gain"]
     nch = length(gain)
@@ -44,8 +44,8 @@ function refchmasknp(dataset)
     chmasknp(nch,refch,dataset["ap"]["meta"]["nrowsaved"],dataset["ap"]["meta"]["ncolsaved"])
 end
 "Logical mask for `Neuropixels` excluded channels in probe shape"
-function exchmasknp(dataset;type="lf",exch::Vector{Int}=Int[])
-    nch = dataset["ap"]["meta"]["acqApLfSy"][1]
-    exchs = dataset[type]["meta"]["excludechans"]
-    chmasknp(nch,union(exchs,exch),dataset["ap"]["meta"]["nrowsaved"],dataset["ap"]["meta"]["ncolsaved"])
+function exchmasknp(dataset;imecindex="",datatype="lf",exch::Vector{Int}=Int[])
+    nch = dataset["ap$imecindex"]["meta"]["acqApLfSy"][1]
+    exchs = dataset[datatype]["meta"]["excludechans"]
+    chmasknp(nch,union(exchs,exch),dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
 end

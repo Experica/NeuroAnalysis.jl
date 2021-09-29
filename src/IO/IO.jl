@@ -142,19 +142,24 @@ function prepare!(d::Dict)
         settimeunit(d["secondperunit"])
     end
     if haskey(d,"sourceformat")
-        sf = d["sourceformat"]
-        if sf=="Ripple"
+        fmt = d["sourceformat"]
+        if fmt=="Ripple"
             d=prepare_ripple!(d)
-        elseif sf=="OI"
+        elseif fmt=="OI"
             d=prepare_oi!(d)
-        elseif sf=="Experica"
+        elseif fmt=="Experica"
             d=prepare_experica!(d)
         end
     end
-    if !haskey(d,"spike")
-        if haskey(d,"spike_kilosort")
-            d["spike"] = unitspike_kilosort(d["spike_kilosort"])
+    if haskey(d,"imecindex")
+        imecspike=Dict()
+        for i in d["imecindex"]
+            sk = "spike$(i)_kilosort"
+            if haskey(d,sk)
+                imecspike[i] = unitspike_kilosort(d[sk],syncindex=i,sortspike=true)
+            end
         end
+        d = mergeimecspike!(imecspike,d)
     end
     return d
 end
@@ -229,6 +234,28 @@ function maptodatatime(x,ex::Dict;addlatency=true)
     return t
 end
 
+"Map time between ref and target, according to the timing diff between target and ref of the same sync signal"
+function ref2sync(t,dataset::Dict,si="0")
+    haskey(dataset,"syncdt") || return t
+    tt = "syncdiff$si"
+    if haskey(dataset,tt)
+        ref2sync(t,dataset[tt],dataset["syncdt"])
+    else
+        @warn "No syncdiff for Sync$si, skip timing correction.";return t
+    end
+end
+function sync2ref(t,dataset::Dict,si="0")
+    haskey(dataset,"syncdt") || return t
+    tt = "syncdiff$si"
+    if haskey(dataset,tt)
+        sync2ref(t,dataset[tt],dataset["syncdt"])
+    else
+        @warn "No syncdiff for Sync$si, skip timing correction.";return t
+    end
+end
+ref2sync(t,syncdiff,syncdt=500) = t .+ @view syncdiff[clamp!(round.(Int,t./syncdt),1,length(syncdiff))]
+sync2ref(t,syncdiff,syncdt=500) = t .- @view syncdiff[clamp!(round.(Int,t./syncdt),1,length(syncdiff))]
+
 "Epochs of `Neuropixels` Channel Sample `x`, optionally gain corrected(voltage), line noise(60,120,180Hz) removed and bandpass filtered"
 function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100])
     f = nothing
@@ -244,7 +271,7 @@ end
 """
 Organize each spiking unit info from `Kilosort` result.
 """
-function unitspike_kilosort(data::Dict;sortspike::Bool=true)
+function unitspike_kilosort(data::Dict;syncindex="0",sortspike::Bool=true)
     # each unit
     unitid = data["clusterid"]
     unitgood = data["clustergood"].==1
@@ -264,7 +291,19 @@ function unitspike_kilosort(data::Dict;sortspike::Bool=true)
 
     sortspike && foreach(sort!,unitspike)
     return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition,
-                "unittemplateamplitude"=>unittemplateamplitude,"unitfeature"=>unitfeature,"isspikesorted"=>sortspike)
+                "unittemplateamplitude"=>unittemplateamplitude,"unitfeature"=>unitfeature,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
+end
+
+function mergeimecspike!(imecspike,d)
+    n = length(imecspike)
+    if n == 0 
+        @warn "No IMEC spike data"
+    elseif n==1
+        d["spike"] = first(values(imecspike))
+    else
+        @info "Merging spike from multiple IMEC, not implemented"
+    end
+    return d
 end
 
 "convert `Matlab` struct of array to `DataFrame`"

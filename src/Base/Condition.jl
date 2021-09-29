@@ -244,11 +244,11 @@ function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),
     end
     return fm,fse,fa
 end
-function factorresponse(unitspike,cond,condon,condoff)
+function factorresponse(unitspike,cond,condonoff,dataset,unitsync)
     fms=[];fses=[];factors = condfactor(cond)
     fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl))
     for u in eachindex(unitspike)
-        rs = epochspiketrainresponse_ono(unitspike[u],condon,condoff,israte=true)
+        rs = epochspiketrainresponse_ono(unitspike[u],ref2sync(condonoff,dataset,unitsync[u]),israte=true)
         df = condresponse(rs,cond)
         fm,fse,_ = factorresponse(df,factors=factors,fl=fl,fa=fa)
         push!(fms,fm);push!(fses,fse)
