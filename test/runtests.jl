@@ -61,13 +61,12 @@ f = 2
 t = 0:1/fs:10
 x = cos.(2π*(f*t))
 plot(t,x,xlabel="Second")
-F = dft(x,fs,f)
+Fs = dft(x,fs,0,f)
 FF = rfft(x)
 plot(abs.(FF))
 
 i = round(Int,f*length(x)/fs) + 1
-@test FF[i] ≈ F
-
-
+@test FF[i] ≈ Fs[2]
+@test FF[1] ≈ Fs[1]
 
 end
