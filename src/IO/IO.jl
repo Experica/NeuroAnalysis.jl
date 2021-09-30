@@ -154,9 +154,9 @@ function prepare!(d::Dict)
     if haskey(d,"imecindex")
         imecspike=Dict()
         for i in d["imecindex"]
-            sk = "spike$(i)_kilosort"
-            if haskey(d,sk)
-                imecspike[i] = unitspike_kilosort(d[sk],syncindex=i,sortspike=true)
+            s = "spike$(i)_kilosort"
+            if haskey(d,s)
+                imecspike[i] = unitspike_kilosort(d[s],syncindex=i,sortspike=true)
             end
         end
         d = mergeimecspike!(imecspike,d)
@@ -269,7 +269,7 @@ function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100])
 end
 
 """
-Organize each spiking unit info from `Kilosort` result.
+Organize each spiking unit from `Kilosort` result.
 """
 function unitspike_kilosort(data::Dict;syncindex="0",sortspike::Bool=true)
     # each unit

@@ -33,18 +33,13 @@ function chmasknp(nch,chs,nrow,ncol)
     permutedims(mask)
 end
 "Logical mask for `Neuropixels` reference channels in probe shape"
-function refchmasknp(dataset)
-    nch = dataset["ap"]["meta"]["acqApLfSy"][1]
-    rorefch = dataset["ap"]["meta"]["rorefch"][1]
-    if rorefch==0
-        refch = dataset["ap"]["meta"]["refch"]
-    else
-        refch = [rorefch]
-    end
-    chmasknp(nch,refch,dataset["ap"]["meta"]["nrowsaved"],dataset["ap"]["meta"]["ncolsaved"])
+function refchmasknp(dataset;imecindex="0")
+    nch = dataset["ap$imecindex"]["meta"]["acqApLfSy"][1]
+    refch = dataset["ap$imecindex"]["meta"]["refch"]
+    chmasknp(nch,refch,dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
 end
 "Logical mask for `Neuropixels` excluded channels in probe shape"
-function exchmasknp(dataset;imecindex="",datatype="lf",exch::Vector{Int}=Int[])
+function exchmasknp(dataset;imecindex="0",datatype="lf",exch::Vector{Int}=Int[])
     nch = dataset["ap$imecindex"]["meta"]["acqApLfSy"][1]
     exchs = dataset[datatype]["meta"]["excludechans"]
     chmasknp(nch,union(exchs,exch),dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
