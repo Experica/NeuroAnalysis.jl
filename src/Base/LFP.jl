@@ -186,7 +186,7 @@ function powerspectrum(x,fs;freqrange=[0,100],nw=4)
 end
 
 @doc raw"""
-Discrete Fourier Transform at a frequency
+Discrete Fourier Transform at frequencies
 
 ```math
 DFT[k] = \sum_{n=0}^{N-1} x[n] e^{\frac{-2\Pi ink}{N}}, k = 0:N-1, N = length(x), fₛ sampling x, fₖ = fₛ/N sampling DTFT
@@ -194,16 +194,18 @@ DFT[k] = \sum_{n=0}^{N-1} x[n] e^{\frac{-2\Pi ink}{N}}, k = 0:N-1, N = length(x)
 
 1. signal
 2. simpling frequency of signal
-3. at which frequency DFT is directly evaluated
+3. at which frequencies DFT are directly evaluated
 """
-function dft(x,fs,f)
+function dft(x,fs,f...)
     N = length(x)
     fₖ = fs/N
-    k = round(Int,f/fₖ)
-    F = zero(ComplexF64)
+    ks = round.(Int,f./fₖ)
+    Fs = [zero(ComplexF64) for _ in f]
     Ω = [exp(-im*2π*n/N) for n in 0:(N-1)]
     @inbounds for n in 0:(N-1)
-        F += x[n+1] * Ω[((n*k)%N)+1]
+        @inbounds for i in eachindex(f)
+            Fs[i] += x[n+1] * Ω[((n*ks[i])%N)+1]
+        end
     end
-    return F
+    return Fs
 end
