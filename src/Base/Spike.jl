@@ -217,13 +217,13 @@ function vmeanse(mat::AbstractMatrix;rfun=nothing,mfun=nothing)
 end
 
 "PSTH of Spike Trains"
-function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,normfun=nothing)
+function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,rfun=nothing)
     nss = epochspiketrains(xs,binedges,israte=israte)[2]
     halfbinwidth = (binedges[2]-binedges[1])/2
     x = binedges[1:end-1].+halfbinwidth
     mat = vstack(nss)
     if ismean
-        m,se = vmeanse(mat,normfun=normfun)
+        m,se = vmeanse(mat;rfun)
         return (;m,se,x)
     else
         return (;mat,x)
