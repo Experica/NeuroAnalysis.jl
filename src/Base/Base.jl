@@ -624,21 +624,30 @@ function psthstss(xss::Vector,binedges::Vector,conds;normfun=nothing)
     dfs = [psth(xss[i],binedges,conds[i],normfun=normfun) for i=1:n]
     return cat(1,dfs)
 end
-function spacepsth(unitpsth,unitposition,spacebinedges)
-    ys,ns,ws,is = epochspiketrain(unitposition[:,2],spacebinedges)
-    x = unitpsth[1][3]
-    nbins = length(is)
-    um = map(i->i[1],unitpsth)
-    use = map(i->i[2],unitpsth)
-    spsth = zeros(nbins,length(x))
-    for i in 1:nbins
-        if length(is[i]) > 0
-            spsth[i,:] = mean(hcat(um[is[i]]...),dims=2)
+function unitdensity(pos;w=ones(length(pos)),lim=extrema(pos),bw=0.01(lim[2]-lim[1]),step=bw/2,r=nothing,wfun=sum)
+    hbw = bw/2
+    y = lim[1]:step:lim[2]
+    n = [wfun(w[i-hbw .<=pos.< i+hbw]) for i in y]
+    if !isnothing(r)
+        n = n/(bw*π*r^2)
+    end
+    return (;n,y)
+end
+function spacepsth(unitpsth,unitposition;w=ones(size(unitposition,1)),lim=extrema(unitposition),bw=0.01(lim[2]-lim[1]),step=bw/2)
+    hbw = bw/2
+    x = unitpsth[1].x
+    y = lim[1]:step:lim[2]
+
+    n = zeros(length(y))
+    psth = zeros(length(y),length(x))
+    for i in eachindex(y)
+        @views j = y[i]-hbw .<=unitposition[:,2].< y[i]+hbw
+        n[i] = sum(w[j])
+        if n[i] > 0
+            @views psth[i,:] = mapreduce(u->u.m,.+,unitpsth[j])/n[i]
         end
     end
-    binwidth = ws[1][2]-ws[1][1]
-    bincenters = [ws[i][1]+binwidth/2.0 for i=1:nbins]
-    return (;psth=spsth,x,y=bincenters,n=ns)
+    return (;psth,x,y,n)
 end
 
 

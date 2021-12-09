@@ -201,15 +201,18 @@ function vstack(xs)
 end
 
 "Vertical Mean and SEM of a matrix"
-function vmeanse(mat::AbstractMatrix;normfun=nothing)
+function vmeanse(mat::AbstractMatrix;rfun=nothing,mfun=nothing)
     n = size(mat,1)
-    if !isnothing(normfun)
+    if !isnothing(rfun)
         for i=1:n
-            mat[i,:]=normfun(mat[i,:])
+            mat[i,:]=rfun(mat[i,:])
         end
     end
     m = dropdims(mean(mat,dims=1),dims=1)
     se = dropdims(std(mat,dims=1),dims=1)/sqrt(n)
+    if !isnothing(mfun)
+        m = mfun(m)
+    end
     return (;m,se)
 end
 

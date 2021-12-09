@@ -262,7 +262,11 @@ function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100])
     if !isempty(meta)
         f = i -> gaincorrectnp(i,meta)
         if !isempty(bandpass)
-            f = i -> hlpass(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
+            if bandpass[1] <= 250
+                f = i -> hlpass(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
+            else
+                f = i -> hlpass(gaincorrectnp(i,meta),fs,high=bandpass[1],low=bandpass[2])
+            end
         end
     end
     epochsample(x,fs,epochs,chs,fun=f)
@@ -272,31 +276,38 @@ end
 Organize each spiking unit from `Kilosort` result.
 """
 function unitspike_kilosort(data::Dict;syncindex="0",sortspike::Bool=true)
-    # each unit
+    # for each unit
     unitid = data["clusterid"]
     unitgood = data["clustergood"].==1
     unitindex = [data["cluster"].==i for i in unitid]
-    unitspike = map(i->data["time"][i],unitindex)
-    unittemplate = map(i->data["template"][i],unitindex)
-    unitamplitude = map(i->data["amplitude"][i],unitindex)
+    unitspike = map(i->data["time"][i],unitindex) # spike train
+    unittemplate = map(i->data["template"][i],unitindex) # template id
+    unitamplitude = map(i->data["amplitude"][i],unitindex) # scaled template amplitude
 
     chmap = data["chanmap"]
     chposition = data["channelposition"]
     unittemplatesindex = unique.(unittemplate)
+    # mean position of unit templates
     unitposition = vcat(map(i->mean(data["templatesposition"][i,:],dims=1),unittemplatesindex)...)
+    # mean amplitude of unit templates
     unittemplateamplitude = map(i->mean(data["templatesamplitude"][i]),unittemplatesindex)
-    # first found template feature as unit template feature
-    unittemplatefeature = Dict(k=>data["templateswaveformfeature"][k][first(unittemplatesindex)] for k in keys(data["templateswaveformfeature"]))
+    # first found template waveform
+    unittemplatewaveform = data["templateswaveform"][first.(unittemplatesindex),:]
+    # first found template waveform feature
+    unittemplatefeature = Dict(k=>data["templateswaveformfeature"][k][first.(unittemplatesindex)] for k in keys(data["templateswaveformfeature"]))
+    unitwaveform = haskey(data,"clusterwaveform") ? data["clusterwaveform"] : unittemplatewaveform
     unitfeature = haskey(data,"clusterwaveformfeature") ? data["clusterwaveformfeature"] : unittemplatefeature
+
 
     sortspike && foreach(sort!,unitspike)
     return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition,
-                "unittemplateamplitude"=>unittemplateamplitude,"unitfeature"=>unitfeature,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
+                "unitwaveform"=>unitwaveform,"unitfeature"=>unitfeature,"unittemplatewaveform"=>unittemplatewaveform,"unittemplatefeature"=>unittemplatefeature,
+                "unittemplateamplitude"=>unittemplateamplitude,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
 end
 
 function mergeimecspike!(imecspike,d)
     n = length(imecspike)
-    if n == 0 
+    if n == 0
         @warn "No IMEC spike data"
     elseif n==1
         d["spike"] = first(values(imecspike))

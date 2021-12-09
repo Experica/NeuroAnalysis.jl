@@ -25,7 +25,13 @@ function gaincorrectnp(y,meta)
     end
     return cy
 end
-"Logical mask for `Neuropixels` channels in probe shape"
+"""
+Logical mask for `Neuropixels` channels in probe shape
+     1 2
+     3 4
+     5 6
+     ...
+"""
 function chmasknp(nch,chs,nrow,ncol)
     mask = falses(nch)
     mask[chs].=true

@@ -285,32 +285,29 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
     return p
 end
 
-plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3) = plotunitposition(spike["unitposition"],unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer=layer,color=color,alpha=alpha,title=title,markersize=markersize,unitidsize=unitidsize)
-function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3)
-    nunit = size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);us = "$ngoodunit/$nunit"
-    xlim = isempty(chposition) ? (minimum(unitposition[:,1])-4,maximum(unitposition[:,1])+2) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
-    p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim)
+plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3,size=(600,450)) = plotunitposition(spike["unitposition"];unitgood=spike["unitgood"],chposition=spike["chposition"],unitid=spike["unitid"],layer,color,alpha,title,markersize,unitidsize,size)
+function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3,size=(600,450))
+    nunit = Base.size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);ustr = "$ngoodunit / $nunit"
+    xlims = isempty(chposition) ? (minimum(unitposition[:,1])-4,maximum(unitposition[:,1])+2) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
+    p = plot(;legend=:topright,xlabel="X (μm)",ylabel="Y (μm)",xlims,size)
     if !isempty(chposition)
-        scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=2,color=:grey60,label="Electrode")
+        scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=1.5,color=:grey70,label="Electrode")
     end
     if isnothing(color)
-        if !isempty(unitgood)
-            color = map(i->i ? :darkgreen : :gray30,unitgood)
-        else
+        if isempty(unitgood)
             color = :gray30
-        end
-        if !isnothing(alpha)
-            color = coloralpha.(parse.(RGB,color),alpha)
+        else
+            color = map(i->i ? :darkgreen : :gray30,unitgood)
         end
     end
     if !isnothing(layer)
         lx = xlim[1]+2
         hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,5,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
     end
-    if !isempty(unitid)
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=markersize,series_annotations=text.(unitid,unitidsize,:gray10,:center),title=title)
+    if isempty(unitid)
+        scatter!(p,unitposition[:,1],unitposition[:,2];label=ustr,color,alpha,markerstrokewidth=0,markersize,title)
     else
-        scatter!(p,unitposition[:,1],unitposition[:,2],label=us,color=color,markerstrokewidth=0,markersize=markersize,title=title)
+        scatter!(p,unitposition[:,1],unitposition[:,2];label=ustr,color,alpha,markerstrokewidth=0,markersize,series_annotations=text.(unitid,unitidsize,:gray10,:center),title)
     end
     return p
 end
