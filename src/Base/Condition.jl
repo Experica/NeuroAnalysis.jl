@@ -94,7 +94,7 @@ function subcond(conds,sc...)
     return conds[sci]
 end
 
-"Find Condition with Factor=level"
+"Find Condition with Factor = level"
 function findcond(df::DataFrame;fl...)
     i = trues(size(df,1))
     for f in keys(fl)
@@ -132,18 +132,18 @@ end
 "Check if `response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
 "Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
-isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i],alpha=alpha),gi))
+isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i];alpha),gi))
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
-"Check if `std` of a spatial-temporal kernal within response time window significently different from that of the baseline time window"
-function isresponsive(st::Matrix,bti::Vector;sdfactor=3)
+"Check if `std` of a spatial-temporal kernal within response time window significently higher than that of the baseline time window"
+function isresponsive(st;bi=[],ri=[],sdfactor=3)
     sd = dropdims(std(st,dims=1),dims=1)
     sdmaxt = argmax(sd); sdmax = sd[sdmaxt]
-    bsdm = mean(sd[bti]);bsdsd=std(sd[bti])
+    bsdm = mean(sd[bi]);bsdsd=std(sd[bi])
 
-    (;r=!(sdmaxt in bti) && sdmax > bsdm+sdfactor*bsdsd,sd=sdmax,d=sdmaxt)
+    (;r=!(sdmaxt in bi) && (sdmaxt in ri) && sdmax > bsdm+sdfactor*bsdsd,sd=sdmax,d=sdmaxt)
 end
 
-"Check if any factors and their interactions significently modulate response using ANOVA"
+"Check if any factors and their interactions significently modulate response by `ANOVA`"
 function ismodulative(df;alpha=0.05,interact=true)
     xns = filter(i->i!=:Y,propertynames(df))
     foreach(i->df[!,i]=categorical(df[!,i]),xns)
@@ -157,6 +157,12 @@ function ismodulative(df;alpha=0.05,interact=true)
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
 end
 
+PyOnewayANOVA=[]
+"Check if any `sub group of response` is significently different from at least one other `sub group of response` by `Welch ANOVA`"
+# ismodulative(response,gi;alpha=0.05) = pvalue(OneWayANOVATest(map(i->response[i],gi)...)) < alpha
+
+ismodulative(response,gi;alpha=0.05) = PyOnewayANOVA.anova_oneway(map(i->response[i],gi),use_var="unequal").pvalue < alpha
+
 """
 Find levels for each factor and indices, repetition for each level
 """
@@ -165,7 +171,7 @@ function flin(ctc::DataFrame)
     isempty(intersect(propertynames(ctc), (:i,:n))) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor name.")
     fl=OrderedDict{Symbol,DataFrame}()
     for f in propertynames(ctc)
-        fl[f] = condin(ctc[:,[f]])
+        fl[f] = condin(ctc[!,[f]])
     end
     return fl
 end
@@ -234,26 +240,35 @@ function condimageresponse(rs,ci)
 end
 
 "Condition Response in Factor Space"
-function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[:,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))
-    fm = missings(Float64, map(nrow,values(fl))...)
+function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[!,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))
+    fm = missings(Float64,map(length,values(fa))...)
     fse = deepcopy(fm)
-    for i in 1:nrow(df)
-        idx = [findfirst(df[i:i,f].==fa[f]) for f in keys(fa)]
-        fm[idx...] = df[i,:m]
-        fse[idx...] = df[i,:se]
+    for r in eachrow(df)
+        idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
+        fm[idx...] = r[:m]
+        fse[idx...] = r[:se]
     end
-    return fm,fse,fa
+    return (;fm,fse,fa)
 end
-function factorresponse(unitspike,cond,condonoff,dataset,unitsync)
-    fms=[];fses=[];factors = condfactor(cond)
-    fl = flin(cond[:,factors]);fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl))
-    for u in eachindex(unitspike)
-        rs = epochspiketrainresponse_ono(unitspike[u],ref2sync(condonoff,dataset,unitsync[u]),israte=true)
-        df = condresponse(rs,cond)
-        fm,fse,_ = factorresponse(df,factors=factors,fl=fl,fa=fa)
-        push!(fms,fm);push!(fses,fse)
+function factorresponse(rs,cond,fa)
+    fi = missings(Any,map(length,values(fa))...)
+    fr = missings(Any,map(length,values(fa))...)
+    for r in eachrow(cond)
+        idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
+        fi[idx...] = r.i
+        fr[idx...] = rs[r.i]
     end
-    return fms,fses,fa
+    fm = mean.(fr)
+    fse = sem.(fr)
+    return (;fi,fr,fm,fse,fa)
+end
+function factorresponse(urs,cond;factors = condfactor(cond),fl = flin(cond[!,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))
+    fi=[];fr=[];fm=[];fse=[]
+    for rs in urs
+        f = factorresponse(rs,cond,fa)
+        push!(fi,f.fi);push!(fr,f.fr);push!(fm,f.fm);push!(fse,f.fse)
+    end
+    return (;fi,fr,fm,fse,fa)
 end
 
 function setfln(fl::Dict,n::Int)

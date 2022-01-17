@@ -64,6 +64,13 @@ alphablend.(alphamask(Gray.(img)).y,Gray(0.5))
 alphablend.(alphamask(Gray.(img),masktype="Gaussian",sigma=0.4).y,Gray(0.5))
 alphablend.(alphamask(Gray.(img),masktype="DiskFade",sigma=15,radius=0.45).y,Gray(0.5))
 
+α = [0,0.5π,π,1.5π,2π]
+β = 0.5π
+findclosestangle(α,β)
+β = [0.5π,1.5π]
+findclosestangle(α,β)
+
+
 ## ImagerIO
 readrawim_Mono8(joinpath(@__DIR__,"Mono8_100.Raw"),100,100)
 readrawim_Mono12Packed(joinpath(@__DIR__,"Mono12Packed_100.Raw"),100,100)

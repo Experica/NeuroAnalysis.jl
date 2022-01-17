@@ -192,8 +192,11 @@ function angleabs(cmap)
     return amap,mmap
 end
 anglemode(a,theta) = theta[findclosestangle(a,theta)]
-"find the index `i` in `thetas` that `thetas[i]` is closest to `a`, all in radius"
-findclosestangle(a,thetas) = argmin(abs.(angle.(Complex(cos(a),sin(a))./Complex.(cos.(thetas),sin.(thetas)))))
+"find closest distance and index in α to β, all in radius"
+function findclosestangle(α,β)
+    m,i=findmin(abs.(circ_dist2(α,β)),dims=1)
+    length(m) == 1 ? (m[1],i[1]) : (vec(m),map(i->i[1],vec(i)))
+end
 
 """
 Generate Grating Image, match the implementation in `Experica` grating shader.
@@ -340,7 +343,7 @@ function localcontrast(csta,w::Integer)
     dims = size(csta)
     clc = Array{Float64}(undef,dims)
     w = iseven(w) ? w+1 : w
-    for d in 1:dims[3], c in 1:dims[4]
+    @views for d in 1:dims[3], c in 1:dims[4]
         clc[:,:,d,c] = mapwindow(std,csta[:,:,d,c],(w,w))
     end
     return clc
@@ -349,7 +352,7 @@ function localcontrast(data::Matrix,w::Integer)
     w = iseven(w) ? w+1 : w
     mapwindow(std,data,(w,w))
 end
-"peak ROI region and its delay index"
+"ROI encompass peak value and its delay index"
 function peakroi(clc)
     ds = size(clc)[1:2]
     i = [Tuple(argmax(clc))...]
@@ -363,7 +366,7 @@ function peakroi(data::Matrix;ds = size(data),i = [Tuple(argmax(data))...])
     roi = roiwindow(idx)
     return (i=idx,center=roi.center,radius=round(Int,maximum(roi.hw)/2))
 end
-"Get ROI from indices"
+"Get ROI from region indices"
 function roiwindow(idx)
     idxlims = dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2)
     hw = map(i->i[2]-i[1],idxlims)

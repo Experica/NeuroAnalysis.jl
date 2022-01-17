@@ -1,10 +1,10 @@
 using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,Distances,CategoricalArrays,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz, ImageSegmentation,ProgressMeter
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,CircStat, ImageSegmentation,ProgressMeter,PyCall
 import Base: vec,range
 import StatsBase: predict
 
 include("NeuroDataType.jl")
-include("CircStats.jl")
+include("Stats.jl")
 include("Spike.jl")
 include("LFP.jl")
 include("Image.jl")
@@ -51,12 +51,12 @@ f(α) =  βe^{κ₁(cos(α - μ₁) - 1) + κ₂(cos2(α - μ₂) - 1)}
 
 Gatto, R., and Jammalamadaka, S.R. (2007). The generalized von Mises distribution. Statistical Methodology 4, 341–353.
 """
-gvmf(α;β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*(cos(α-μ₁)-1) + κ₂*(cos(2(α-μ₂))-1))
+gvmf(α;β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*cos(α-μ₁) + κ₂*cos(2(α-μ₂)))
 
 """
 `Difference of Gaussians` function
 """
-dogf(x;aₑ=2,μₑ=0,σₑ=1,aᵢ=1,μᵢ=0,σᵢ=2) = gaussianf(x,a=aₑ,μ=μₑ,σ=σₑ) - gaussianf(x,a=aᵢ,μ=μᵢ,σ=σᵢ)
+dogf(x;aₑ=2,μₑ=0,σₑ=1,aᵢ=1,μᵢ=0,σᵢ=2) = aₑ*exp(-0.5((x-μₑ)/σₑ)^2) - aᵢ*exp(-0.5((x-μᵢ)/σᵢ)^2)
 function dogf(x,y;aₑ=2,μₑ₁=0,σₑ₁=1,μₑ₂=0,σₑ₂=1,θₑ=0,aᵢ=1,μᵢ₁=0,σᵢ₁=2,μᵢ₂=0,σᵢ₂=2,θᵢ=0)
     sinvₑ,cosvₑ = sincos(θₑ)
     xₑ′ = cosvₑ * x + sinvₑ * y
@@ -165,6 +165,7 @@ end
 function fitmodel(model,x,y)
     lb,ub = extrema(y)
     bm = (lb+ub)/2
+    br = (ub-lb)/2
     alb,aub = abs.((lb,ub))
     ab = max(alb,aub)
 
@@ -178,26 +179,33 @@ function fitmodel(model,x,y)
         fun = (x,p) -> vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
-        ub=[1.3ab,   prevfloat(float(2π)),   30]
-        lb=[0.3ab,            0,              0]
-        p0=[ab,               π,              1]
+        ub=[1.8ab,   prevfloat(float(π)),   200]
+        lb=[0.2ab,            0,              0]
+        p0=[ab,               0,              1]
     elseif model == :gvm
         fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
-        ub=[1.3ab,   prevfloat(float(2π)),   30,    prevfloat(float(2π)),    30]
-        lb=[0.3ab,            0,              0,             0,               0]
-        p0=[ab,               π,              1,             π,               1]
+        ub=[1.8ab,   prevfloat(float(2π)),   40,    prevfloat(float(π)),     40]
+        lb=[nextfloat(0.0),   0,              0,             0,               0]
+        p0=[ab,               0,              1,             0,               1]
     elseif model == :dog
+        fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6])
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.8ab,   10xab,            10xab,    1.8ab,     10xab,              10xab]
+        lb=[0,      -10xab,   nextfloat(0.0),        0,    -10xab,     nextfloat(0.0)]
+        p0=[ab,        0,                  1,       ab,         0,                  1]
+    elseif model == :sfdog
         fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
-        ub=[1.3ab,   10xab,   10xab,    1.3ab,   10xab,   10xab,    ub]
-        lb=[0,      -10xab,     0,        0,    -10xab,     0,      lb]
-        p0=[ab,        0,       1,       ab,       0,       1,      bm]
+        ub=[1.5ab,    10,             10,          1.5ab,       10,                10,         bm+br/3]
+        lb=[0,         0,      nextfloat(0.0),       0,          0,        nextfloat(0.0),        0]
+        p0=[ab,     0.5xab,         0.5xab,          0,        0.5xab,           0.5xab,       bm-br/3]
     end
     if !ismissing(fun)
-        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
+        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
         param=ofit.minimizer; yy = fun(x,param)
 
         rlt = (;model,fun,param,goodnessoffit(y,yy,k=length(param))...)
@@ -243,7 +251,7 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
         p0=[ab,    c[1],        0.3r,     c[2],        0.3r,               ori,            sf,            0.5]
     end
     if !ismissing(fun)
-        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.9),Optim.Options(iterations=200000))
+        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
         param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param); resid = y .- yy
 
         rlt = (;model,fun,param,radius,resid,goodnessoffit(y,yy,e=resid,k=length(param))...)
@@ -348,51 +356,41 @@ function halfwidth(y;start=argmax(y),v=y[start]/2,circ=false,x=nothing)
     end
 end
 
-function circtuningfeature(mfit;od=π,fn=od==π ? :d : :o)
-    x = 0:0.002:2π # 0.002rad ≈ 0.11deg
-    circtuningfeature(x,predict(mfit,x),od=od,fn=fn)
-end
-
+circtuningfeature(mfit;od=[π,0.5π],fn=:a,x = 0:0.002:2π) = circtuningfeature(x,predict(mfit,x);od,fn) # 0.002rad ≈ 0.11deg
 """
 Properties of Circular Tuning
 
-    - Prefered Direction/Orientation
+    - Prefered Angle with Peak Response
     - Selectivity Index
-        - version 1: (ResponsePrefered - ResponseOpposing)/ResponsePrefered
-        - version 2: (ResponsePrefered - ResponseOpposing)/(ResponsePrefered + ResponseOpposing)
+        - version 1: (ResponsePeak - ResponseOpposing)/ResponsePeak
+        - version 2: (ResponsePeak - ResponseOpposing)/(ResponsePeak + ResponseOpposing)
     - Half Width at Half Peak-to-Trough
 
 1. x: angles in radius
 2. y: responses
-- od: opposing angle distance, π for DSI, 0.5π for OSI
+- od: opposing angle distance to prefered angle, e.g. π for DSI, 0.5π for OSI
 - fn: factor name
 """
-function circtuningfeature(x,y;od=π,fn=od==π ? :d : :o)
-    maxi = argmax(y)
-    mini = argmin(y)
-    maxr = y[maxi]
-    minr = y[mini]
-    px = x[maxi]
-    ox = px+od
-    oi = findclosestangle(ox,x)
+function circtuningfeature(x,y;od=[π,0.5π],fn=:a)
+    maxr,maxi = findmax(y)
+    minr,mini = findmin(y)
+    maxx = x[maxi]
+    ox = maxx.+od
+    _,oi = findclosestangle(x,ox)
     or = y[oi]
 
-    si1 = 1-or/maxr
-    si2 = (maxr-or)/(maxr+or)
+    si1 = 1 .- or./maxr
+    si2 = (maxr .- or)./(maxr .+ or)
     hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=true,x=x)
 
-    (;Symbol(:p,fn)=>rad2deg(mod(px,2od)), Symbol(fn,:hw)=>rad2deg.(hw), Symbol(fn,:si1)=>si1, Symbol(fn,:si2)=>si2)
+    (;Symbol(:p,fn)=>rad2deg(mod2pi(maxx)),Symbol(fn,:hw)=>rad2deg.(hw),Symbol(fn,:si1)=>si1,Symbol(fn,:si2)=>si2,Symbol(fn,:od)=>od)
 end
 
-function sftuningfeature(mfit)
-    x = 0:0.002:10
-    sftuningfeature(x,predict(mfit,x))
-end
-
+sftuningfeature(mfit;x = 0:0.003:10) = sftuningfeature(x,predict(mfit,x))
 """
 Properties of Spatial Frequency Tuning
 
-    - Prefered Spatial Frequency
+    - Prefered Spatial Frequency with Peak Response
     - Half Width at Half Peak-to-Trough
     - Freq Passing Type {A:All Pass, H:High Pass, L:Low Pass, B:Band Pass}
     - Bandwidth ``log2(H_cut/L_cut)``
@@ -402,75 +400,76 @@ Properties of Spatial Frequency Tuning
 2. y: responses
 """
 function sftuningfeature(x,y;low=minimum(x),high=maximum(x))
-    maxi = argmax(y)
-    mini = argmin(y)
-    maxr = y[maxi]
-    minr = y[mini]
-    px = x[maxi]
+    maxr,maxi = findmax(y)
+    minr,mini = findmin(y)
+    maxx = x[maxi]
 
     hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=false,x=x)
     pt = all(isinf.(hw)) ? 'A' : isinf(hw[1]) ? 'L' : isinf(hw[2]) ? 'H' : 'B'
-    bw = log2((px+hw[2])/(px-hw[1]))
-    pw = pt == 'A' ? high-low : pt == 'L' ? px-low+hw[2] : pt == 'H' ? high-px+hw[1] : sum(hw)
+    bw = log2((maxx+hw[2])/(maxx-hw[1]))
+    pw = pt == 'A' ? high-low : pt == 'L' ? maxx-low+hw[2] : pt == 'H' ? high-maxx+hw[1] : sum(hw)
 
-    (;psf=px,sfhw=hw,sftype=pt,sfbw=bw,sfpw=pw)
+    (;psf=maxx,sfhw=hw,sftype=pt,sfbw=bw,sfpw=pw)
 end
 
 """
 Tuning properties of factor response
 
 1. fl: factor levels
-2. fr: factor responses
+2. fr: factor responses for each level
 
-    HueAngle, Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
+    Angle, Orientation and Direction follow the same convention such that 0 is -/→, then increase counter-clock wise.
 
     For cases where Orientation and Direction are interlocked(drifting grating):
         - when Orientation is -(0), then Direction is ↑(90)
         - when Direction is →(0), then Orientation is |(-90)
 """
-function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
+function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
+    i = .!ismissing.(fr)
+    fl = fl[i];fr=fr[i];fm=fm[i]
+    ls = mapreduce((l,r)->fill(l,length(r)),append!,fl,fr)
+    rs = mapreduce(deepcopy,append!,fr)
+
     if factor in [:Ori,:Ori_Final]
-        θ = deg2rad.(fl)
-        d = mean(diff(sort(unique(θ)))) # angle spacing
+        θ = mod2pi.(deg2rad.(ls))
+        α = mod2pi.(deg2rad.(fl))
+        d = mean(diff(sort(unique(α)))) # angle spacing
+        up, = circ_otest(α,w=fm) # Omnibus test for non-uniformity
         # for orientation
-        oθ = mod.(θ,π)
-        om = circmean(2oθ,fr)
-        oo = rad2deg(mod(angle(om),2π)/2)
-        ocv = circvar(2oθ,fr,2d)
+        oα = mod.(α,π)
+        ocv, = circ_var(2oα,w=fm,d=2d)
+        ocm, = circ_mean(2oα,w=fm)
+        ocm = rad2deg(mod2pi(ocm)/2)
         # for direction
-        dm = circmean(θ.+0.5π,fr)
-        od = rad2deg(mod(angle(dm),2π))
-        dcv = circvar(θ.+0.5π,fr,d)
+        dcv, = circ_var(α;w=fm,d)
+        dcm, = circ_mean(α,w=fm)
+        dcm = rad2deg(mod2pi(dcm+0.5π))
+        maxr,maxi = findmax(fm)
+        maxl = fl[maxi]
 
         fit = ()
         if isfit
-            # fit Generalized von Mises for direction
             try
-                mfit = fitmodel(:gvm,θ.+0.5π,fr)
-                fit = (circtuningfeature(mfit,od=π,fn=:d)...,gvm=mfit)
+                mfit = fitmodel(:gvm,θ,rs) # fit Generalized von Mises
+                fit = (;circtuningfeature(mfit,od=[π,0.5π],fn=:o)...,mfit)
             catch
-            end
-            # fit von Mises for orientation
-            try
-                mfit = fitmodel(:vmn2,θ,fr)
-                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:o)...,vmn2=mfit)
-            catch
+                display.(stacktrace(catch_backtrace()))
             end
         end
 
-        return (;dm,od,dcv,om,oo,ocv,fit)
+        return (;up,ocv,ocm,dcv,dcm,max=maxl=>maxr,fit)
     elseif factor == :Dir
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
         # for orientation
         oθ = mod.(θ.-0.5π,π)
-        om = circmean(2oθ,fr)
+        om, = circ_mean(2oθ,w=fr)
         oo = rad2deg(mod(angle(om),2π)/2)
-        ocv = circvar(2oθ,fr,2d)
+        ocv = circ_var(2oθ,w=fr,d=2d)
         # for direction
-        dm = circmean(θ,fr)
+        dm, = circ_mean(θ,w=fr)
         od = rad2deg(mod(angle(dm),2π))
-        dcv = circvar(θ,fr,d)
+        dcv = circ_var(θ;w=fr,d)
         # fit Generalized von Mises for direction
         fit = ()
         if isfit
@@ -489,31 +488,31 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
 
         return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :SpatialFreq
-        osf = 2^(sum(fr.*log2.(fl))/sum(fr)) # weighted average as optimal sf
-        maxi = argmax(fr)
-        maxsf = fl[maxi]
-        maxr = fr[maxi]
+        up = PyOnewayANOVA.anova_oneway(fr,use_var="unequal").pvalue
+        msf = 2^(sum(rs.*log2.(ls))/sum(rs)) # weighted average
+        maxr,maxi = findmax(fm)
+        maxl = fl[maxi]
 
         fit = ()
         if isfit
-            # fit difference of gaussians for SpatialFreq
             try
-                mfit = fitmodel(:dog,fl,fr)
-                fit = (sftuningfeature(mfit)...,dog=mfit)
+                mfit = fitmodel(:sfdog,ls,rs) # fit Difference of Gaussians
+                fit = (;sftuningfeature(mfit)...,mfit)
             catch
+                display.(stacktrace(catch_backtrace()))
             end
         end
 
-        return (;osf,maxsf,maxr,fit)
+        return (;up,msf,max=maxl=>maxr,fit)
     elseif factor == :ColorID
         # transform colorId to hue angle
         ucid = sort(unique(fl))
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
         # for hue direction
-        hm = circmean(ha,fr)
+        hm, = circ_mean(ha,w=fr)
         oh = mod(rad2deg(angle(hm)),360)
-        hcv = circvar(ha,fr,hstep)
+        hcv = circ_var(ha,w=fr,d=hstep)
         maxi = argmax(fr)
         maxh = rad2deg(ha[maxi])
         maxr = fr[maxi]
@@ -535,39 +534,34 @@ function factorresponsefeature(fl,fr;factor=:Ori,isfit::Bool=true)
         end
 
         return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
-    elseif factor == :HueAngle
-        θ = deg2rad.(fl)
-        d = mean(diff(sort(unique(θ)))) # angle spacing
-        # for hue axis
-        aθ = mod.(θ,π)
-        ham = circmean(2aθ,fr)
-        oha = rad2deg(mod(angle(ham),2π)/2)
-        hacv = circvar(2aθ,fr,2d)
-        # for hue
-        hm = circmean(θ,fr)
-        oh = rad2deg(mod(angle(hm),2π))
-        hcv = circvar(θ,fr,d)
-        maxi = argmax(fr)
-        maxh = fl[maxi]
-        maxr = fr[maxi]
+    elseif factor in [:HueAngle,:Angle]
+        θ = mod2pi.(deg2rad.(ls))
+        α = mod2pi.(deg2rad.(fl))
+        d = mean(diff(sort(unique(α)))) # angle spacing
+        up, = circ_otest(α,w=fm) # Omnibus test for non-uniformity
+        # for axis
+        aα = mod.(α,π)
+        acv, = circ_var(2aα,w=fm,d=2d)
+        acm, = circ_mean(2aα,w=fm)
+        acm = rad2deg(mod2pi(acm)/2)
+        # for angle
+        cv, = circ_var(α;w=fm,d)
+        cm, = circ_mean(α,w=fm)
+        cm = rad2deg(mod2pi(cm))
+        maxr,maxi = findmax(fm)
+        maxl = fl[maxi]
 
         fit = ()
         if isfit
-            # fit Generalized von Mises for hue
             try
-                mfit = fitmodel(:gvm,θ,fr)
-                fit = (circtuningfeature(mfit,od=π,fn=:h)...,gvm=mfit)
+                mfit = fitmodel(:gvm,θ,rs) # fit Generalized von Mises
+                fit = (;circtuningfeature(mfit,od=[π,0.5π],fn=:a)...,mfit)
             catch
-            end
-            # fit von Mises for hue axis
-            try
-                mfit = fitmodel(:vmn2,θ,fr)
-                fit = (fit...,circtuningfeature(mfit,od=0.5π,fn=:ha)...,vmn2=mfit)
-            catch
+                display.(stacktrace(catch_backtrace()))
             end
         end
 
-        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
+        return (;up,acv,acm,cv,cm,max=maxl=>maxr,fit)
     else
         return ()
     end
@@ -760,13 +754,13 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,e
 end
 
 "Check Layer Boundaries"
-function checklayer!(ls::Dict;ln=["WM","6","5","56","4Cb","4Ca","4C","4B","4A","4AB","3","2","23","1","Out"])
+function checklayer!(ls::Dict;ln=["1", "2", "3", "23", "4A", "4B", "4AB", "4Cα", "4Cβ", "4C", "5", "6", "56", "WM"])
     n = length(ln)
     for i in 1:n-1
         if haskey(ls,ln[i])
             for j in (i+1):n
                 if haskey(ls,ln[j])
-                    ls[ln[i]][2] = ls[ln[j]][1]
+                    ls[ln[i]][1] = ls[ln[j]][2]
                     break
                 end
             end

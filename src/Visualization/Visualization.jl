@@ -3,6 +3,7 @@ import Plots: cgrad
 
 include("Color.jl")
 
+iscircfactor(f::Symbol) = f in [:Ori,:Dir,:Ori_Final,:Dir_Final,:HueAngle,:Angle]
 factorunit(fs::Vector{Symbol};timeunit=SecondPerUnit)=join(factorunit.(fs,timeunit=timeunit),", ")
 function factorunit(f::Symbol;timeunit=SecondPerUnit)
     fu=String(f)
@@ -31,24 +32,25 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
 end
 
 "scatter plot of spike trains"
-function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,550))
+function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,600))
     nt = isempty(x) ? 0 : maximum(y)
-    s = min(size[2]/nt,3)
+    ms =0.45*size[2]/(nt+5)
+    p = plot(;size,leg=false,title,grid=false)
     if isempty(group)
-        scatter(x,y,label="SpikeTrain",markershape=:vline,size=size,markersize=s,markerstrokewidth = s,color=RGB(0.1,0.1,0.1),legend=false)
+        scatter!(p,x,y;label="SpikeTrain",markershape=:vline,markersize=ms,markerstrokewidth = 0,color=RGBA(0,0,0,0.7))
     else
-        scatter(x,y,group=group,markershape=:vline,size=size,markersize=s,markerstrokewidth = s,color=permutedims(color))
+        scatter!(p,x,y;group,markershape=:vline,markersize=ms,markerstrokewidth = 0,color=permutedims(color))
     end
-    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=("Trial"),title=(title),legend=false)
+    vline!(p,timeline;line=(:grey),label="TimeLine",xaxis=(factorunit(:Time)),yaxis=("Trial"))
 end
-function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],color=huecolors(0),title="",size=(800,550))
+function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],color=huecolors(0),title="",size=(800,600))
     if isempty(uids)
         g=uids;uc=color
     else
         fuids = flatspiketrains(uids,sortvalues)[1]
         g=map(i->"U$i",fuids);uc=huecolors(length(unique(fuids)))
     end
-    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...,group=g,timeline=timeline,color=uc,title=title,size=size)
+    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...;group=g,timeline,color=uc,title,size)
 end
 
 # function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xmax=maximum(x)+10,xgroup::Vector=[],
@@ -83,25 +85,26 @@ end
 # plotspiketrain1(rvs::RVVector;sortvar=[],xgroup::Vector=[],timemark=[0],theme=Theme(),colorkey="",colorfun=Scale.lab_gradient(colorant"white",colorant"red"),colorminv=[],colormaxv=[]) = plotspiketrain1(flatrvs(rvs,sortvar)...,xgroup=xgroup,timemark=timemark,theme=theme,colorkey=colorkey,colorfun=colorfun,colorminv=colorminv,colormaxv=colormaxv)
 
 "Plot `Mean` and `SEM` of responses for each condition"
-function plotcondresponse(rs,ctc;factors=propertynames(ctc),u=0,style=:path,title="",projection=:cartesian,linewidth=:auto,legend=:best,response=[])
-    plotcondresponse(Dict(u=>rs),ctc,factors,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
+function plotcondresponse(rs,ctc;factors=propertynames(ctc),u=0,color=:auto,style=:path,title="",projection=:none,grid=false,linewidth=:auto,legend=:best,response=[])
+    plotcondresponse(Dict(u=>rs),ctc,factors;color,style,title,projection,linewidth,legend,response,grid)
 end
-function plotcondresponse(urs::Dict,ctc::DataFrame,factors;color=huecolors(length(urs)),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+function plotcondresponse(urs::Dict,ctc::DataFrame,factors;color=huecolors(length(urs)),style=:path,grid=false,projection=:none,title="",linewidth=:auto,legend=:best,response=[])
     df = condresponse(urs,ctc,factors)
-    plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
+    plotcondresponse(df;color,style,title,projection,linewidth,legend,response,grid)
 end
-function plotcondresponse(urs::Dict,cond::DataFrame;color=huecolors(length(urs)),style=:path,projection=:cartesian,title="",linewidth=:auto,legend=:best,response=[])
+function plotcondresponse(urs::Dict,cond::DataFrame;color=huecolors(length(urs)),style=:path,projection=:none,title="",grid=false,linewidth=:auto,legend=:best,response=[])
     df = condresponse(urs,cond)
-    plotcondresponse(df,color=color,style=style,title=title,projection=projection,linewidth=linewidth,legend=legend,response=response)
+    plotcondresponse(df;color,style,title,projection,linewidth,legend,response,grid)
 end
-function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,projection=:cartesian,title="",grid=false,
+function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,projection=:none,title="",grid=false,
                             linestyle=:solid,linewidth=:auto,legend=:best,response=[],responsetype=:Response)
-    gs = unique(mseuugc[:,[:u,:ug]])
-    if nrow(gs)>1
-        gi=sortperm(gs);gs=gs[gi,:]
-        color isa Array && (color=permutedims(color[gi]))
-        linewidth isa Array && (linewidth=permutedims(linewidth[gi]))
-        linestyle isa Array && (linestyle=permutedims(linestyle[gi]))
+    # sort to the group order plot uses
+    gs = unique(mseuugc[!,[:u,:ug]])
+    if size(gs,1)>1
+        gi = sortperm(gs);gs=gs[gi,:]
+        color isa Vector && (color=permutedims(color[gi]))
+        linewidth isa Vector && (linewidth=permutedims(linewidth[gi]))
+        linestyle isa Vector && (linestyle=permutedims(linestyle[gi]))
     end
     factors=setdiff(propertynames(mseuugc),[:m,:se,:u,:ug])
     nfactor=length(factors)
@@ -113,33 +116,46 @@ function plotcondresponse(mseuugc::DataFrame;group=:ug,color=:auto,style=:path,p
         # end
     elseif nfactor==2
         fm,fse,fa = factorresponse(mseuugc)
-        clim = skipmissing(fm) |> extrema .|> abs |> maximum
+        maxlim = skipmissing(fm) |> extrema .|> abs |> maximum
+        minlim = skipmissing(fm) |> minimum
         yfactor,xfactor = collect(keys(fa))
         y,x = collect(values(fa))
+        clims = minlim < 0 ? (-maxlim,maxlim) : (0,maxlim)
     else
-        mseuugc[:Condition]=condstring(mseuugc[:,factors])
+        mseuugc[:Condition]=condstring(mseuugc[!,factors])
         factor=:Condition
         style=:bar
     end
     if nfactor==2
-        heatmap(x,y,fm,color=:coolwarm,title=title,legend=legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),
-        colorbar_title=factorunit(responsetype),clims=(-clim,clim))
+        heatmap(x,y,fm;color,title,legend,xaxis=(factorunit(xfactor)),yaxis=(factorunit(yfactor)),colorbar_title=factorunit(responsetype),clims)
     else
         if projection==:polar # close curve
             c0 = mseuugc[mseuugc[!,factor].==0,:]
             c0[!,factor].=360
             mseuugc = [mseuugc;c0]
             mseuugc[!,factor]=deg2rad.(mseuugc[!,factor])
+            be = backend_name()
+            if be == :gr
+                legend=(0.86,0.96)
+            elseif be == :pyplot
+                legend=(0.91,0.81)
+            end
         end
         sort!(mseuugc,factor)
         if projection==:polar
-            p = @df mseuugc plot(cols(factor),:m,yerror=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
-            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
-            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
+            if be == :gr
+                p = @df mseuugc plot(cols(factor),:m;yerror=:se,group=cols(group),line=style,markerstrokecolor=color,color,
+                label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid,projection,legend,
+                xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title,linestyle,linewidth)
+            elseif be == :pyplot
+                p = @df mseuugc plot(cols(factor),:m;ribbon=:se,group=cols(group),line=style,markerstrokecolor=color,color,
+                label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid,projection,legend,
+                xticks=0:0.25π:1.75π,xformatter=x->round(Int,rad2deg(x)),title,linestyle,linewidth)
+            end
         else
-            p = @df mseuugc plot(cols(factor),:m,ribbon=:se,group=cols(group),line=style,markerstrokecolor=color,color=color,
-            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid=grid,projection=projection,legend=legend,
-            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title=title,linestyle=linestyle,linewidth=linewidth)
+            p = @df mseuugc plot(cols(factor),:m;ribbon=:se,group=cols(group),line=style,markerstrokecolor=color,color,
+            label=permutedims(["$(k.ug)$(k.u)" for k in eachrow(gs)]),grid,projection,legend,
+            xaxis=(factorunit(factor)),yaxis=(factorunit(responsetype)),title,linestyle,linewidth)
         end
         if !isempty(response)
             for i in response
@@ -214,7 +230,7 @@ end
 
 "Plot Analog Signals"
 function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",ylabel="Depth",clims=nothing,
-    xunit=:ms,yunit=:um,cunit=:v,plottype=:heatmap,hy=0,color=:coolwarm,layer=nothing,n=nothing)
+    xunit=:ms,yunit=:μm,cunit=:v,plottype=:heatmap,hy=0,color=:coolwarm,layer=nothing,n=nothing)
     nd=ndims(data);ds=1
     if nd==1
         if isnothing(x)
