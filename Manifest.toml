@@ -145,9 +145,9 @@ git-tree-sha1 = "bf98fa45a0a4cee295de98d4c1462be26345b9a1"
 uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 version = "0.1.2"
 
-[[deps.CircStat]]
-deps = ["Distributions", "LinearAlgebra", "SpecialFunctions", "Statistics"]
-git-tree-sha1 = "6863c5b9fca5ba1360edd791ea6b9fe547052555"
+[[deps.CircStats]]
+deps = ["Distributions", "HypothesisTests", "LinearAlgebra", "SpecialFunctions", "Statistics"]
+git-tree-sha1 = "c62d2fff74b9dc37bded49bbad8784963977c99b"
 repo-rev = "main"
 repo-url = "https://github.com/babaq/CircStat.jl.git"
 uuid = "2f6764a1-d620-4564-9394-76eb7c776766"
