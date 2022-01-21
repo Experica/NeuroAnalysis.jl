@@ -203,6 +203,14 @@ function fitmodel(model,x,y)
         ub=[1.5ab,    10,             10,          1.5ab,       10,                10,         bm+br/3]
         lb=[0,         0,      nextfloat(0.0),       0,          0,        nextfloat(0.0),        0]
         p0=[ab,     0.5xab,         0.5xab,          0,        0.5xab,           0.5xab,       bm-br/3]
+    elseif model == :sfgaussian
+        fun = (x,p) -> gaussianf.(log2.(x),a=p[1],μ=p[2],σ=p[3]) .+ p[4]
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        # limit gaussian center ~[-8 10], sigma ~[1.4 8]
+        ub=[1.5ab,     3.3,          3,       bm]
+        lb=[0,          -3,        0.5,        0]
+        p0=[ab,          0,          1,        0]
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
@@ -496,7 +504,8 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         fit = ()
         if isfit
             try
-                mfit = fitmodel(:sfdog,ls,rs) # fit Difference of Gaussians
+                # mfit = fitmodel(:sfdog,ls,rs) # fit Difference of Gaussians
+                mfit = fitmodel(:sfgaussian,ls,rs) # fit Gaussian of logarithm sf
                 fit = (;sftuningfeature(mfit)...,mfit)
             catch
                 display.(stacktrace(catch_backtrace()))
