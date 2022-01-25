@@ -260,9 +260,9 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
     end
     if !ismissing(fun)
         ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
-        param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param); resid = y .- yy
+        param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param)
 
-        rlt = (;model,fun,param,radius,resid,goodnessoffit(y,yy,e=resid,k=length(param))...)
+        rlt = (;model,fun,param,radius,goodnessoffit(y,yy,k=length(param))...)
     end
     return rlt
 end
