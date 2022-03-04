@@ -25,6 +25,13 @@ function gaincorrectnp(y,meta)
     end
     return cy
 end
+
+"Map linear channel index to probe shape indices"
+function chshapenp(ch,nrow,ncol)
+    r = ceil(Int,ch/ncol)
+    c = ch-(r-1)*ncol
+    return r,c
+end
 """
 Logical mask for `Neuropixels` channels in probe shape
      1 2
@@ -32,21 +39,18 @@ Logical mask for `Neuropixels` channels in probe shape
      5 6
      ...
 """
-function chmasknp(nch,chs,nrow,ncol)
-    mask = falses(nch)
+function chmasknp(chs,nrow,ncol)
+    mask = falses(ncol,nrow) # Neuropixel channel counting is from cols(left -> right), then rows(tip -> tail)
     mask[chs].=true
-    mask = reshape(mask,ncol,nrow) # Neuropixel channel counting is from cols(left -> right), then rows(tip -> tail)
     permutedims(mask)
 end
 "Logical mask for `Neuropixels` reference channels in probe shape"
 function refchmasknp(dataset;imecindex="0")
-    nch = dataset["ap$imecindex"]["meta"]["acqApLfSy"][1]
     refch = dataset["ap$imecindex"]["meta"]["refch"]
-    chmasknp(nch,refch,dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
+    chmasknp(refch,dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
 end
 "Logical mask for `Neuropixels` excluded channels in probe shape"
 function exchmasknp(dataset;imecindex="0",datatype="lf",exch::Vector{Int}=Int[])
-    nch = dataset["ap$imecindex"]["meta"]["acqApLfSy"][1]
     exchs = dataset[datatype]["meta"]["excludechans"]
-    chmasknp(nch,union(exchs,exch),dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
+    chmasknp(union(exchs,exch),dataset["ap$imecindex"]["meta"]["nrowsaved"],dataset["ap$imecindex"]["meta"]["ncolsaved"])
 end

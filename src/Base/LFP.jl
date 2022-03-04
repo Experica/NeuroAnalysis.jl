@@ -3,36 +3,36 @@ include("CSD.jl")
 """
 Epochs of Channel Sample.
 """
-function epochsample(x,fs,epochs,chs;fun=nothing)
+function epochsample(x,fs,epochs,chs;whiten=nothing,fun=nothing)
     nepoch = size(epochs,1)
     epochis = round.(Int,epochs.*SecondPerUnit.*fs)
     minepochlength = minimum(diff(epochis,dims=2))
     ys=Array{Float64}(undef,length(chs),minepochlength,nepoch)
     for i in 1:nepoch
         y = x[chs,range(max(1,epochis[i,1]),length=minepochlength)]
-        if !isnothing(fun)
-            y=fun(y)
-        end
+        isnothing(whiten) || (y=whiten*y)
+        isnothing(fun) || (y=fun(y))
         ys[:,:,i] = y
     end
     return nepoch==1 ? dropdims(ys,dims=3) : ys
 end
 
-"reshape data stream in the same shape of chmask, where masked channels are replaced with local average"
-function reshape2mask(ys, chmask; replacemask = true)
-    nrow, ncol = size(chmask)
-    yss = Array{Float64}(undef, nrow, ncol, size(ys)[2:end]...)
-    for c = 1:ncol
-        yss[:, c, :, :] = ys[c:ncol:end, :, :] # channel counting in chmask is from cols(left -> right), then rows(up -> down)
+"fill data in the shape of mask, where masked channels are replaced with local average"
+function fill2mask(ys, mask;chmap=1:size(ys,1), replacemask = true)
+    nrow, ncol = size(mask)
+    yss = zeros(nrow, ncol, size(ys)[2:end]...)
+    for i in eachindex(chmap)
+        r,c = chshapenp(chmap[i],nrow,ncol)
+        @views yss[r,c,:,:] = ys[i,:,:]
     end
     if replacemask # Local unmasked channels averaging replacement for masked channels
-        rchmask = copy(chmask)
-        for (r, c) in Tuple.(findall(chmask))
+        rmask = copy(mask)
+        for (r, c) in Tuple.(findall(mask))
             rd = r - 1;ru = r + 1
-            while 1 <= rd && rchmask[rd, c]
+            while 1 <= rd && rmask[rd, c]
                 rd -= 1
             end
-            while ru <= nrow && rchmask[ru, c]
+            while ru <= nrow && rmask[ru, c]
                 ru += 1
             end
             if rd < 1
@@ -48,7 +48,7 @@ function reshape2mask(ys, chmask; replacemask = true)
                     yss[r, c, :, :] = (yss[rd, c, :, :] .+ yss[ru, c, :, :]) / 2
                 end
             end
-            rchmask[r, c] = false
+            rmask[r, c] = false
         end
     end
     return yss

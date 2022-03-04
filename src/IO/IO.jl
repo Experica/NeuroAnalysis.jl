@@ -136,8 +136,8 @@ function digitalbit(dt,dv,bits...)
 end
 
 "Read and Prepare Dataset in `MATLAB` MAT File"
-prepare(f::AbstractString,vars...)=prepare!(readmat(f,vars...))
-function prepare!(d::Dict)
+prepare(f::AbstractString,vars...;spikesorter="kilosort")=prepare!(readmat(f,vars...);spikesorter)
+function prepare!(d::Dict;spikesorter="kilosort")
     if haskey(d,"secondperunit")
         settimeunit(d["secondperunit"])
     end
@@ -154,9 +154,10 @@ function prepare!(d::Dict)
     if haskey(d,"imecindex")
         imecspike=Dict()
         for i in d["imecindex"]
-            s = "spike$(i)_kilosort"
+            s = "spike$(i)_$spikesorter"
             if haskey(d,s)
-                imecspike[i] = unitspike_kilosort(d[s],syncindex=i,sortspike=true)
+                fun = Symbol("unitspike_",spikesorter)
+                imecspike[i] = @eval $fun($d[$s],syncindex=$i,sortspike=true)
             end
         end
         d = mergeimecspike!(imecspike,d)
@@ -257,19 +258,19 @@ ref2sync(t,syncdiff,syncdt=500) = t .+ @view syncdiff[clamp!(round.(Int,t./syncd
 sync2ref(t,syncdiff,syncdt=500) = t .- @view syncdiff[clamp!(round.(Int,t./syncdt),1,length(syncdiff))]
 
 "Epochs of `Neuropixels` Channel Sample `x`, optionally gain corrected(voltage), line noise(60,120,180Hz) removed and bandpass filtered"
-function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100])
-    f = nothing
+function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100],whiten=nothing)
+    fun = nothing
     if !isempty(meta)
-        f = i -> gaincorrectnp(i,meta)
+        fun = i -> gaincorrectnp(i,meta)
         if !isempty(bandpass)
             if bandpass[1] <= 250
-                f = i -> hlpass(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
+                fun = i -> hlpass(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
             else
-                f = i -> hlpass(gaincorrectnp(i,meta),fs,high=bandpass[1],low=bandpass[2])
+                fun = i -> hlpass(gaincorrectnp(i,meta),fs,high=bandpass[1],low=bandpass[2])
             end
         end
     end
-    epochsample(x,fs,epochs,chs,fun=f)
+    epochsample(x,fs,epochs,chs;fun,whiten)
 end
 
 """
@@ -303,6 +304,55 @@ function unitspike_kilosort(data::Dict;syncindex="0",sortspike::Bool=true)
     return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"chposition"=>chposition,"unitposition"=>unitposition,
                 "unitwaveform"=>unitwaveform,"unitfeature"=>unitfeature,"unittemplatewaveform"=>unittemplatewaveform,"unittemplatefeature"=>unittemplatefeature,
                 "unittemplateamplitude"=>unittemplateamplitude,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
+end
+
+"""
+Organize each spiking unit from `Kilosort3` result.
+"""
+function unitspike_kilosort3(data::Dict;syncindex="0",sortspike::Bool=true)
+    # for each unit
+    unitid = data["clusterid"]
+    unitgood = data["clustergood"].==1
+    unitindex = [data["cluster"].==i for i in unitid]
+    unitspike = map(i->data["time"][i],unitindex) # spike train
+    unittemplate = map(i->data["template"][i],unitindex) # template id
+    unitamplitude = map(i->data["amplitude"][i],unitindex) # scaled template amplitude
+
+    datapath = data["datapath"] # concat whiten drift corrected binary file
+    t0 = data["t0"] # start time in `datapath` file
+    fs = data["fs"]
+    nsample = Int(data["nsample"]) # number of samples in `datapath` file
+    nch = Int(data["nch"]) # number of channels in `datapath` file
+    chmapraw = data["chanmapraw"] # map each channel in `datapath` file to raw binary file
+    chposition = data["channelposition"]
+    unittemplatesindex = unique.(unittemplate)
+    # mean position of templates with which unit spikes are extracted
+    unittemplateposition = vcat(map(i->mean(data["templatesposition"][i,:],dims=1),unittemplatesindex)...)
+    # mean amplitude of unit templates
+    unittemplateamplitude = map(i->mean(data["templatesamplitude"][i]),unittemplatesindex)
+    # first found template waveform
+    unittemplatewaveform = data["templateswaveform"][first.(unittemplatesindex),:]
+    # first found template waveform feature
+    unittemplatefeature = Dict(k=>data["templateswaveformfeature"][k][first.(unittemplatesindex)] for k in keys(data["templateswaveformfeature"]))
+    if haskey(data,"clusterwaveform")
+        unitwaveforms = data["clusterwaveforms"]
+        unitposition = data["clusterposition"]
+        unitwaveform = data["clusterwaveform"]
+        unitfeature = data["clusterwaveformfeature"]
+    else
+        unitwaveform=unitfeature=unitposition=unitwaveforms=nothing
+    end
+    w = data["whiteningmatrix"]
+    winv = data["whiteningmatrixinv"]
+    wraw = data["whiteningmatrixraw"]
+    winvraw = data["whiteningmatrixinvraw"]
+
+    sortspike && foreach(sort!,unitspike)
+    return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"datapath"=>datapath,"t0"=>t0,"fs"=>fs,
+        "nsample"=>nsample,"nch"=>nch,"chmapraw"=>chmapraw,"chposition"=>chposition,"unittemplateposition"=>unittemplateposition,
+        "unittemplateamplitude"=>unittemplateamplitude,"unittemplatewaveform"=>unittemplatewaveform,"unittemplatefeature"=>unittemplatefeature,
+        "unitwaveforms"=>unitwaveforms,"unitposition"=>unitposition,"unitwaveform"=>unitwaveform,"unitfeature"=>unitfeature,
+        "w"=>w,"winv"=>winv,"wraw"=>wraw,"winvraw"=>winvraw,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
 end
 
 function mergeimecspike!(imecspike,d)

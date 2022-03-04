@@ -295,8 +295,8 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
     end
     isempty(timeline) || vline!(p,timeline,line=(:grey),label="TimeLine",leg=false)
     if !isnothing(layer)
-        lx = minimum(x)+5
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,6,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+        anno = [(minimum(x)+3,mean(layer[k]),text(k,6,:gray10,:center,:left)) for k in keys(layer)]
+        hline!(p,[l[2] for l in values(layer)],linecolor=:gray25,legend=false,lw=0.5,annotations=anno)
     end
     return p
 end

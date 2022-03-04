@@ -153,7 +153,7 @@ function sin2cas(θ,f,phase)
 end
 
 "`Gabor` function"
-gaborf(x;a=1,μ=0,σ=1,f=1,phase=0) = gaussianf(x,a=a,μ=μ,σ=σ)*sin(2π*(f*x+phase))
+gaborf(x;a=1,μ=0,σ=1,f=1,phase=0) = a*exp(-0.5((x-μ)/σ)^2)*sin(2π*(f*x+phase))
 function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
     sinv,cosv = sincos(θ)
     x′ = cosv * x + sinv * y
@@ -317,7 +317,7 @@ function goodnessoffit(y,ŷ;n = length(y),e = y .- ŷ,k=missing,df = n-k-1)
     s = s < 0 ? missing : sqrt(s)
     adjr2 = 1 - fvu*(n-1)/df
     aic = n*log(ssᵣ) + 2k
-    bic = n*log(ssᵣ/n) + k*log(n)
+    bic = n*log(ssᵣ/n) + k*log(n) # under iid normal error assumption
     (;r,mae,rmse,rae,rse,r2,adjr2,s,aic,bic)
 end
 
