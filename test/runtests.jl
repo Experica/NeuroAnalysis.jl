@@ -46,16 +46,63 @@ plot([gratingf,gaussianf,gaborf,dogf],-3,3,labels=permutedims(funnames),lw=[2 2 
 
 
 x=y=-3:0.05:3;z=[]
-push!(z,[gratingf(i,j,θ=0.25π,f=0.5) for j in y,i in x])
-push!(z,[gaussianf(i,j,σ₁=0.8,σ₂=0.5,θ=0.25π) for j in y,i in x])
-push!(z,[gaborf(i,j,σ₁=0.8,σ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
-push!(z,[dogf(i,j,σₑ₁=0.8,σₑ₂=0.5,σᵢ₁=1,σᵢ₂=0.7,θₑ=0.25π,θᵢ=0.25π) for j in y,i in x])
+push!(z,[gratingf(i,j,μ₁=0,μ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
+push!(z,[gaussianf(i,j,μ₁=0,μ₂=0.5,σ₁=0.8,σ₂=0.5,θ=0.25π) for j in y,i in x])
+push!(z,[gaborf(i,j,μ₁=0,μ₂=0.5,σ₁=1,σ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
+push!(z,[dogf(i,j,aₑ=1,aᵢ=2,μₑ₁=0,μₑ₂=0.5,μᵢ₁=0,μᵢ₂=0.5,σₑ₁=1,σₑ₂=0.6,σᵢ₁=0.7,σᵢ₂=0.42,θₑ=0.25π,θᵢ=0.25π) for j in y,i in x])
 
 p = plot(layout=(2,2),legend=false,size=(600,600))
-foreach(i->heatmap!(p,z[i],subplot=i,aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
+foreach(i->heatmap!(p[i],z[i],aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
 p
 
+z[1] = [gaborenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
+z[2] = [edogenvelopemask(i,j;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for j in y,i in x]
 
+# dog pattern
+x = -6:0.01:6
+p=plot(layout=(3,3),leg=false,frame=:origin,yticks=[],xticks=[],link=:all,size=(600,500),leftmargin=4mm)
+plot!(p[1,1],x->dogf(x,aₑ=2,σₑ=2,aᵢ=1,σᵢ=1),x,lw=2,ylabel="Aₑ/Aᵢ = 2")
+plot!(p[1,2],x->dogf(x,aₑ=2,σₑ=1,aᵢ=1,σᵢ=1),x,lw=2)
+plot!(p[1,3],x->dogf(x,aₑ=2,σₑ=1,aᵢ=1,σᵢ=2),x,lw=2)
+
+plot!(p[2,1],x->dogf(x,aₑ=1,σₑ=2,aᵢ=1,σᵢ=1),x,lw=2,ylabel="Aₑ/Aᵢ = 1")
+plot!(p[2,2],x->dogf(x,aₑ=1,σₑ=1,aᵢ=1,σᵢ=1),x,lw=2)
+plot!(p[2,3],x->dogf(x,aₑ=1,σₑ=1,aᵢ=1,σᵢ=2),x,lw=2)
+
+plot!(p[3,1],x->dogf(x,aₑ=1,σₑ=2,aᵢ=2,σᵢ=1),x,lw=2,xlabel="σᵢ/σₑ = 0.5",ylabel="Aₑ/Aᵢ = 0.5")
+plot!(p[3,2],x->dogf(x,aₑ=1,σₑ=1,aᵢ=2,σᵢ=1),x,lw=2,xlabel="σᵢ/σₑ = 1")
+plot!(p[3,3],x->dogf(x,aₑ=1,σₑ=1,aᵢ=2,σᵢ=2),x,lw=2,xlabel="σᵢ/σₑ = 2")
+p
+
+# gabor pattern
+x = -3:0.01:3
+p=plot(layout=(3,4),leg=false,frame=:origin,yticks=[],xticks=[],link=:all,size=(600,500),leftmargin=4mm)
+plot!(p[1,1],x->gaborf(x,f=1.5/5,phase=0),x,lw=2,ylabel="cyc = 1.5")
+plot!(p[1,2],x->gaborf(x,f=1.5/5,phase=0.25),x,lw=2)
+plot!(p[1,3],x->gaborf(x,f=1.5/5,phase=0.5),x,lw=2)
+plot!(p[1,4],x->gaborf(x,f=1.5/5,phase=0.75),x,lw=2)
+
+plot!(p[2,1],x->gaborf(x,f=1/5,phase=0),x,lw=2,ylabel="cyc = 1")
+plot!(p[2,2],x->gaborf(x,f=1/5,phase=0.25),x,lw=2)
+plot!(p[2,3],x->gaborf(x,f=1/5,phase=0.5),x,lw=2)
+plot!(p[2,4],x->gaborf(x,f=1/5,phase=0.75),x,lw=2)
+
+plot!(p[3,1],x->gaborf(x,f=0.5/5,phase=0),x,lw=2,xlabel="p = 0",ylabel="cyc = 0.5")
+plot!(p[3,2],x->gaborf(x,f=0.5/5,phase=0.25),x,lw=2,xlabel="p = 0.25")
+plot!(p[3,3],x->gaborf(x,f=0.5/5,phase=0.5),x,lw=2,xlabel="p = 0.5")
+plot!(p[3,4],x->gaborf(x,f=0.5/5,phase=0.75),x,lw=2,xlabel="p = 0.75")
+p
+
+# dog opponency
+x = -10:0.01:10
+plot([x->dogf(x,aₑ=2,σₑ=1,aᵢ=1,σᵢ=2),
+    x->dogf(x,aₑ=4,σₑ=1,aᵢ=1,σᵢ=2),
+    x->dogf(x,aₑ=2,σₑ=1,aᵢ=1,σᵢ=4)],x,lw=2,frame=:origin,fill=0,alpha=0.2,
+    color=[:green :red :blue],
+    label=["ρa=2, ρ=2" "ρa=4, ρ=2" "ρa=2, ρ=4"])
+
+
+# dft
 fs = 20
 f = 2
 t = 0:1/fs:10

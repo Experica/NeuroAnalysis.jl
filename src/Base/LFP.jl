@@ -18,7 +18,7 @@ function epochsample(x,fs,epochs,chs;whiten=nothing,fun=nothing)
 end
 
 "fill data in the shape of mask, where masked channels are replaced with local average"
-function fill2mask(ys, mask;chmap=1:size(ys,1), replacemask = true)
+function fill2mask(ys, mask;chmap=1:size(ys,1), replacemask = true,randreplace=false)
     nrow, ncol = size(mask)
     yss = zeros(nrow, ncol, size(ys)[2:end]...)
     for i in eachindex(chmap)
@@ -45,8 +45,11 @@ function fill2mask(ys, mask;chmap=1:size(ys,1), replacemask = true)
                 if ru > nrow
                     yss[r, c, :, :] = yss[rd, c, :, :]
                 else
-                    yss[r, c, :, :] = (yss[rd, c, :, :] .+ yss[ru, c, :, :]) / 2
+                    @views yss[r, c, :, :] = (yss[rd, c, :, :] .+ yss[ru, c, :, :]) / 2
                 end
+            end
+            if randreplace
+                @views yss[r,c,:,:] = yss[r,c,:,:] .+ randn(size(yss)[3:end]...)*3*std(yss[r,c,:,:])
             end
             rmask[r, c] = false
         end
@@ -74,6 +77,10 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
             rm .-= mean(rm,dims=2)
         elseif temporaltype == :sub
             rm .-= mean(rm[:,ti],dims=2)
+        elseif temporaltype == :rc
+            rm = rm ./ mean(rm[:,ti],dims=2) .- 1
+        elseif temporaltype == :z
+            rm = (rm .- mean(rm[:,ti],dims=2)) ./ std(rm[:,ti],dims=2)
         end
         if !isnothing(hbordervalue)
             rm[[1,end],:].=hbordervalue
@@ -83,11 +90,16 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
 end
 
 "Remove line noise and its harmonics by notch filter"
+function rmline(y,fs;freq=60,nh=3,bw=3)
+    fy = similar(y,Float64)
+    copy!(fy,y)
+    rmline!(fy,fs;freq,nh,bw)
+end
 function rmline!(y,fs;freq=60,nh=3,bw=3)
     for i=1:nh
         f = iirnotch(freq*i,bw;fs=fs)
         for j=1:size(y,1)
-            y[j,:]=filtfilt(f,y[j,:])
+            @views y[j,:]=filtfilt(f,y[j,:])
         end
     end
     return y
@@ -95,20 +107,24 @@ end
 
 "High pass and low pass filtering"
 function hlpass(y,fs;high=0,low=Inf)
-    fy=copy(y)
+    fy = similar(y,Float64)
+    copy!(fy,y)
+    hlpass!(fy,fs;high,low)
+end
+function hlpass!(y,fs;high=0,low=Inf)
     if high>0
         f = digitalfilter(Highpass(high;fs=fs), Butterworth(4))
-        for j=1:size(fy,1)
-            fy[j,:]=filtfilt(f,fy[j,:])
+        for j=1:size(y,1)
+            @views y[j,:]=filtfilt(f,y[j,:])
         end
     end
     if low<Inf
         f = digitalfilter(Lowpass(low;fs=fs), Butterworth(4))
-        for j=1:size(fy,1)
-            fy[j,:]=filtfilt(f,fy[j,:])
+        for j=1:size(y,1)
+            @views y[j,:]=filtfilt(f,y[j,:])
         end
     end
-    return fy
+    return y
 end
 
 "time to sample index"
@@ -161,28 +177,66 @@ function powerspectrum(x,fs;freqrange=[0,100],nw=4)
     nd=ndims(x)
     if nd==3
         n=size(x,1);ne=size(x,3)
-        ps = mt_pgram(x[1,:,1],fs=fs,nw=nw)
-        fi = map(f->freqrange[1]<=f<=freqrange[2],freq(ps))
+        @views ps = mt_pgram(x[1,:,1],fs=fs,nw=nw)
+        fi = first(freqrange).<=freq(ps).<=last(freqrange)
         freqs = freq(ps)[fi]
         p = Array{Float64}(undef,n,length(freqs),ne)
         for i in 1:n,j in 1:ne
-            p[i,:,j] = power(mt_pgram(x[i,:,j],fs=fs,nw=nw))[fi]
+            @views p[i,:,j] = power(mt_pgram(x[i,:,j],fs=fs,nw=nw))[fi]
         end
     elseif nd == 2
-        ps = mt_pgram(x[1,:],fs=fs,nw=nw)
-        fi = map(f->freqrange[1]<=f<=freqrange[2],freq(ps))
+        @views ps = mt_pgram(x[1,:],fs=fs,nw=nw)
+        fi = first(freqrange).<=freq(ps).<=last(freqrange)
         freqs = freq(ps)[fi];n = size(x,1)
         p = Array{Float64}(undef,n,length(freqs))
         p[1,:]=power(ps)[fi]
         for i in 2:n
-            p[i,:]=power(mt_pgram(x[i,:],fs=fs,nw=nw))[fi]
+            @views p[i,:]=power(mt_pgram(x[i,:],fs=fs,nw=nw))[fi]
         end
     else
         ps = mt_pgram(x,fs=fs,nw=nw)
-        fi = map(f->freqrange[1]<=f<=freqrange[2],freq(ps))
+        fi = first(freqrange).<=freq(ps).<=last(freqrange)
         freqs = freq(ps)[fi];p = power(ps)[fi]
     end
     return p,freqs
+end
+
+"Multi-Taper channel pair-wise coherence spectrum estimation"
+function coherencespectrum(x,fs;freqrange=[0,100],nw=4,ismean=false)
+    nd=ndims(x)
+    if nd==3
+        n=size(x,1);ne=size(x,3)
+        @views c1,freqs = coherencespectrum(x[:,:,1],fs;freqrange,nw,ismean)
+        c = Array{Float64}(undef,n,n,length(freqs),ne)
+        c[:,:,:,1]=c1
+        for i in 2:ne
+            @views ci,freqs = coherencespectrum(x[:,:,i],fs;freqrange,nw,ismean)
+            c[:,:,:,i]=ci
+        end
+    elseif nd == 2
+        cs = mt_coherence(x;freq_range=freqrange,fs,nw)
+        c = coherence(cs);freqs=freq(cs)
+        if ismean
+            c = mean(c,dims=3)
+            freqs=mean(freqs)
+        end
+    else
+        @error "No coherence for one signal."
+    end
+    length(freqs)==1 && (c=dropdims(c,dims=3))
+    return c,freqs
+end
+
+"Weighted average of banded masked matrix"
+function bandmean(x;r=5,s=1)
+    mask = BandedMatrix(Ones(size(x)...),(r,r))
+
+    g = OffsetArray(gaussianf.(-r:r,σ=s),-r:r)
+    g[0] = 0
+    g ./= sum(g)
+    foreach(i->mask[band(i)].=g[i],-r:r)
+
+    bm = dropdims(sum(x.*Matrix(mask),dims=1),dims=1)
 end
 
 @doc raw"""

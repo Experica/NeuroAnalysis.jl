@@ -1,5 +1,6 @@
-using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,HypothesisTests,Colors,Images,StatsModels,Distances,CategoricalArrays,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,PyCall
+using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,BlackBoxOptim,HypothesisTests,Colors,Images,StatsModels,CategoricalArrays,
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,PyCall,
+Dierckx,BandedMatrices,OffsetArrays
 import Base: vec,range
 import StatsBase: predict
 
@@ -18,9 +19,11 @@ anscombe(x) = 2*sqrt(x+(3/8))
 gaussianf(x;a=1,μ=0,σ=1) = a*exp(-0.5((x-μ)/σ)^2)
 function gaussianf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)
     sinv,cosv = sincos(θ)
-    x′ = cosv * x + sinv * y
-    y′ = cosv * y - sinv * x
-    a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2))
+    x₀ = x-μ₁
+    y₀ = y-μ₂
+    x′ = cosv * x₀ + sinv * y₀
+    y′ = cosv * y₀ - sinv * x₀
+    a*exp(-0.5((x′/σ₁)^2 + (y′/σ₂)^2))
 end
 
 """
@@ -59,21 +62,41 @@ gvmf(α;β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*cos(α-μ₁) + κ�
 dogf(x;aₑ=2,μₑ=0,σₑ=1,aᵢ=1,μᵢ=0,σᵢ=2) = aₑ*exp(-0.5((x-μₑ)/σₑ)^2) - aᵢ*exp(-0.5((x-μᵢ)/σᵢ)^2)
 function dogf(x,y;aₑ=2,μₑ₁=0,σₑ₁=1,μₑ₂=0,σₑ₂=1,θₑ=0,aᵢ=1,μᵢ₁=0,σᵢ₁=2,μᵢ₂=0,σᵢ₂=2,θᵢ=0)
     sinvₑ,cosvₑ = sincos(θₑ)
-    xₑ′ = cosvₑ * x + sinvₑ * y
-    yₑ′ = cosvₑ * y - sinvₑ * x
+    xₑ₀ = x-μₑ₁
+    yₑ₀ = y-μₑ₂
+    xₑ′ = cosvₑ * xₑ₀ + sinvₑ * yₑ₀
+    yₑ′ = cosvₑ * yₑ₀ - sinvₑ * xₑ₀
     sinvᵢ,cosvᵢ = sincos(θᵢ)
-    xᵢ′ = cosvᵢ * x + sinvᵢ * y
-    yᵢ′ = cosvᵢ * y - sinvᵢ * x
-    aₑ*exp(-0.5(((xₑ′-μₑ₁)/σₑ₁)^2 + ((yₑ′-μₑ₂)/σₑ₂)^2)) - aᵢ*exp(-0.5(((xᵢ′-μᵢ₁)/σᵢ₁)^2 + ((yᵢ′-μᵢ₂)/σᵢ₂)^2))
+    xᵢ₀ = x-μᵢ₁
+    yᵢ₀ = y-μᵢ₂
+    xᵢ′ = cosvᵢ * xᵢ₀ + sinvᵢ * yᵢ₀
+    yᵢ′ = cosvᵢ * yᵢ₀ - sinvᵢ * xᵢ₀
+    aₑ*exp(-0.5((xₑ′/σₑ₁)^2 + (yₑ′/σₑ₂)^2)) - aᵢ*exp(-0.5((xᵢ′/σᵢ₁)^2 + (yᵢ′/σᵢ₂)^2))
 end
 
 """
 `sin` grating function
 
+- μ: x offset
 - f: Frequency in cycle/unit_x
 - phase: Phase of a cycle in [0, 1] scale
 """
-gratingf(x; f=1, phase=0) = sin(2π * (f * x + phase))
+gratingf(x;μ=0, f=1, phase=0) = sin(2π * (f * (x-μ) + phase))
+
+"""
+2D `sin` grating function
+
+- μ₁: x offset
+- μ₂: y offset
+- θ: Orientation in radius, 0 is -, increase counter-clock wise
+- f: Frequency in cycle/unit_x/y
+- phase: Phase of a cycle in [0, 1] scale
+"""
+function gratingf(x,y;μ₁=0,μ₂=0,θ=0,f=1,phase=0)
+    sinθ,cosθ = sincos(θ)
+    y′ = cosθ * (y-μ₂) - sinθ * (x-μ₁)
+    sin(2π * (f * y′ + phase))
+end
 
 """
 `cas` function defined as ``cas(x) = cos(x) + sin(x)``
@@ -88,19 +111,6 @@ function cas(x;f=1, phase=0, isnorm::Bool=true)
         r /=sqrt(2)
     end
     return r
-end
-
-"""
-2D `sin` grating function
-
-- θ: Orientation in radius, 0 is -, increase counter-clock wise
-- f: Frequency in cycle/unit_x/y
-- phase: Phase of a cycle in [0, 1] scale
-"""
-function gratingf(x,y; θ=0,f=1,phase=0)
-    sinθ,cosθ = sincos(θ)
-    y′ = cosθ * y - sinθ * x
-    sin(2π * (f * y′ + phase))
 end
 
 """
@@ -153,12 +163,37 @@ function sin2cas(θ,f,phase)
 end
 
 "`Gabor` function"
-gaborf(x;a=1,μ=0,σ=1,f=1,phase=0) = a*exp(-0.5((x-μ)/σ)^2)*sin(2π*(f*x+phase))
+gaborf(x;a=1,μ=0,σ=1,f=1,phase=0) = a*exp(-0.5((x-μ)/σ)^2)*sin(2π*(f*(x-μ)+phase))
 function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
     sinv,cosv = sincos(θ)
-    x′ = cosv * x + sinv * y
-    y′ = cosv * y - sinv * x
-    a*exp(-0.5(((x′-μ₁)/σ₁)^2 + ((y′-μ₂)/σ₂)^2)) * sin(2π*(f * y′ + phase))
+    x₀ = x-μ₁
+    y₀ = y-μ₂
+    x′ = cosv * x₀ + sinv * y₀
+    y′ = cosv * y₀ - sinv * x₀
+    a*exp(-0.5((x′/σ₁)^2 + (y′/σ₂)^2)) * sin(2π*(f * y′ + phase))
+end
+
+"Binary mask for gabor envelope"
+function gaborenvelopemask(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)
+    sinv,cosv = sincos(θ)
+    x₀ = x-μ₁
+    y₀ = y-μ₂
+    x′ = cosv * x₀ + sinv * y₀
+    y′ = cosv * y₀ - sinv * x₀
+    (x′/fσ/σ₁)^2 + (y′/fσ/σ₂)^2 <= 1 ? true : false
+end
+"Binary mask for concentric circular dog envelope"
+dogenvelopemask(x,y;fσ=2.5,μ₁=0,σₑ₁=1,μ₂=0,rσᵢₑ=2) = edogenvelopemask(x,y;fσ,μ₁,σₑ₁,rσ₂₁=1,μ₂,rσᵢₑ,θ=0)
+"Binary mask for concentric orientated elliptical dog envelope"
+function edogenvelopemask(x,y;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=1,μ₂=0,rσᵢₑ=2,θ=0)
+    sinv,cosv = sincos(θ)
+    x₀ = x-μ₁
+    y₀ = y-μ₂
+    x′ = cosv * x₀ + sinv * y₀
+    y′ = cosv * y₀ - sinv * x₀
+    σ₁ = max(σₑ₁,rσᵢₑ*σₑ₁)
+    σ₂ = σ₁ * rσ₂₁
+    (x′/fσ/σ₁)^2 + (y′/fσ/σ₂)^2 <= 1 ? true : false
 end
 
 "Fit 1D model to data"
@@ -183,7 +218,8 @@ function fitmodel(model,x,y)
         lb=[0.2ab,            0,              0]
         p0=[ab,               0,              1]
     elseif model == :gvm
-        fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
+        # fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
+        fun = gvmff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
         ub=[1.8ab,   prevfloat(float(2π)),   40,    prevfloat(float(π)),     40]
@@ -197,14 +233,16 @@ function fitmodel(model,x,y)
         lb=[0,      -10xab,   nextfloat(0.0),        0,    -10xab,     nextfloat(0.0)]
         p0=[ab,        0,                  1,       ab,         0,                  1]
     elseif model == :sfdog
-        fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
+        # fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
+        fun = sfdogff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
         ub=[1.5ab,    10,             10,          1.5ab,       10,                10,         bm+br/3]
         lb=[0,         0,      nextfloat(0.0),       0,          0,        nextfloat(0.0),        0]
         p0=[ab,     0.5xab,         0.5xab,          0,        0.5xab,           0.5xab,       bm-br/3]
     elseif model == :sfgaussian
-        fun = (x,p) -> gaussianf.(log2.(x),a=p[1],μ=p[2],σ=p[3]) .+ p[4]
+        # fun = (x,p) -> gaussianf.(log2.(x),a=p[1],μ=p[2],σ=p[3]) .+ p[4]
+        fun = sfgaussianff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
         # limit gaussian center ~[-8 10], sigma ~[1.4 8]
@@ -213,19 +251,25 @@ function fitmodel(model,x,y)
         p0=[ab,          0,          1,        0]
     end
     if !ismissing(fun)
-        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
-        param=ofit.minimizer; yy = fun(x,param)
+        # ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
+        # param=ofit.minimizer
+        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=200000)
+        param = best_candidate(ofit)
 
-        rlt = (;model,fun,param,goodnessoffit(y,yy,k=length(param))...)
+        rlt = (;model,fun,param, goodnessoffit(y,fun(x,param),k=length(param))...)
     end
     return rlt
 end
+gvmff(x,p) = gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
+sfdogff(x,p) = dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
+sfgaussianff(x,p) = gaussianf.(log2.(x),a=p[1],μ=p[2],σ=p[3]) .+ p[4]
+
 
 "Fit 2D model to image"
 function fitmodel2(model,data::Matrix,ppu;w=0.5)
-    rpx = (size(data)[1]-1)/2
-    radius = rpx/ppu
-    x = (mapreduce(i->[i[2] -i[1]],vcat,CartesianIndices(data)) .+ [-(rpx+1) (rpx+1)])/ppu
+    rspx = (size(data).-1)./2
+    radii = rspx./ppu
+    x = (mapreduce(i->[i[2] -i[1]],vcat,CartesianIndices(data)) .+ [-(rspx[2]+1) (rspx[1]+1)])/ppu
     y = vec(data)
 
     # try estimate solution
@@ -233,7 +277,7 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
     alb,aub = abs.(extrema(data[roi.i]))
     ab = max(alb,aub)
     r = roi.radius/ppu
-    c = [roi.center[2] - (rpx+1), -roi.center[1] + (rpx+1)]/ppu
+    c = [roi.center[2] - (rspx[2]+1), -roi.center[1] + (rspx[1]+1)]/ppu
 
     rlt = fun = missing
     if model == :dog
@@ -244,28 +288,62 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
             ae = 5aub
             ai = alb + ae
         end
-        fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[6],μᵢ₂=p[4],σᵢ₂=p[6],θᵢ=0)
-        ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
-        ub=[5ae,    0.5r+c[1],    0.9r,    0.5r+c[2],     5ai,    0.9r]
-        lb=[0,     -0.5r+c[1],    0.1r,   -0.5r+c[2],     0,      0.1r]
-        p0=[ae,      c[1],        0.3r,     c[2],         ai,     0.3r]
+        # concentric circular dog
+        # fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[6]*p[3],μᵢ₂=p[4],σᵢ₂=p[6]*p[3],θᵢ=0)
+        # mfun = (x,y,p) -> dogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσᵢₑ=p[6])
+        fun = dogff
+        mfun = dogfmf
+        ofun = (p;x=x,y=y) -> @views sum((y.-fun(x[:,1],x[:,2],p)).^2)
+        ub=[5ae,    0.5r+c[1],    0.9r,    0.5r+c[2],     5ai,    4]
+        lb=[0,     -0.5r+c[1],    0.1r,   -0.5r+c[2],     0,      0.25]
+        p0=[ae,      c[1],        0.3r,     c[2],         ai,     1]
+    elseif model == :edog
+        if aub >= alb
+            ai = 5alb
+            ae = aub + ai
+        else
+            ae = 5aub
+            ai = alb + ae
+        end
+        # concentric orientated elliptical dog
+        # fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[5]*p[3],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2],σᵢ₁=p[8]*p[3],μᵢ₂=p[4],σᵢ₂=p[5]*p[8]*p[3],θᵢ=p[6])
+        # mfun = (x,y,p) -> edogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσ₂₁=p[5],rσᵢₑ=p[8],θ=p[6])
+        fun = edogff
+        mfun = edogfmf
+        ofun = (p;x=x,y=y) -> @views sum((y.-fun(x[:,1],x[:,2],p)).^2)
+        ub=[5ae,    0.5r+c[1],    0.9r,    0.5r+c[2],       1,       prevfloat(float(π)),    5ai,     4]
+        lb=[0,     -0.5r+c[1],    0.1r,   -0.5r+c[2],      0.5,              0,               0,      0.25]
+        p0=[ae,      c[1],        0.3r,     c[2],           1,               0,               ai,     1]
     elseif model == :gabor
-        fun = (x,y,p) -> gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5],θ=p[6],f=p[7],phase=p[8])
-        ofun = (p;x=x,y=y) -> sum((y.-fun(x[:,1],x[:,2],p)).^2)
+        # fun = (x,y,p) -> gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5]*p[3],θ=p[6],f=p[7],phase=p[8])
+        # mfun = (x,y,p) -> gaborenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σ₁=p[3],σ₂=p[5]*p[3],θ=p[6])
+        fun = gaborff
+        mfun = gaborfmf
+        ofun = (p;x=x,y=y) -> @views sum((y.-fun(x[:,1],x[:,2],p)).^2)
 
         ori,sf = f1orisf(powerspectrum2(data,ppu)...)
-        ub=[5ab,   0.5r+c[1],   0.9r,    0.5r+c[2],    0.9r,      prevfloat(float(π)),     12,     prevfloat(1.0)]
-        lb=[0,    -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.1r,                0,             0.05,           0]
-        p0=[ab,    c[1],        0.3r,     c[2],        0.3r,               ori,            sf,            0.5]
+        ub=[5ab,   0.5r+c[1],   0.9r,    0.5r+c[2],    6.0,     prevfloat(float(π)),     12,            prevfloat(1.0)]
+        lb=[0,    -0.5r+c[1],   0.1r,   -0.5r+c[2],    0.2,             0,              0.05,                  0]
+        p0=[ab,    c[1],        0.3r,     c[2],          1,            ori,     clamp(sf,lb[7],ub[7]),       0.5]
     end
     if !ismissing(fun)
-        ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
-        param=ofit.minimizer; yy = fun(x[:,1],x[:,2],param)
+        # ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
+        # param = ofit.minimizer
+        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=200000)
+        param = best_candidate(ofit)
 
-        rlt = (;model,fun,param,radius,goodnessoffit(y,yy,k=length(param))...)
+        @views rlt = (;model,fun,mfun,param,radii, goodnessoffit(y,fun(x[:,1],x[:,2],param),k=length(param))...)
     end
     return rlt
 end
+# workaround since JLD2 can not save/load anonymous functions yet
+dogff(x,y,p) = dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[6]*p[3],μᵢ₂=p[4],σᵢ₂=p[6]*p[3],θᵢ=0)
+edogff(x,y,p) = dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[5]*p[3],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2],σᵢ₁=p[8]*p[3],μᵢ₂=p[4],σᵢ₂=p[5]*p[8]*p[3],θᵢ=p[6])
+gaborff(x,y,p) = gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5]*p[3],θ=p[6],f=p[7],phase=p[8])
+dogfmf(x,y,p) = dogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσᵢₑ=p[6])
+edogfmf(x,y,p) = edogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσ₂₁=p[5],rσᵢₑ=p[8],θ=p[6])
+gaborfmf(x,y,p) = gaborenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σ₁=p[3],σ₂=p[5]*p[3],θ=p[6])
+
 
 predict(fit,x) = fit.fun(x,fit.param)
 function predict(fit,x,y;xygrid=true,yflip=false)
@@ -627,19 +705,30 @@ function psthstss(xss::Vector,binedges::Vector,conds;normfun=nothing)
     dfs = [psth(xss[i],binedges,conds[i],normfun=normfun) for i=1:n]
     return cat(1,dfs)
 end
-function unitdensity(pos;w=ones(length(pos)),lim=extrema(pos),bw=0.01(lim[2]-lim[1]),step=bw/2,r=nothing,wfun=sum)
+function unitdensity(pos;w=ones(length(pos)),spacerange=extrema(pos),bw=0.01(last(spacerange)-first(spacerange)),
+                    step=bw/2,r=nothing,wfun=sum,s=nothing)
     hbw = bw/2
-    y = lim[1]:step:lim[2]
+    y = first(spacerange):step:last(spacerange)
     n = [wfun(w[i-hbw .<=pos.< i+hbw]) for i in y]
     if !isnothing(r)
         n = n/(bw*π*r^2)
     end
+    i = isnan.(n) .| isinf.(n)
+    if any(i)
+        n = Spline1D(y[.!i],n[.!i],k=3,bc="extrapolate")(y)
+    end
+    if !isnothing(s)
+        g = gaussianf.(-5:5,σ=s)
+        g ./= sum(g)
+        n = imfilter(n,centered(g),ImageFiltering.Fill(0))
+    end
     return (;n,y)
 end
-function spacepsth(unitpsth,unitposition;w=ones(size(unitposition,1)),lim=extrema(unitposition),bw=0.01(lim[2]-lim[1]),step=bw/2)
+function spacepsth(unitpsth,unitposition;w=ones(size(unitposition,1)),spacerange=extrema(unitposition),
+                    bw=0.01(last(spacerange)-first(spacerange)),step=bw/2)
     hbw = bw/2
     x = unitpsth[1].x
-    y = lim[1]:step:lim[2]
+    y = first(spacerange):step:last(spacerange)
 
     n = zeros(length(y))
     psth = zeros(length(y),length(x))

@@ -71,6 +71,10 @@ findclosestangle(α,β)
 findclosestangle(α,β)
 
 
+## ROI
+clamproi((12,13),(35,17),(30,30),issquare=true)
+
+
 ## ImagerIO
 readrawim_Mono8(joinpath(@__DIR__,"Mono8_100.Raw"),100,100)
 readrawim_Mono12Packed(joinpath(@__DIR__,"Mono12Packed_100.Raw"),100,100)

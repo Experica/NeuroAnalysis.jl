@@ -316,7 +316,7 @@ Estimate the F1 Ori and SpatialFreq of an image from its 2D powerspectrum.
 3. freqd2: frequencies of dim 2
 
 return:
-- ori: Orientation in radius, 0 is -, increase counter-clock wise
+- ori: Orientation in radius[0,π], 0 is -, increase counter-clock wise
 - sf: SpatialFreq along the line perpendicular to ori
 """
 function f1orisf(x,freqd1,freqd2)
@@ -364,28 +364,58 @@ function peakroi(data::Matrix;ds = size(data),i = [Tuple(argmax(data))...])
                             (CartesianIndex(ds...),1),(CartesianIndex(i...),2)])
     idx = findall(labels_map(segs).==2)
     roi = roiwindow(idx)
-    return (i=idx,center=roi.center,radius=round(Int,maximum(roi.hw)/2))
+    return (i=idx,roi...)
 end
 "Get ROI from region indices"
 function roiwindow(idx)
     idxlims = dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2)
-    hw = map(i->i[2]-i[1],idxlims)
     center = round.(Int,mean.(idxlims))
-    return (;center,hw)
+    radii = map((i,j)->minimum(abs.(i.-j)),idxlims,center)
+    return (;center,radii,radius=maximum(radii))
 end
-"Get the minimum ROI region encompass all rois"
-function mergeroi(rois,ds;roimargin=0)
-    cs = mapfoldl(r->r.center,hcat,rois,init=zeros(Int,2,0))
-    center = round.(Int,vec(mean(cs,dims=2)))
-    cdev = maximum(Distances.colwise(Euclidean(),cs,center))
-    radius = round(Int,(maximum(r->r.radius,rois)+cdev)*(1+roimargin))
-    radius = clamproi(center,radius,ds)
-    return (;center,radius)
+"Get the minimum ROI encompass all rois"
+# function mergeroi(rois,ds;roimargin=0)
+#     cs = mapfoldl(r->r.center,hcat,rois,init=zeros(Int,2,0))
+#     center = round.(Int,vec(mean(cs,dims=2)))
+#     cdev = maximum(Distances.colwise(Euclidean(),cs,center))
+#     radius = round(Int,(maximum(r->r.radius,rois)+cdev)*(1+roimargin))
+#     radius = clamproi(center,radius,ds)
+#     return (;center,radius)
+# end
+function mergeroi(rois;roimargin=0,imgsize=[],issquare=false)
+    isempty(rois) && return (;)
+    if length(rois)==1
+        center = rois[1].center
+        radii = rois[1].radii
+    else
+        idx = vcat(map(i->i.i,rois)...)
+        center,radii = roiwindow(idx)
+    end
+    radii = round.(Int,radii.*(1+roimargin))
+    if isempty(imgsize)
+        return (;center,radii,radius=maximum(radii))
+    else
+        return clamproi(center,radii,imgsize;issquare)
+    end
 end
-"Confine ROI radius so that ROI is within the image"
-function clamproi(center,radius,ds)
-    vr = map(i->intersect(center[i].+(-radius:radius),1:ds[i]),1:2)
-    radius = (minimum ∘ mapreduce)((r,c)->abs.([r[begin],r[end]].-c),append!,vr,center)
+"Confine ROI so that it is not out of the image"
+function clamproi(c,rs,imgsize;issquare=false)
+    vr = map(i->intersect(c[i].+(-rs[i]:rs[i]),1:imgsize[i]),1:2)
+    any(isempty,vr) && return (;)
+    center = map(i->round(Int,mean(extrema(i))),vr)
+    radii = map((i,j)->minimum(abs.(extrema(i).-j)),vr,center)
+    radius = maximum(radii)
+    if issquare
+        if abs(radii[1]-radii[2]) < 2
+            radius = minimum(radii)
+            radii = (radius,radius)
+        else
+            while radii[1]!=radii[2]
+                center,radii,radius = clamproi(center,(radius,radius),imgsize;issquare)
+            end
+        end
+    end
+    return (;center,radii,radius)
 end
 
 function imresize_antialiasing(img,sz)

@@ -19,7 +19,7 @@ function gaincorrectnp(y,meta)
     savechids = meta["savedchans"]
     chids = yt == "ap" ? filter!(i->i<=nch,savechids) : filter!(i->i>nch,savechids).-nch
 
-    cy=Array{Float64}(undef,size(y))
+    cy = similar(y,Float64)
     for i in 1:size(y,1)
         cy[i,:] = y[i,:] * fi2v / gain[chids[i]]
     end

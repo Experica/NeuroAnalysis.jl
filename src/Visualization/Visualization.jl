@@ -30,6 +30,12 @@ function factorunit(f::Symbol;timeunit=SecondPerUnit)
     end
     return fu
 end
+factorunitstring(f,u) = factorunitstring(string(f),string(u))
+function factorunitstring(f::String,u::String)
+    isempty(f) && return f
+    isempty(u) && return f
+    "$f ($u)"
+end
 
 "scatter plot of spike trains"
 function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,600))
@@ -229,8 +235,8 @@ function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=
 end
 
 "Plot Analog Signals"
-function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Time",ylabel="Depth",clims=nothing,
-    xunit=:ms,yunit=:μm,cunit=:v,plottype=:heatmap,hy=0,color=:coolwarm,layer=nothing,n=nothing)
+function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[],xlabel="Time",ylabel="Depth",clims=nothing,
+    xunit=:ms,yunit=:μm,cunit=:v,plottype=:heatmap,hy=0,color=:coolwarm,layer=nothing,n=nothing,aspectratio=:auto)
     nd=ndims(data);ds=1
     if nd==1
         if isnothing(x)
@@ -255,7 +261,9 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
                 clims = :auto
             end
         end
-        p=plot(x,data*ds,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)",ylabel="$ylabel ($cunit)")
+        xlabel = factorunitstring(xlabel,xunit)
+        ylabel = factorunitstring(ylabel,yunit)
+        p=plot(x,data*ds;legend=false,color_palette=color,grid=false,ylims=clims,xlabel,ylabel,aspectratio)
     elseif nd==2
         if isnothing(x)
             x=1:size(data,2)
@@ -279,18 +287,20 @@ function plotanalog(data;x=nothing,y=nothing,fs=0,xext=0,timeline=[0],xlabel="Ti
                 clims = :auto
             end
         end
+        xlabel = factorunitstring(xlabel,xunit)
+        ylabel = factorunitstring(ylabel,yunit)
         if plottype==:heatmap
             if isnothing(y)
                 y = (1:size(data,1))
                 hy>0 && (y*=hy)
             end
-            p=heatmap(x,y,data*ds,color=color,clims=clims,xlabel="$xlabel ($xunit)",ylabel="$ylabel ($yunit)")
+            p=heatmap(x,y,data*ds;color=color,clims=clims,xlabel,ylabel,aspectratio,xlim=extrema(x),ylim=extrema(y))
             if !isnothing(n)
-                pn = n./maximum(n) .* maximum(x) .* 0.2 .+ minimum(x)
-                plot!(p,pn,y,label="Number of Units",color=:seagreen,leg=false)
+                pn = clampscale(n) .* (maximum(x)-minimum(x)) .* 0.2 .+ minimum(x)
+                plot!(p,pn,y,color=:seagreen,leg=false,xlim=extrema(x),ylim=extrema(y))
             end
         else
-            p=plot(x,data'*ds,legend=false,color_palette=color,grid=false,ylims=clims,xlabel="$xlabel ($xunit)",ylabel="$ylabel ($cunit)")
+            p=plot(x,data'*ds;legend=false,color_palette=color,grid=false,ylims=clims,xlabel,ylabel,aspectratio)
         end
     end
     isempty(timeline) || vline!(p,timeline,line=(:grey),label="TimeLine",leg=false)
@@ -576,18 +586,20 @@ function plotunitpositionimage(unitposition,image;width=800,height=600,markersiz
     ],
     axes=[
     {
-        domain=true,
-        tickCount=5,
+        domain=false,
+        tickCount=0,
         grid=false,
-        title="Position_X (μm)",
+        # title="Position_X (μm)",
+        title="",
         scale="x",
         orient="bottom"
     },
     {
-        domain=true,
-        tickCount=5,
+        domain=false,
+        tickCount=0,
         grid=false,
-        title="Position_Y (μm)",
+        # title="Position_Y (μm)",
+        title="",
         scale="y",
         orient="left"
     }

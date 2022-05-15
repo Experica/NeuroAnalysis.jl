@@ -264,9 +264,17 @@ function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100],whiten=nothing)
         fun = i -> gaincorrectnp(i,meta)
         if !isempty(bandpass)
             if bandpass[1] <= 250
-                fun = i -> hlpass(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
+                fun = i -> hlpass!(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
             else
-                fun = i -> hlpass(gaincorrectnp(i,meta),fs,high=bandpass[1],low=bandpass[2])
+                fun = i -> hlpass!(gaincorrectnp(i,meta),fs,high=bandpass[1],low=bandpass[2])
+            end
+        end
+    else
+        if !isempty(bandpass)
+            if bandpass[1] <= 250
+                fun = i -> hlpass!(rmline(i,fs),fs,high=bandpass[1],low=bandpass[2])
+            else
+                fun = i -> hlpass(i,fs,high=bandpass[1],low=bandpass[2])
             end
         end
     end
@@ -329,7 +337,7 @@ function unitspike_kilosort3(data::Dict;syncindex="0",sortspike::Bool=true)
     # mean position of templates with which unit spikes are extracted
     unittemplateposition = vcat(map(i->mean(data["templatesposition"][i,:],dims=1),unittemplatesindex)...)
     # mean amplitude of unit templates
-    unittemplateamplitude = map(i->mean(data["templatesamplitude"][i]),unittemplatesindex)
+    unittemplatemeanamplitude = map(i->mean(data["templatesmeanamplitude"][i]),unittemplatesindex)
     # first found template waveform
     unittemplatewaveform = data["templateswaveform"][first.(unittemplatesindex),:]
     # first found template waveform feature
@@ -346,13 +354,14 @@ function unitspike_kilosort3(data::Dict;syncindex="0",sortspike::Bool=true)
     winv = data["whiteningmatrixinv"]
     wraw = data["whiteningmatrixraw"]
     winvraw = data["whiteningmatrixinvraw"]
+    qm = data["qm"]
 
     sortspike && foreach(sort!,unitspike)
     return Dict("unitid"=>unitid,"unitgood"=>unitgood,"unitspike"=>unitspike,"datapath"=>datapath,"t0"=>t0,"fs"=>fs,
         "nsample"=>nsample,"nch"=>nch,"chmapraw"=>chmapraw,"chposition"=>chposition,"unittemplateposition"=>unittemplateposition,
-        "unittemplateamplitude"=>unittemplateamplitude,"unittemplatewaveform"=>unittemplatewaveform,"unittemplatefeature"=>unittemplatefeature,
+        "unittemplatemeanamplitude"=>unittemplatemeanamplitude,"unittemplatewaveform"=>unittemplatewaveform,"unittemplatefeature"=>unittemplatefeature,
         "unitwaveforms"=>unitwaveforms,"unitposition"=>unitposition,"unitwaveform"=>unitwaveform,"unitfeature"=>unitfeature,
-        "w"=>w,"winv"=>winv,"wraw"=>wraw,"winvraw"=>winvraw,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
+        "w"=>w,"winv"=>winv,"wraw"=>wraw,"winvraw"=>winvraw,"qm"=>qm,"isspikesorted"=>sortspike,"unitsync"=>fill(syncindex,size(unitspike)))
 end
 
 function mergeimecspike!(imecspike,d)

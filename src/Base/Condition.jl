@@ -133,12 +133,12 @@ end
 isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,response)) < alpha
 "Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i];alpha),gi))
-isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response,alpha=alpha))
+isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response;alpha))
 "Check if `std` of a spatial-temporal kernal within response time window significently higher than that of the baseline time window"
 function isresponsive(st;bi=[],ri=[],sdfactor=3)
     sd = dropdims(std(st,dims=1),dims=1)
     sdmaxt = argmax(sd); sdmax = sd[sdmaxt]
-    bsdm = mean(sd[bi]);bsdsd=std(sd[bi])
+    bsdm = median(sd[bi]);bsdsd=mad(sd[bi],normalize=true)
 
     (;r=!(sdmaxt in bi) && (sdmaxt in ri) && sdmax > bsdm+sdfactor*bsdsd,sd=sdmax,d=sdmaxt)
 end
