@@ -29,6 +29,15 @@ plotcolormap(ColorMaps["dkl_mcchue_l0"].colors)
 plotcolormap(ColorMaps["lidkl_mcchue_l0"].colors)
 plotcolormap(ColorMaps["hsl_mshue_l0.4"].colors)
 
+plotcolormap(ColorMaps["dkl_mcclumiso"].colors,shape=:sin)
+plotcolormap(ColorMaps["lms_mccliso"].colors,shape=:sin)
+plotcolormap(ColorMaps["lms_mccmiso"].colors,shape=:sin)
+plotcolormap(ColorMaps["lms_mccsiso"].colors,shape=:sin)
+
+plotcolormap(ColorMaps["dkl_mcclumiso"].colors,shape=:diag,markersize=10)
+plotcolormap!(ColorMaps["dkl_mcclmiso"].colors,shape=:hline,markersize=10)
+plotcolormap!(ColorMaps["dkl_mccslmiso"].colors,shape=:vline,markersize=10)
+plotcolormap!(ColorMaps["lidkl_mcchue_l0"].colors,markersize=12)
 
 
 # foreach(i->save(joinpath(resultdir,"cm_dkl_mcchue_l$lum$i"),cm_dkl),[".yaml",".mat"])

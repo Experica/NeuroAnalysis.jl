@@ -30,19 +30,46 @@ end
 "Predefined ColorMaps"
 ColorMaps=Dict()
 
-function plotcolormap(cm;title="",xlabel="",ylabel="",markersize=12,shape=:circle)
+function plotcolormap(cm;title="",xlabel="",ylabel="",markersize=12,shape=:circle,frame=:none,theta=45)
+    plot()
+    plotcolormap!(cm;title,xlabel,ylabel,markersize,shape,frame,theta)
+end
+function plotcolormap!(cm;title="",xlabel="",ylabel="",markersize=12,shape=:circle,frame=:none,theta=45)
     if shape == :circle
         yx = sincos.(2π*range(0,1,length=length(cm)))
         x = map(i->i[2],yx)
         y = map(i->i[1],yx)
         marker = :circle
-        ylims=[-1.2,1.2]
-    else
-        x = range(0,1,length=length(cm))
-        y = ones(length(cm))
+        xlims=ylims=[-1.2,1.2]
+        color=cm
+    elseif shape == :hline
+        x = range(-1,1,length=length(cm))
+        y = zeros(length(cm))
         marker = :rect
-        ylims=[0.5,1.5]
+        ylims=[-0.5,0.5]
+        xlims = [-1.2,1.2]
+        color=cm
+    elseif shape == :vline
+        y = range(-1,1,length=length(cm))
+        x = zeros(length(cm))
+        marker = :rect
+        xlims=[-0.5,0.5]
+        ylims = [-1.2,1.2]
+        color=cm
+    elseif shape == :diag
+        s,c = sincosd(theta)
+        x = range(-1,1,length=length(cm))
+        y = s*x
+        x = c*x
+        marker = :circle
+        xlims=ylims=[-1.2,1.2]
+        color=cm
+    elseif shape == :sin
+        x = range(-1,1,length=length(cm))
+        y = sin.(π*(x.+1))
+        color=cgrad(cm)[(y.+1)/2]
+        xlims=ylims=[-1.2,1.2]
+        marker = :circle
     end
-    scatter(x,y,aspectratio=:equal,color=cm,markersize=markersize,marker=marker,ylims=ylims,
-    markerstrokewidth=0,legend=false,xlabel=xlabel,ylabel=ylabel,title=title)
+    scatter!(x,y;aspectratio=:equal,color,markersize,frame,marker,xlims,ylims,msw=0,leg=false,xlabel,ylabel,title)
 end

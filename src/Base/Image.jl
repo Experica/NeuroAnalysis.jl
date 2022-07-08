@@ -368,7 +368,7 @@ function peakroi(data::Matrix;ds = size(data),i = [Tuple(argmax(data))...])
 end
 "Get ROI from region indices"
 function roiwindow(idx)
-    idxlims = dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2)
+    idxlims = Tuple(dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2))
     center = round.(Int,mean.(idxlims))
     radii = map((i,j)->minimum(abs.(i.-j)),idxlims,center)
     return (;center,radii,radius=maximum(radii))
@@ -399,8 +399,8 @@ function mergeroi(rois;roimargin=0,imgsize=[],issquare=false)
     end
 end
 "Confine ROI so that it is not out of the image"
-function clamproi(c,rs,imgsize;issquare=false)
-    vr = map(i->intersect(c[i].+(-rs[i]:rs[i]),1:imgsize[i]),1:2)
+function clamproi(cs,rs,imgsize;issquare=false)
+    vr = map(i->intersect(cs[i].+(-rs[i]:rs[i]),1:imgsize[i]),(1,2))
     any(isempty,vr) && return (;)
     center = map(i->round(Int,mean(extrema(i))),vr)
     radii = map((i,j)->minimum(abs.(extrema(i).-j)),vr,center)
@@ -421,11 +421,11 @@ end
 function imresize_antialiasing(img,sz)
     isz = size(img)
     iisz = isz[1:2]
-    iisz == sz && return img
+    all(iisz .== sz) && return img
     if any(sz .< iisz)
         σ = (map((o,n)->0.2*o/n, iisz, sz)...,zeros(length(isz)-2)...)
-        return imresize(imfilter(img, KernelFactors.gaussian(σ), NA()), sz)
+        return imresize(imfilter(img, KernelFactors.gaussian(σ), NA()), sz...)
     else
-        return imresize(img, sz)
+        return imresize(img, sz...)
     end
 end

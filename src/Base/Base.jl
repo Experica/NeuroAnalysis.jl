@@ -15,16 +15,37 @@ include("2P.jl")
 vec(x::RGBA)=[x.r,x.g,x.b,x.alpha]
 anscombe(x) = 2*sqrt(x+(3/8))
 
+"`Ellipse` function"
+function ellipsef(α;a=2,b=1,θ=π/4,μ₁=0,μ₂=0)
+    sinθ,cosθ = sincos(θ)
+    sinα,cosα = sincos(α)
+    x′ = a*cosα
+    y′ = b*sinα
+    cosθ*x′ - sinθ*y′ + μ₁, sinθ*x′ + cosθ*y′ + μ₂
+end
 "`Gaussian` function"
 gaussianf(x;a=1,μ=0,σ=1) = a*exp(-0.5((x-μ)/σ)^2)
 function gaussianf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)
-    sinv,cosv = sincos(θ)
+    sinθ,cosθ = sincos(θ)
     x₀ = x-μ₁
     y₀ = y-μ₂
-    x′ = cosv * x₀ + sinv * y₀
-    y′ = cosv * y₀ - sinv * x₀
+    x′ = cosθ * x₀ + sinθ * y₀
+    y′ = cosθ * y₀ - sinθ * x₀
     a*exp(-0.5((x′/σ₁)^2 + (y′/σ₂)^2))
 end
+"`Gaussian` contour"
+gaussiancontour(α;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0) = ellipsef(α;a=fσ*σ₁,b=fσ*σ₂,θ,μ₁,μ₂)
+"`Gaussian` envelope"
+function gaussianenvelope(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)
+    sinθ,cosθ = sincos(θ)
+    x₀ = x-μ₁
+    y₀ = y-μ₂
+    x′ = cosθ * x₀ + sinθ * y₀
+    y′ = cosθ * y₀ - sinθ * x₀
+    (x′/fσ/σ₁)^2 + (y′/fσ/σ₂)^2 - 1
+end
+"`Gaussian` envelope mask"
+gaussianenvelopemask(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)=gaussianenvelope(x,y;fσ,μ₁,σ₁,μ₂,σ₂,θ) <= 0 ? true : false
 
 """
 `von Mises` function [^1]
@@ -61,16 +82,16 @@ gvmf(α;β=1,μ₁=0,κ₁=1,μ₂=0,κ₂=1) = β*exp(κ₁*cos(α-μ₁) + κ�
 """
 dogf(x;aₑ=2,μₑ=0,σₑ=1,aᵢ=1,μᵢ=0,σᵢ=2) = aₑ*exp(-0.5((x-μₑ)/σₑ)^2) - aᵢ*exp(-0.5((x-μᵢ)/σᵢ)^2)
 function dogf(x,y;aₑ=2,μₑ₁=0,σₑ₁=1,μₑ₂=0,σₑ₂=1,θₑ=0,aᵢ=1,μᵢ₁=0,σᵢ₁=2,μᵢ₂=0,σᵢ₂=2,θᵢ=0)
-    sinvₑ,cosvₑ = sincos(θₑ)
+    sinθₑ,cosθₑ = sincos(θₑ)
     xₑ₀ = x-μₑ₁
     yₑ₀ = y-μₑ₂
-    xₑ′ = cosvₑ * xₑ₀ + sinvₑ * yₑ₀
-    yₑ′ = cosvₑ * yₑ₀ - sinvₑ * xₑ₀
-    sinvᵢ,cosvᵢ = sincos(θᵢ)
+    xₑ′ = cosθₑ * xₑ₀ + sinθₑ * yₑ₀
+    yₑ′ = cosθₑ * yₑ₀ - sinθₑ * xₑ₀
+    sinθᵢ,cosθᵢ = sincos(θᵢ)
     xᵢ₀ = x-μᵢ₁
     yᵢ₀ = y-μᵢ₂
-    xᵢ′ = cosvᵢ * xᵢ₀ + sinvᵢ * yᵢ₀
-    yᵢ′ = cosvᵢ * yᵢ₀ - sinvᵢ * xᵢ₀
+    xᵢ′ = cosθᵢ * xᵢ₀ + sinθᵢ * yᵢ₀
+    yᵢ′ = cosθᵢ * yᵢ₀ - sinθᵢ * xᵢ₀
     aₑ*exp(-0.5((xₑ′/σₑ₁)^2 + (yₑ′/σₑ₂)^2)) - aᵢ*exp(-0.5((xᵢ′/σᵢ₁)^2 + (yᵢ′/σᵢ₂)^2))
 end
 
@@ -165,35 +186,54 @@ end
 "`Gabor` function"
 gaborf(x;a=1,μ=0,σ=1,f=1,phase=0) = a*exp(-0.5((x-μ)/σ)^2)*sin(2π*(f*(x-μ)+phase))
 function gaborf(x,y;a=1,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0,f=1,phase=0)
-    sinv,cosv = sincos(θ)
+    sinθ,cosθ = sincos(θ)
     x₀ = x-μ₁
     y₀ = y-μ₂
-    x′ = cosv * x₀ + sinv * y₀
-    y′ = cosv * y₀ - sinv * x₀
+    x′ = cosθ * x₀ + sinθ * y₀
+    y′ = cosθ * y₀ - sinθ * x₀
     a*exp(-0.5((x′/σ₁)^2 + (y′/σ₂)^2)) * sin(2π*(f * y′ + phase))
 end
 
+"gabor contour"
+gaborcontour(α;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0) = ellipsef(α;a=fσ*σ₁,b=fσ*σ₂,θ,μ₁,μ₂)
+"gabor envelope"
+gaborenvelope(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)=gaussianenvelope(x,y;fσ,μ₁,σ₁,μ₂,σ₂,θ)
 "Binary mask for gabor envelope"
-function gaborenvelopemask(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)
-    sinv,cosv = sincos(θ)
-    x₀ = x-μ₁
-    y₀ = y-μ₂
-    x′ = cosv * x₀ + sinv * y₀
-    y′ = cosv * y₀ - sinv * x₀
-    (x′/fσ/σ₁)^2 + (y′/fσ/σ₂)^2 <= 1 ? true : false
+gaborenvelopemask(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)=gaussianenvelopemask(x,y;fσ,μ₁,σ₁,μ₂,σ₂,θ)
+
+"concentric circular dog contour"
+function dogcontour(α;fσ=2.5,μ₁=0,σₑ₁=1,μ₂=0,rσᵢₑ=2)
+    a=fσ*max(σₑ₁,rσᵢₑ*σₑ₁)
+    ellipsef(α;a,b=a,θ=0,μ₁,μ₂)
+end
+"concentric circular dog envelope"
+function dogenvelope(x,y;fσ=2.5,μ₁=0,σₑ₁=1,μ₂=0,rσᵢₑ=2)
+    σ₁ = max(σₑ₁,rσᵢₑ*σₑ₁)
+    gaussianenvelope(x,y;fσ,μ₁,σ₁,μ₂,σ₂=σ₁,θ=0)
 end
 "Binary mask for concentric circular dog envelope"
-dogenvelopemask(x,y;fσ=2.5,μ₁=0,σₑ₁=1,μ₂=0,rσᵢₑ=2) = edogenvelopemask(x,y;fσ,μ₁,σₑ₁,rσ₂₁=1,μ₂,rσᵢₑ,θ=0)
+function dogenvelopemask(x,y;fσ=2.5,μ₁=0,σₑ₁=1,μ₂=0,rσᵢₑ=2)
+    σ₁ = max(σₑ₁,rσᵢₑ*σₑ₁)
+    gaussianenvelopemask(x,y;fσ,μ₁,σ₁,μ₂,σ₂=σ₁,θ=0)
+end
+
+"concentric orientated elliptical dog contour"
+function edogcontour(α;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=1,μ₂=0,rσᵢₑ=2,θ=0)
+    σ₁ = max(σₑ₁,rσᵢₑ*σₑ₁)
+    σ₂ = rσ₂₁*σ₁
+    ellipsef(α;a=fσ*σ₁,b=fσ*σ₂,θ,μ₁,μ₂)
+end
+"concentric orientated elliptical dog envelope"
+function edogenvelope(x,y;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=1,μ₂=0,rσᵢₑ=2,θ=0)
+    σ₁ = max(σₑ₁,rσᵢₑ*σₑ₁)
+    σ₂ = rσ₂₁*σ₁
+    gaussianenvelope(x,y;fσ,μ₁,σ₁,μ₂,σ₂,θ)
+end
 "Binary mask for concentric orientated elliptical dog envelope"
 function edogenvelopemask(x,y;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=1,μ₂=0,rσᵢₑ=2,θ=0)
-    sinv,cosv = sincos(θ)
-    x₀ = x-μ₁
-    y₀ = y-μ₂
-    x′ = cosv * x₀ + sinv * y₀
-    y′ = cosv * y₀ - sinv * x₀
     σ₁ = max(σₑ₁,rσᵢₑ*σₑ₁)
-    σ₂ = σ₁ * rσ₂₁
-    (x′/fσ/σ₁)^2 + (y′/fσ/σ₂)^2 <= 1 ? true : false
+    σ₂ = rσ₂₁*σ₁
+    gaussianenvelopemask(x,y;fσ,μ₁,σ₁,μ₂,σ₂,θ)
 end
 
 "Fit 1D model to data"
@@ -253,7 +293,7 @@ function fitmodel(model,x,y)
     if !ismissing(fun)
         # ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
         # param=ofit.minimizer
-        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=200000)
+        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=100000)
         param = best_candidate(ofit)
 
         rlt = (;model,fun,param, goodnessoffit(y,fun(x,param),k=length(param))...)
@@ -291,8 +331,10 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
         # concentric circular dog
         # fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[3],θₑ=0,aᵢ=p[5],μᵢ₁=p[2],σᵢ₁=p[6]*p[3],μᵢ₂=p[4],σᵢ₂=p[6]*p[3],θᵢ=0)
         # mfun = (x,y,p) -> dogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσᵢₑ=p[6])
+        # cfun = (x,p) -> dogcontour.(x;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσᵢₑ=p[6])
         fun = dogff
         mfun = dogfmf
+        cfun = dogfcf
         ofun = (p;x=x,y=y) -> @views sum((y.-fun(x[:,1],x[:,2],p)).^2)
         ub=[5ae,    0.5r+c[1],    0.9r,    0.5r+c[2],     5ai,    4]
         lb=[0,     -0.5r+c[1],    0.1r,   -0.5r+c[2],     0,      0.25]
@@ -308,8 +350,10 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
         # concentric orientated elliptical dog
         # fun = (x,y,p) -> dogf.(x,y,aₑ=p[1],μₑ₁=p[2],σₑ₁=p[3],μₑ₂=p[4],σₑ₂=p[5]*p[3],θₑ=p[6],aᵢ=p[7],μᵢ₁=p[2],σᵢ₁=p[8]*p[3],μᵢ₂=p[4],σᵢ₂=p[5]*p[8]*p[3],θᵢ=p[6])
         # mfun = (x,y,p) -> edogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσ₂₁=p[5],rσᵢₑ=p[8],θ=p[6])
+        # cfun = (x,p) -> edogcontour.(x;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσ₂₁=p[5],rσᵢₑ=p[8],θ=p[6])
         fun = edogff
         mfun = edogfmf
+        cfun = edogfcf
         ofun = (p;x=x,y=y) -> @views sum((y.-fun(x[:,1],x[:,2],p)).^2)
         ub=[5ae,    0.5r+c[1],    0.9r,    0.5r+c[2],       1,       prevfloat(float(π)),    5ai,     4]
         lb=[0,     -0.5r+c[1],    0.1r,   -0.5r+c[2],      0.5,              0,               0,      0.25]
@@ -317,8 +361,10 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
     elseif model == :gabor
         # fun = (x,y,p) -> gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5]*p[3],θ=p[6],f=p[7],phase=p[8])
         # mfun = (x,y,p) -> gaborenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σ₁=p[3],σ₂=p[5]*p[3],θ=p[6])
+        # cfun = (x,p) -> gaborcontour.(x;fσ=2.5,μ₁=p[2],μ₂=p[4],σ₁=p[3],σ₂=p[5]*p[3],θ=p[6])
         fun = gaborff
         mfun = gaborfmf
+        cfun = gaborfcf
         ofun = (p;x=x,y=y) -> @views sum((y.-fun(x[:,1],x[:,2],p)).^2)
 
         ori,sf = f1orisf(powerspectrum2(data,ppu)...)
@@ -332,7 +378,7 @@ function fitmodel2(model,data::Matrix,ppu;w=0.5)
         ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=200000)
         param = best_candidate(ofit)
 
-        @views rlt = (;model,fun,mfun,param,radii, goodnessoffit(y,fun(x[:,1],x[:,2],param),k=length(param))...)
+        @views rlt = (;model,fun,mfun,cfun,param,radii, goodnessoffit(y,fun(x[:,1],x[:,2],param),k=length(param))...)
     end
     return rlt
 end
@@ -343,7 +389,9 @@ gaborff(x,y,p) = gaborf.(x,y,a=p[1],μ₁=p[2],σ₁=p[3],μ₂=p[4],σ₂=p[5]*
 dogfmf(x,y,p) = dogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσᵢₑ=p[6])
 edogfmf(x,y,p) = edogenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσ₂₁=p[5],rσᵢₑ=p[8],θ=p[6])
 gaborfmf(x,y,p) = gaborenvelopemask.(x,y;fσ=2.5,μ₁=p[2],μ₂=p[4],σ₁=p[3],σ₂=p[5]*p[3],θ=p[6])
-
+dogfcf(x,p) = dogcontour.(x;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσᵢₑ=p[6])
+edogfcf(x,p) = edogcontour.(x;fσ=2.5,μ₁=p[2],μ₂=p[4],σₑ₁=p[3],rσ₂₁=p[5],rσᵢₑ=p[8],θ=p[6])
+gaborfcf(x,p) = gaborcontour.(x;fσ=2.5,μ₁=p[2],μ₂=p[4],σ₁=p[3],σ₂=p[5]*p[3],θ=p[6])
 
 predict(fit,x) = fit.fun(x,fit.param)
 function predict(fit,x,y;xygrid=true,yflip=false)
@@ -513,37 +561,38 @@ Tuning properties of factor response
 function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
     i = .!ismissing.(fr)
     fl = fl[i];fr=fr[i];fm=fm[i]
-    ls = mapreduce((l,r)->fill(l,length(r)),append!,fl,fr)
-    rs = mapreduce(deepcopy,append!,fr)
+    # ls = mapreduce((l,r)->fill(l,length(r)),append!,fl,fr)
+    # rs = mapreduce(deepcopy,append!,fr)
 
     if factor in [:Ori,:Ori_Final]
-        θ = mod2pi.(deg2rad.(ls))
+        # θ = mod2pi.(deg2rad.(ls))
         α = mod2pi.(deg2rad.(fl))
         d = mean(diff(sort(unique(α)))) # angle spacing
-        up, = circ_otest(α,w=fm) # Omnibus test for non-uniformity
         # for orientation
         oα = mod.(α,π)
         ocv, = circ_var(2oα,w=fm,d=2d)
         ocm, = circ_mean(2oα,w=fm)
         ocm = rad2deg(mod2pi(ocm)/2)
+        oup, = circ_otest(2oα,w=fm) # Omnibus test for orientation non-uniformity
         # for direction
         dcv, = circ_var(α;w=fm,d)
         dcm, = circ_mean(α,w=fm)
         dcm = rad2deg(mod2pi(dcm+0.5π))
+        dup, = circ_otest(α,w=fm) # Omnibus test for direction non-uniformity
         maxr,maxi = findmax(fm)
         maxl = fl[maxi]
 
         fit = ()
         if isfit
             try
-                mfit = fitmodel(:gvm,θ,rs) # fit Generalized von Mises
+                mfit = fitmodel(:gvm,α,fm) # fit Generalized von Mises
                 fit = (;circtuningfeature(mfit,od=[π,0.5π],fn=:o)...,mfit)
             catch
                 display.(stacktrace(catch_backtrace()))
             end
         end
 
-        return (;up,ocv,ocm,dcv,dcm,max=maxl=>maxr,fit)
+        return (;oup,ocv,ocm,dup,dcv,dcm,max=maxl=>maxr,fit)
     elseif factor == :Dir
         θ = deg2rad.(fl)
         d = mean(diff(sort(unique(θ)))) # angle spacing
@@ -575,16 +624,16 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :SpatialFreq
         up = PyOnewayANOVA.anova_oneway(fr,use_var="unequal").pvalue
-        msf = 2^(sum(rs.*log2.(ls))/sum(rs)) # weighted average
+        msf = 2^(sum(fm.*log2.(fl))/sum(fm)) # weighted average
         maxr,maxi = findmax(fm)
         maxl = fl[maxi]
 
         fit = ()
         if isfit
             try
-                # mfit = fitmodel(:sfdog,ls,rs) # fit Difference of Gaussians
-                mfit = fitmodel(:sfgaussian,ls,rs) # fit Gaussian of logarithm sf
-                fit = (;sftuningfeature(mfit)...,mfit)
+                # mfit = fitmodel(:sfdog,fl,fm) # fit Difference of Gaussians
+                mfit = fitmodel(:sfgaussian,fl,fm) # fit Gaussian of logarithm sf
+                fit = (;sftuningfeature(mfit,x = range(extrema(fl)...,step=0.003))...,mfit)
             catch
                 display.(stacktrace(catch_backtrace()))
             end
@@ -622,33 +671,34 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
 
         return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     elseif factor in [:HueAngle,:Angle]
-        θ = mod2pi.(deg2rad.(ls))
+        # θ = mod2pi.(deg2rad.(ls))
         α = mod2pi.(deg2rad.(fl))
         d = mean(diff(sort(unique(α)))) # angle spacing
-        up, = circ_otest(α,w=fm) # Omnibus test for non-uniformity
         # for axis
         aα = mod.(α,π)
         acv, = circ_var(2aα,w=fm,d=2d)
         acm, = circ_mean(2aα,w=fm)
         acm = rad2deg(mod2pi(acm)/2)
+        aup, = circ_otest(2aα,w=fm) # Omnibus test for axis non-uniformity
         # for angle
         cv, = circ_var(α;w=fm,d)
         cm, = circ_mean(α,w=fm)
         cm = rad2deg(mod2pi(cm))
+        up, = circ_otest(α,w=fm) # Omnibus test for angle non-uniformity
         maxr,maxi = findmax(fm)
         maxl = fl[maxi]
 
         fit = ()
         if isfit
             try
-                mfit = fitmodel(:gvm,θ,rs) # fit Generalized von Mises
+                mfit = fitmodel(:gvm,α,fm) # fit Generalized von Mises
                 fit = (;circtuningfeature(mfit,od=[π,0.5π],fn=:a)...,mfit)
             catch
                 display.(stacktrace(catch_backtrace()))
             end
         end
 
-        return (;up,acv,acm,cv,cm,max=maxl=>maxr,fit)
+        return (;aup,acv,acm,up,cv,cm,max=maxl=>maxr,fit)
     else
         return ()
     end

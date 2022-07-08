@@ -49,7 +49,7 @@ function fill2mask(ys, mask;chmap=1:size(ys,1), replacemask = true,randreplace=f
                 end
             end
             if randreplace
-                @views yss[r,c,:,:] = yss[r,c,:,:] .+ randn(size(yss)[3:end]...)*3*std(yss[r,c,:,:])
+                @views yss[r,c,:,:] = yss[r,c,:,:] .+ 3*randn(size(yss)[3:end]...)*std(yss[r,c,:,:])
             end
             rmask[r, c] = false
         end

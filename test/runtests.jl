@@ -55,8 +55,21 @@ p = plot(layout=(2,2),legend=false,size=(600,600))
 foreach(i->heatmap!(p[i],z[i],aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
 p
 
-z[1] = [gaborenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
-z[2] = [edogenvelopemask(i,j;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for j in y,i in x]
+z[2] = [gaussianenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=0.8,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
+z[3] = [gaborenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
+z[4] = [edogenvelopemask(i,j;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for j in y,i in x]
+
+foreach(i->heatmap!(p[i],z[i],aspect_ratio=:equal,frame=:none,alpha=0.1,color=:coolwarm,clims=(-1,1),title=funnames[i]),2:4)
+p
+
+t = 0:0.02:2π
+z[2] = [gaussiancontour(i;fσ=2.5,μ₁=0,σ₁=0.8,μ₂=0.5,σ₂=0.5,θ=0.25π) for i in t]
+z[3] = [gaborcontour(i;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for i in t]
+z[4] = [edogcontour(i;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for i in t]
+
+p = plot(layout=(2,2),legend=false,size=(600,600),frame=:none)
+foreach(i->plot!(p[i],z[i],aspect_ratio=:equal,frame=:box,xlims=(-3,3),ylims=(-3,3),title=funnames[i]),2:4)
+p
 
 # dog pattern
 x = -6:0.01:6

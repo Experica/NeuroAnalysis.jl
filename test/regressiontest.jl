@@ -37,11 +37,11 @@ plot(x->mfit.fun(x,mfit.param),0,2π,proj=:polar)
 
 ## Tuning Properties
 f=factorresponsefeature(rad2deg.(x),y,factor=:Angle)
-plot(x->f.fit.gvm.fun(x,f.fit.gvm.param),0,2π,lw=2)
+plot(x->f.fit.mfit.fun(x,f.fit.mfit.param),0,2π,lw=2)
 scatter!(x,y)
 
 f1=factorresponsefeature(rad2deg.(x1),y1,factor=:Angle)
-plot(x->f1.fit.gvm.fun(x,f1.fit.gvm.param),0,2π,lw=2)
+plot(x->f1.fit.mfit.fun(x,f1.fit.mfit.param),0,2π,lw=2)
 scatter!(x1,y1)
 
 
