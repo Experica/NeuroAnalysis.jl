@@ -801,7 +801,7 @@ function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true,cond
     if !isnothing(condis)
         cccg=[];x=[]
         for ci in condis
-            ccg,x = correlogram(bst1[:,ci],bst2[:,ci],lag=lag,isnorm=isnorm,shiftcorrection=shiftcorrection,condis=nothing)
+            ccg,x = correlogram(bst1[:,ci],bst2[:,ci];lag,isnorm,shiftcorrection,condis=nothing)
             push!(cccg,ccg)
         end
         ccg=dropdims(mean(hcat(cccg...),dims=2),dims=2)
@@ -811,28 +811,23 @@ function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true,cond
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
     cc = Array{Float64}(undef,xn,nepoch)
-    for k in 1:nepoch
-        cc[:,k]=crosscov(bst1[:,k],bst2[:,k],x,demean=false)*n
+    for i in 1:nepoch
+        cc[:,i]=crosscov(bst1[:,i],bst2[:,i],x,demean=false)*n
     end
     ccg = dropdims(mean(cc,dims=2),dims=2)
+    if shiftcorrection
+        psth1 = dropdims(mean(bst1,dims=2),dims=2)
+        psth2 = dropdims(mean(bst2,dims=2),dims=2)
+        s = crosscov(psth1,psth2,x,demean=false)*n
+        shiftccg = (nepoch*s .- ccg)/(nepoch-1)
+        ccg .-= shiftccg
+    end
     if isnorm
         λ1 = mean(mean(bst1,dims=1))
         λ2 = mean(mean(bst2,dims=1))
         gmsr = sqrt(λ1*λ2)
         Θ = n.-abs.(x)
         normfactor = 1 ./ Θ ./ gmsr
-    end
-    if shiftcorrection
-        psth1 = dropdims(mean(bst1,dims=2),dims=2)
-        psth2 = dropdims(mean(bst2,dims=2),dims=2)
-        s = crosscov(psth1,psth2,x,demean=false)*n
-        shiftccg = (nepoch*s .- ccg)/(nepoch-1)
-        if isnorm
-            ccg .*= normfactor
-            shiftccg .*= normfactor
-        end
-        ccg .-= shiftccg
-    elseif isnorm
         ccg .*= normfactor
     end
     ccg,x
