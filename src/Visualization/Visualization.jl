@@ -692,7 +692,7 @@ function plothartleysubspace(ps,nk,dk;color=:grays)
     p=plot(layout=(n,n),size=(120n,120n),leg=false,clims=(-1,1),frame=:none,aspect_ratio=:equal)
     xy=0:0.01:1
     for (kx,ky,phase) in ps
-        r = -Int(ky/dk)+nk+1; c = Int(kx/dk)+nk+1
+        r = -round(Int,ky/dk)+nk+1; c = round(Int,kx/dk)+nk+1
         cg = [cas(i,j,kx=kx,ky=ky,phase=phase) for j in xy,i in xy]
         heatmap!(p,subplot=c+n*(r-1),cg,color=color)
     end
