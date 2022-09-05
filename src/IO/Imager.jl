@@ -18,7 +18,7 @@ function readrawim_Mono12Packed(file::Array,width,height;n=length(file),T=Float6
     imgs
 end
 
-readrawim_Mono8(file::String,width,height) = Mmap.mmap(file,Matrix{UInt8},(width,height))'
+readrawim_Mono8(file::String,width,height) = permutedims(Mmap.mmap(file,Matrix{UInt8},(width,height)))
 function readrawim_Mono12Packed(file::String,width,height;raw = Vector{UInt8}(undef,Int(width*height*1.5)),
                                 npack = Int(length(raw)/3), img = Vector{UInt8}(undef,4npack))
     # Unpack Mono12Packed 3 bytes to 2 UInt16
@@ -34,5 +34,5 @@ function readrawim_Mono12Packed(file::String,width,height;raw = Vector{UInt8}(un
     @turbo unroll=1 thread=true for i in 1:2npack
         img[i] >>>= 4 # shift UInt16s 4 bits right
     end
-    reshape(img,width,height)'
+    permutedims(reshape(img,width,height))
 end

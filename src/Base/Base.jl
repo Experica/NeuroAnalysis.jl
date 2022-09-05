@@ -794,35 +794,44 @@ end
 
 
 """
-Shift(shuffle) corrected, normalized(coincidence/spike), condition/trial-averaged Cross-Correlogram of binary spike trains.
-(Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676–1697.)
+Normalized(coincidence/spike), condition/trial-averaged Cross-Correlogram of binary spike trains.
+
+- Correction: shuffle=true
+
+    (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676–1697.)
+
+              jitter
+
+    ()
 """
-function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true,condis=nothing)
+function correlogram(bst1,bst2;lag=nothing,norm=true,correction=(;shuffle=true),condis=nothing)
     if !isnothing(condis)
         cccg=[];x=[]
-        for ci in condis
-            ccg,x = correlogram(bst1[:,ci],bst2[:,ci];lag,isnorm,shiftcorrection,condis=nothing)
+        @views for ci in condis
+            ccg,x = correlogram(bst1[:,ci],bst2[:,ci];lag,norm,correction,condis=nothing)
             push!(cccg,ccg)
         end
-        ccg=dropdims(mean(hcat(cccg...),dims=2),dims=2)
+        ccg = reduce(.+,cccg)/length(cccg)
         return ccg,x
     end
     n,nepoch = size(bst1)
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
     cc = Array{Float64}(undef,xn,nepoch)
-    for i in 1:nepoch
+    @views for i in 1:nepoch
         cc[:,i]=crosscov(bst1[:,i],bst2[:,i],x,demean=false)*n
     end
     ccg = dropdims(mean(cc,dims=2),dims=2)
-    if shiftcorrection
+    if haskey(correction,:shuffle) && correction.shuffle
         psth1 = dropdims(mean(bst1,dims=2),dims=2)
         psth2 = dropdims(mean(bst2,dims=2),dims=2)
         s = crosscov(psth1,psth2,x,demean=false)*n
         shiftccg = (nepoch*s .- ccg)/(nepoch-1)
         ccg .-= shiftccg
+    elseif haskey(correction,:jitter) && correction.jitter > 0
+
     end
-    if isnorm
+    if norm
         λ1 = mean(mean(bst1,dims=1))
         λ2 = mean(mean(bst2,dims=1))
         gmsr = sqrt(λ1*λ2)
@@ -832,34 +841,34 @@ function correlogram(bst1,bst2;lag=nothing,isnorm=true,shiftcorrection=true,cond
     end
     ccg,x
 end
-function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspike=10,esdfactor=5,isdfactor=3.5,unitid=[],condis=nothing)
+function circuitestimate(unitbinspike;lag=nothing,correction=(;shuffle=true),maxprojlag=5,minbaselag=10,minepoch=4,minspike=4,esdfactor=5,isdfactor=3.5,nosync=true,unitid=[],condis=nothing)
     nunit=length(unitbinspike)
     n,nepoch = size(unitbinspike[1])
     lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
     x = -lag:lag;xn=2lag+1
 
-    isenoughspike = (i,j;minepoch=5,minspike=10) -> begin
-        vsi = sum(i,dims=1)[:] .>= minspike
-        vsj = sum(j,dims=1)[:] .>= minspike
-        count(vsi) >= minepoch && count(vsj) >= minepoch
+    isenough = (i,j;minepoch=4,minspike=4) -> begin
+        vei = sum(i,dims=1) .>= minspike
+        vej = sum(j,dims=1) .>= minspike
+        count(vei) >= minepoch && count(vej) >= minepoch
     end
 
-    ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[];projweights=[]
+    ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[];projlags=[];projweights=[]
     for (i,j) in combinations(1:nunit,2)
         if isnothing(condis)
-            !isenoughspike(unitbinspike[i],unitbinspike[j],minepoch=minepoch,minspike=minspike) && continue
+            isenough(unitbinspike[i],unitbinspike[j];minepoch,minspike) || continue
             vcondis=nothing
         else
-            vci = map(ci->isenoughspike(unitbinspike[i][:,ci],unitbinspike[j][:,ci],minepoch=minepoch,minspike=minspike),condis)
+            @views vci = map(ci->isenough(unitbinspike[i][:,ci],unitbinspike[j][:,ci];minepoch,minspike),condis)
             all(.!vci) && continue
             vcondis = condis[vci]
         end
 
-        ccg,_ = correlogram(unitbinspike[i],unitbinspike[j],lag=lag,condis=vcondis)
-        ps,es,is,pws = projectionfromcorrelogram(ccg,i,j,maxprojlag=maxprojlag,esdfactor=esdfactor,isdfactor=isdfactor)
+        ccg,_ = correlogram(unitbinspike[i],unitbinspike[j];lag,correction,condis=vcondis)
+        ps,es,is,pls,pws = projectionfromcorrelogram(ccg,i,j;maxprojlag,minbaselag,esdfactor,isdfactor,nosync)
         if !isempty(ps)
             push!(ccgs,ccg);push!(ccgis,(i,j))
-            append!(projs,ps);append!(eunits,es);append!(iunits,is);append!(projweights,pws)
+            append!(projs,ps);append!(eunits,es);append!(iunits,is);append!(projlags,pls);append!(projweights,pws)
         end
     end
     unique!(eunits);unique!(iunits)
@@ -869,31 +878,45 @@ function circuitestimate(unitbinspike;lag=nothing,maxprojlag=3,minepoch=5,minspi
         map!(t->unitid[t],eunits,eunits)
         map!(t->unitid[t],iunits,iunits)
     end
-    return ccgs,x,ccgis,projs,eunits,iunits,projweights
+    return (;ccgs,x,ccgis,projs,eunits,iunits,projlags,projweights)
 end
-function projectionfromcorrelogram(cc,i,j;maxprojlag=3,minbaselag=maxprojlag+1,esdfactor=5,isdfactor=5)
-    midi = Int((length(cc)+1)/2)
+"excitatory and inhibitory projections between two spiking units from cross-correlogram"
+function projectionfromcorrelogram(cc,i,j;maxprojlag=5,minbaselag=10,esdfactor=5,isdfactor=5,nosync=true)
+    midi = ceil(Int,length(cc)/2)
     base = [cc[midi+minbaselag:end];cc[1:midi-minbaselag]]
     bm,bsd = mean_and_std(base);hl = bm + esdfactor*bsd;ll = bm - isdfactor*bsd
-    forwardlags = midi+1:midi+maxprojlag
-    backwardlags = midi-maxprojlag:midi-1
-    fcc = cc[forwardlags]
-    bcc = cc[backwardlags]
-    ps=[];ei=[];ii=[];pws=[]
+    forwardlags = midi.+(1:maxprojlag)
+    backwardlags = midi.-(1:maxprojlag)
+    @views fcc = cc[forwardlags]
+    @views bcc = cc[backwardlags]
+    ps=[];ei=[];ii=[];pls=[];pws=[]
 
-    if ll <= cc[midi] <= hl
-        if any(fcc .> hl)
-            push!(ps,(i,j));push!(ei,i);push!(pws,(maximum(fcc)-bm)/bsd)
-        elseif any(fcc .< ll)
-            push!(ps,(i,j));push!(ii,i);push!(pws,(minimum(fcc)-bm)/bsd)
-        end
-        if any(bcc .> hl)
-            push!(ps,(j,i));push!(ei,j);push!(pws,(maximum(bcc)-bm)/bsd)
-        elseif any(bcc .< ll)
-            push!(ps,(j,i));push!(ii,j);push!(pws,(minimum(bcc)-bm)/bsd)
-        end
+    if nosync && !(ll <= cc[midi] <= hl)
+        return (;ps,ei,ii,pls,pws)
     end
-    return ps,ei,ii,pws
+    if any(fcc .> hl)
+        push!(ps,(i,j));push!(ei,i)
+        mi = argmax(fcc)
+        push!(pls,mi+1)
+        push!(pws,(fcc[mi]-bm)/bsd)
+    elseif any(fcc .< ll)
+        push!(ps,(i,j));push!(ii,i)
+        mi = argmin(fcc)
+        push!(pls,mi+1)
+        push!(pws,(fcc[mi]-bm)/bsd)
+    end
+    if any(bcc .> hl)
+        push!(ps,(j,i));push!(ei,j)
+        mi = argmax(bcc)
+        push!(pls,mi+1)
+        push!(pws,(bcc[mi]-bm)/bsd)
+    elseif any(bcc .< ll)
+        push!(ps,(j,i));push!(ii,j)
+        mi = argmin(bcc)
+        push!(pls,mi+1)
+        push!(pws,(bcc[mi]-bm)/bsd)
+    end
+    return (;ps,ei,ii,pls,pws)
 end
 
 "Check Layer Boundaries"
@@ -928,14 +951,18 @@ function assignlayer(y,layer::Dict)
     return l
 end
 
-"Check circuit consistency and remove duplicates"
-function checkcircuit(projs,eunits,iunits,projweights)
+"Check circuit consistency, remove conflicts and duplicates"
+function checkcircuit(projs,eunits,iunits,projlags,projweights;debug=false)
     ivu = intersect(eunits,iunits)
+    if debug && !isempty(ivu)
+        @info "E&I Unit: $ivu"
+    end
     veunits = setdiff(eunits,ivu)
     viunits = setdiff(iunits,ivu)
     ivp = map(p->p[1] in ivu,projs)
     vprojs = projs[.!ivp]
+    vprojlags = projlags[.!ivp]
     vprojweights = projweights[.!ivp]
     ui = indexin(unique(vprojs),vprojs)
-    return vprojs[ui],veunits,viunits,vprojweights[ui]
+    return vprojs[ui],veunits,viunits,vprojlags[ui],vprojweights[ui]
 end

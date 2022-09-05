@@ -83,13 +83,13 @@ function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     return r
 end
 """
-Frame Response, (R - R₀) / R₀
+Frame Response
 """
-function frameresponse(frames;frameindex=1:size(frames,3),baseframeindex=[],reducefun=mean)
+function frameresponse(frames;frameindex=1:size(frames,3),baseframeindex=[],reducefun=mean,basefun=(r,b)->log2(r/b))
     @views r = dropdims(reducefun(frames[:,:,frameindex],dims=3),dims=3)
     if !isempty(baseframeindex)
         @views b = dropdims(reducefun(frames[:,:,baseframeindex],dims=3),dims=3)
-        return r ./ b .- 1
+        return basefun.(r,b)
     end
     return r
 end

@@ -634,28 +634,31 @@ function plotunitlayerimage(unitlayer,image;width=800,height=600,markersize=40,t
     @vlplot(mark={:text,align=:center,baseline=:bottom,dy=30,fontSize=7},text=:u)
 end
 
-function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],projweights=[],layer=nothing,showuid=true,showmode=:none)
-    vpi = indexin(unique(projs),projs)
-    projs=projs[vpi];np=length(projs)
-    if !isempty(projweights)
-        projweights=projweights[vpi]
-        t = abs.(projweights)
-        pcolor = coloralpha.(RGB(0.5,0.5,0.5),t./maximum(t))
-    else
+function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],projweights=[],layer=nothing,
+    showuid=true,alpha=0.4,title="",markersize=6,unitidsize=3,size=(600,800),showunit=:all)
+    if isempty(projweights)
         pcolor=:gray50
+    else
+        t = abs.(projweights)
+        pcolor = (RGBA.(0.5,0.5,0.5,t./maximum(t)))'
     end
-    nu = length(unitid)
+    np=length(projs);nu = length(unitid)
     nsu = isempty(unitgood) ? nu : count(unitgood)
-    uidi = Dict(i=>findfirst(i.==unitid) for i in unitid)
-    nsupair=binomial(nsu,2);ss = "$nsu: $np/$nsupair($(round(np/nsupair*100,digits=3))%)"
-    xlim = (minimum(unitposition[:,1])-5,maximum(unitposition[:,1])+5)
-    ylim = (minimum(unitposition[:,2]),maximum(unitposition[:,2]))
-    p = plot(legend=:topright,xlabel="Position_X (um)",ylabel="Position_Y (um)",xlims=xlim,grid=false)
+    uidi = Dict(unitid[i]=>i for i in eachindex(unitid))
+    nsupair=binomial(nsu,2);ss = "$nsu/$nu, $np/$nsupair ($(round(np/nsupair*100,digits=3))%)"
+    xlims = extrema(unitposition[:,1]) .+ (-4,2)
+    ylims = extrema(unitposition[:,2])
+    p = plot(;legend=false,xlabel="X (μm)",ylabel="Y (μm)",xlims,grid=false,size,title)
 
-    for i in projs
-        t=hcat(unitposition[uidi[i[1]],:],unitposition[uidi[i[2]],:])
-        plot!(p,t[1,:],t[2,:],linewidth=0.3,color=pcolor,arrow=arrow(:closed,:head,0.45,0.12))
+    if !isnothing(layer)
+        ann = [(xlims[1]+0.02(xlims[2]-xlims[1]),mean(layer[k]),text(k,7,:gray10,:left,:vcenter)) for k in keys(layer)]
+        hline!(p,[l[2] for l in values(layer)];linecolor=:gray25,lw=0.5,ann)
     end
+
+    p1i = map(p->uidi[p[1]],projs);p2i = map(p->uidi[p[2]],projs)
+    px = [unitposition[p1i,1]';unitposition[p2i,1]']
+    py = [unitposition[p1i,2]';unitposition[p2i,2]']
+    plot!(p,px,py,lw=0.3,color=pcolor,arrow=arrow(:closed,:head,0.45,0.12))
 
     color = fill(:gray30,nu)
     color[unitgood] .= :darkgreen
@@ -665,25 +668,24 @@ function plotcircuit(unitposition,unitid,projs;unitgood=[],eunits=[],iunits=[],p
     if !isempty(iunits)
         color[map(i->uidi[i],iunits)] .= :darkblue
     end
-    if showmode == :su
-        showuidi = unitgood
-    elseif showmode == :circuit
-        cuid=[]
-        foreach(p->append!(cuid,[p...]),projs)
-        showuidi=indexin(unique(cuid),unitid)
-    else
-        showuidi = 1:nu
+
+    if showunit == :su
+        showui = unitgood
+    elseif showunit == :circuit
+        cuid = mapreduce(p->[p...],append!,projs)
+        showui=map(i->uidi[i],unique!(cuid))
+    elseif showunit == :all
+        showui = 1:nu
     end
+
     if showuid
-        scatter!(p,unitposition[showuidi,1],unitposition[showuidi,2],label=ss,color=color[showuidi],alpha=0.4,markerstrokewidth=0,markersize=6,series_annotations=text.(unitid[showuidi],3,:gray10,:center),legend=false)
+        series_annotations=text.(unitid[showui],unitidsize,:gray10,:center)
     else
-        scatter!(p,unitposition[showuidi,1],unitposition[showuidi,2],label=ss,color=color[showuidi],alpha=0.4,markerstrokewidth=0,markersize=5,legend=false)
+        series_annotations=[]
     end
-    if !isnothing(layer)
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(xlim[1]+2,layer[k][1],text(k,5,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
-    end
-    annotate!(p,[(xlim[2]-6,ylim[2]-100,text(ss,6,:gray20,:bottom))])
-    return p
+    scatter!(p,unitposition[showui,1],unitposition[showui,2];color=color[showui],alpha,msw=0,markersize,series_annotations)
+    annotate!(p,[(xlims[1]+1,ylims[1]+10,text(ss,8,:gray10,:left,:vcenter))])
+    p
 end
 
 "plot hartley subspace"
@@ -698,31 +700,3 @@ function plothartleysubspace(ps,nk,dk;color=:grays)
     end
     p
 end
-
-# function savefig(fig,filename::AbstractString;path::AbstractString="",format::AbstractString="svg")
-#     f = joinpath(path,"$filename.$format")
-#     if !ispath(path)
-#         mkpath(path)
-#     end
-#     if format=="svg"
-#         format = "$format+xml"
-#     end
-#     open(f, "w") do io
-#         writemime(io,"image/$format",fig)
-#     end
-# end
-#
-# function savefig(fig::Gadfly.Plot,filename::AbstractString;path::AbstractString="",format::AbstractString="svg",width=22cm,height=13cm,dpi=300)
-#     f = joinpath(path,"$filename.$format")
-#     if !ispath(path)
-#         mkpath(path)
-#     end
-#     if format=="svg"
-#         format = SVG(f,width,height)
-#     elseif format=="png"
-#         format = PNG(f,width,height,dpi=dpi)
-#     elseif format=="pdf"
-#         format = PDF(f,width,height,dpi=dpi)
-#     end
-#     draw(format,fig)
-# end
