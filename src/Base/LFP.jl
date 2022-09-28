@@ -79,6 +79,14 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
             rm .-= mean(rm[:,ti],dims=2)
         elseif temporaltype == :rc
             rm = rm ./ mean(rm[:,ti],dims=2) .- 1
+        elseif temporaltype == :rcb
+            r = rm ./ mean(rm[:,ti],dims=2)
+            li = r .< 1
+            hi = .!li
+            @views rm[li] = 1 .- 1 ./ r[li]
+            @views rm[hi] = r[hi] .- 1
+        elseif temporaltype == :log2r
+            rm = log2.(rm ./ mean(rm[:,ti],dims=2))
         elseif temporaltype == :z
             rm = (rm .- mean(rm[:,ti],dims=2)) ./ std(rm[:,ti],dims=2)
         end

@@ -327,8 +327,9 @@ function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer
         end
     end
     if !isnothing(layer)
-        lx = xlim[1]+2
-        hline!(p,[layer[k][1] for k in keys(layer)],linestyle=:dash,annotations=[(lx,layer[k][1],text(k,5,:gray20,:bottom)) for k in keys(layer)],linecolor=:gray30,legend=false)
+        xmin,xmax = xlims
+        ann = [(xmin+0.02(xmax-xmin),mean(layer[k]),text(k,6,:gray10,:left,:vcenter)) for k in keys(layer)]
+        hline!(p,[l[2] for l in values(layer)];linecolor=:gray25,leg=false,lw=0.5,ann)
     end
     if isempty(unitid)
         scatter!(p,unitposition[:,1],unitposition[:,2];label=ustr,color,alpha,markerstrokewidth=0,markersize,title)
