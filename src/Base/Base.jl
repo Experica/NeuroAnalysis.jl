@@ -1,5 +1,5 @@
 using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,BlackBoxOptim,HypothesisTests,Colors,Images,StatsModels,CategoricalArrays,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,PyCall,
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,#PyCall,
 Dierckx,BandedMatrices,OffsetArrays
 import Base: vec,range
 import StatsBase: predict
@@ -920,7 +920,7 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=5,minbaselag=10,esdfactor=5
 end
 
 "Check Layer Boundaries"
-function checklayer!(ls::Dict;ln=["1", "2", "3", "23", "4A", "4B", "4AB", "4Cα", "4Cβ", "4C", "5", "6", "56", "WM"])
+function checklayer!(ls::Dict;ln=["1", "2", "3A", "3B", "3", "23", "4A", "4B", "4AB", "4Cα", "4Cβ", "4C", "5A", "5B", "5", "6A", "6B", "6", "56", "WM"])
     n = length(ln)
     for i in 1:n-1
         if haskey(ls,ln[i])

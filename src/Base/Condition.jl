@@ -157,11 +157,11 @@ function ismodulative(df;alpha=0.05,interact=true)
     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
 end
 
-PyOnewayANOVA=[]
+# PyOnewayANOVA=[]
 "Check if any `sub group of response` is significently different from at least one other `sub group of response` by `Welch ANOVA`"
-# ismodulative(response,gi;alpha=0.05) = pvalue(OneWayANOVATest(map(i->response[i],gi)...)) < alpha
+ismodulative(response,gi;alpha=0.05) = pvalue(OneWayANOVATest(map(i->response[i],gi)...)) < alpha
 
-ismodulative(response,gi;alpha=0.05) = PyOnewayANOVA.anova_oneway(map(i->response[i],gi),use_var="unequal").pvalue < alpha
+# ismodulative(response,gi;alpha=0.05) = PyOnewayANOVA.anova_oneway(map(i->response[i],gi),use_var="unequal").pvalue < alpha
 
 """
 Find levels for each factor and indices, repetition for each level
