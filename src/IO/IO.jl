@@ -257,27 +257,32 @@ end
 ref2sync(t,syncdiff,syncdt=500) = t .+ @view syncdiff[clamp!(round.(Int,t./syncdt),1,length(syncdiff))]
 sync2ref(t,syncdiff,syncdt=500) = t .- @view syncdiff[clamp!(round.(Int,t./syncdt),1,length(syncdiff))]
 
-"Epochs of `Neuropixels` Channel Sample `x`, optionally gain corrected(voltage), line noise(60,120,180Hz) removed and bandpass filtered"
-function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100],whiten=nothing)
-    fun = nothing
-    if !isempty(meta)
-        fun = i -> gaincorrectnp(i,meta)
-        if !isempty(bandpass)
-            if bandpass[1] <= 250
-                fun = i -> hlpass!(rmline!(gaincorrectnp(i,meta),fs),fs,high=bandpass[1],low=bandpass[2])
-            else
-                fun = i -> hlpass!(gaincorrectnp(i,meta),fs,high=bandpass[1],low=bandpass[2])
-            end
-        end
+"""
+Epochs of `Neuropixels` data stream (Channels x Samples), 
+optionally gain corrected(voltage), line noise(60,120,180Hz) removed, 
+bandpass filtered and common average referenced
+"""
+function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100],whiten=nothing,car=nothing)
+    if isempty(meta)
+        g = deepcopy
     else
-        if !isempty(bandpass)
-            if bandpass[1] <= 250
-                fun = i -> hlpass!(rmline(i,fs),fs,high=bandpass[1],low=bandpass[2])
-            else
-                fun = i -> hlpass(i,fs,high=bandpass[1],low=bandpass[2])
-            end
+        g = i -> gaincorrectnp(i,meta)
+    end
+    if isempty(bandpass)
+        f = identity
+    else
+        if bandpass[1] <= 250
+            f = i -> hlpass!(rmline!(i,fs),fs,high=bandpass[1],low=bandpass[2])
+        else
+            f = i -> hlpass!(i,fs,high=bandpass[1],low=bandpass[2])
         end
     end
+    if isnothing(car)
+        r = identity
+    else
+        r = i -> i .- car(i,dims=1)
+    end
+    fun = r ∘ f ∘ g
     epochsample(x,fs,epochs,chs;fun,whiten)
 end
 

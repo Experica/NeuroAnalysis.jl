@@ -262,34 +262,37 @@ function localpairweight(chpos;lr=55,sigma=25)
 end
 
 "Weighted average of local channel pair coherences for each channel"
-function localcoherence(x,fs,chlocalpair,chlocalweight,allpair = reduce(union,chlocalpair);chshape=(192,2),freqrange=[0,100],nw=4,meanshapedim=2)
+function localcoherence(x,fs,chlocalpair,chlocalweight,allpair = reduce(union,chlocalpair);freqrange=[0,100],nw=4,chgi=[])
     nch=size(x,1)
     @views allpairco = [mt_coherence(x[[p...],:];freq_range=freqrange,fs,nw) for p in allpair]
     freqs = freq(first(allpairco));nfreq = length(freqs)
     allpairc = Array{Float64}(undef,nfreq,length(allpairco))
     @views foreach(i->allpairc[:,i]=coherence(allpairco[i])[1,2,:], eachindex(allpairco))
-    chlc = Array{Float64}(undef,nfreq,nch)
-    @views foreach(i->chlc[:,i]=allpairc[:,indexin(chlocalpair[i],allpair)]*chlocalweight[i],eachindex(chlocalpair))
+    chlc = Array{Float64}(undef,nch,nfreq)
+    @views foreach(i->chlc[i,:]=allpairc[:,indexin(chlocalpair[i],allpair)]*chlocalweight[i],eachindex(chlocalpair))
 
-    chlc = reshape(chlc,nfreq,:,chshape[meanshapedim])
-    chlc = permutedims(dropdims(mean(chlc,dims=3),dims=3))
+    isempty(chgi) && return chlc,freqs
 
-    return chlc,freqs
+    chglc = Array{Float64}(undef,length(chgi),nfreq)
+    @views foreach(i->chglc[i,:] = mapreduce(g->chlc[g,:],.+,chgi[i])/length(chgi[i]),eachindex(chgi))
+
+    return chglc,freqs
 end
-function localcoherence(x,chpos,fs;chshape=(192,2),freqrange=[0,100],nw=4,lr=55,sigma=25,meanshapedim=2)
+function localcoherence(x,chpos,fs;freqrange=[0,100],nw=4,lr=55,sigma=25,chgroupdim=2)
     nd = ndims(x)
     chlocalpair,chlocalweight,allpair=localpairweight(chpos;lr,sigma)
+    chgi = chgroupdim==0 ? [] : [findall(chpos[:,chgroupdim].==up) for up in unique(chpos[:,chgroupdim])]
     if nd==3
         ne=size(x,3)
-        @views lc1,freqs = localcoherence(x[:,:,1],fs,chlocalpair,chlocalweight,allpair;chshape,freqrange,nw,meanshapedim)
+        @views lc1,freqs = localcoherence(x[:,:,1],fs,chlocalpair,chlocalweight,allpair;freqrange,nw,chgi)
         chlc = Array{Float64}(undef,size(lc1,1),length(freqs),ne)
         chlc[:,:,1]=lc1
         Threads.@threads for i in 2:ne
-            @views lci,freqs = localcoherence(x[:,:,i],fs,chlocalpair,chlocalweight,allpair;chshape,freqrange,nw,meanshapedim)
+            @views lci,freqs = localcoherence(x[:,:,i],fs,chlocalpair,chlocalweight,allpair;freqrange,nw,chgi)
             chlc[:,:,i]=lci
         end
     elseif nd==2
-        chlc,freqs = localcoherence(x,fs,chlocalpair,chlocalweight,allpair;chshape,freqrange,nw,meanshapedim)
+        chlc,freqs = localcoherence(x,fs,chlocalpair,chlocalweight,allpair;freqrange,nw,chgi)
     else
         @error "No coherence for one signal."
     end

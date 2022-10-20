@@ -26,6 +26,26 @@ function gaincorrectnp(y,meta)
     return cy
 end
 
+"probe shape channel positions"
+function chpositionnp(version=1;inshape=true)
+    if version < 2
+        chshape = (192,2)
+        chspacing = (20,32)
+    end
+    return chpositionnp(chshape,chspacing,version;inshape)
+end
+function chpositionnp(chshape,chspacing,version=1;inshape=true)
+    if version < 2
+        chpos = ([j*chspacing[2] + (isodd(i) ? 0 : chspacing[2]/2) ;; i*chspacing[1]] for i in 0:chshape[1]-1, j in 0:chshape[2]-1)
+    end
+    if inshape
+        chpos = collect(chpos)
+    else
+        chpos = vcat(chpos...)
+    end
+    chpos
+end
+
 "Map linear channel index to probe shape indices"
 function chshapenp(ch,nrow,ncol)
     r = ceil(Int,ch/ncol)
