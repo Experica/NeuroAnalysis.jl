@@ -262,13 +262,13 @@ Epochs of `Neuropixels` data stream (Channels x Samples),
 optionally gain corrected(voltage), line noise(60,120,180Hz) removed, 
 bandpass filtered and common average referenced
 """
-function epochsamplenp(x,fs,epochs,chs;meta=[],bandpass=[1,100],whiten=nothing,car=nothing)
-    if isempty(meta)
-        g = deepcopy
+function epochsamplenp(x,fs,epochs,chs;meta=nothing,bandpass=[1,100],whiten=nothing,car=nothing)
+    if isnothing(meta)
+        g = i -> copy!(similar(i,Float64),i)
     else
         g = i -> gaincorrectnp(i,meta)
     end
-    if isempty(bandpass)
+    if isnothing(bandpass)
         f = identity
     else
         if bandpass[1] <= 250

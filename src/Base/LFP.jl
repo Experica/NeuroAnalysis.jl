@@ -98,16 +98,12 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
 end
 
 "Remove line noise and its harmonics by notch filter"
-function rmline(y,fs;freq=60,nh=3,bw=3)
-    fy = similar(y,Float64)
-    copy!(fy,y)
-    rmline!(fy,fs;freq,nh,bw)
-end
+rmline(y,fs;freq=60,nh=3,bw=3) = rmline!(copy!(similar(y,Float64),y),fs;freq,nh,bw)
 function rmline!(y,fs;freq=60,nh=3,bw=3)
     for i=1:nh
-        f = iirnotch(freq*i,bw;fs=fs)
-        for j=1:size(y,1)
-            @views y[j,:]=filtfilt(f,y[j,:])
+        f = iirnotch(freq*i,bw;fs)
+        @views for j = 1:size(y,1)
+            y[j,:]=filtfilt(f,y[j,:])
         end
     end
     return y
