@@ -10,10 +10,16 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
+- task: julia
+  inputs:
+    versionSpec: 1.8
+
+steps:
 - script: echo Hello, world!
   displayName: 'Run a one-line script'
 
 - script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
+    - julia --project -e 'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true);
+                          Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());
+                          Pkg.add("Documenter"); include("docs/make.jl")'
   displayName: 'Run a multi-line script'
