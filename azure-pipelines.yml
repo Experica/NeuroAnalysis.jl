@@ -10,11 +10,11 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-- task: julia
-  inputs:
-    versionSpec: 1.8
+# - task: julia
+#   inputs:
+#     versionSpec: 1.8
 
-- script: echo Hello, world!
+- script: sudo apt-get install julia
   displayName: 'Run a one-line script'
 
 - script: |
