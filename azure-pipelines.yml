@@ -1,8 +1,3 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - master
 
@@ -11,13 +6,10 @@ pool:
   # vmImage: windows-latest
 
 steps:
-# - task: julia
-#   inputs:
-#     versionSpec: 1.8
 
-- script: |
-    sudo snap install --classic julia
-  displayName: 'Setup Julia'
+# - script: |
+#     sudo snap install --classic julia
+#   displayName: 'Setup Julia'
 
 # - script: |
 #     sudo apt-get update

@@ -73,7 +73,7 @@ p
 
 # dog pattern
 x = -6:0.01:6
-p=plot(layout=(3,3),leg=false,frame=:origin,yticks=[],xticks=[],link=:all,size=(600,500),leftmargin=4mm)
+p=plot(layout=(3,3),leg=false,frame=:origin,yticks=[],xticks=[],link=:all,size=(600,500),leftmargin=4Plots.mm)
 plot!(p[1,1],x->dogf(x,aₑ=2,σₑ=2,aᵢ=1,σᵢ=1),x,lw=2,ylabel="Aₑ/Aᵢ = 2")
 plot!(p[1,2],x->dogf(x,aₑ=2,σₑ=1,aᵢ=1,σᵢ=1),x,lw=2)
 plot!(p[1,3],x->dogf(x,aₑ=2,σₑ=1,aᵢ=1,σᵢ=2),x,lw=2)
@@ -89,7 +89,7 @@ p
 
 # gabor pattern
 x = -3:0.01:3
-p=plot(layout=(3,4),leg=false,frame=:origin,yticks=[],xticks=[],link=:all,size=(600,500),leftmargin=4mm)
+p=plot(layout=(3,4),leg=false,frame=:origin,yticks=[],xticks=[],link=:all,size=(600,500),leftmargin=4Plots.mm)
 plot!(p[1,1],x->gaborf(x,f=1.5/5,phase=0),x,lw=2,ylabel="cyc = 1.5")
 plot!(p[1,2],x->gaborf(x,f=1.5/5,phase=0.25),x,lw=2)
 plot!(p[1,3],x->gaborf(x,f=1.5/5,phase=0.5),x,lw=2)
