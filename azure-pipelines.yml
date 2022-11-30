@@ -12,7 +12,7 @@ steps:
 
 - script: |
     julia -v --project -e 
-      'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true);
-       Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());
-       Pkg.add("Documenter"); include("docs/make.jl")'
+    'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true);
+     Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());
+     Pkg.add("Documenter"); include("docs/make.jl")'
   displayName: 'Package CI'
