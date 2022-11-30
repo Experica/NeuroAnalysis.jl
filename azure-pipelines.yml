@@ -3,29 +3,12 @@ trigger:
 
 pool:
   vmImage: ubuntu-latest
-  # vmImage: windows-latest
 
 steps:
-
-# - script: |
-#     sudo snap install --classic julia
-#   displayName: 'Setup Julia'
-
-# - script: |
-#     sudo apt-get update
-#     curl -fsSL https://install.julialang.org | sh
-#     juliaup default 1.7
-#   displayName: 'Setup Julia'
-
-# - script: |
-#     expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof'
-#     juliaup default 1.7
-#   displayName: 'Setup Julia'
-
-# - script: |
-#     cmd /c winget install julia -s msstore
-#     juliaup default 1.7
-#   displayName: 'Setup Julia'
+- script: |
+    expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof'
+    juliaup default 1.8
+  displayName: 'Setup Julia'
 
 - script: |
     julia --project -e 'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true);
