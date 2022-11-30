@@ -80,11 +80,7 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
         elseif temporaltype == :rc
             rm = rm ./ mean(rm[:,ti],dims=2) .- 1
         elseif temporaltype == :rcb
-            r = rm ./ mean(rm[:,ti],dims=2)
-            li = r .< 1
-            hi = .!li
-            @views rm[li] = 1 .- 1 ./ r[li]
-            @views rm[hi] = r[hi] .- 1
+            rm = relativechange(rm,mean(rm[:,ti],dims=2);balance=true)
         elseif temporaltype == :log2r
             rm = log2.(rm ./ mean(rm[:,ti],dims=2))
         elseif temporaltype == :z
@@ -95,6 +91,19 @@ function stfilter(rm;spatialtype=:none,ir=1,or=2,temporaltype=:none,ti=1:size(rm
         end
         return rm
     end
+end
+
+function relativechange(response,background;balance=false)
+    rc = response./background
+    if balance
+        li = rc .< 1
+        hi = .!li
+        @views rc[li] = 1 .- 1 ./ rc[li]
+        @views rc[hi] = rc[hi] .- 1
+    else
+        rc .-= 1
+    end
+    rc
 end
 
 "Remove line noise and its harmonics by notch filter"
