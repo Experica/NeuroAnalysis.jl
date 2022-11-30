@@ -21,7 +21,7 @@ steps:
 #   displayName: 'Setup Julia'
 
 - script: |
-    winget install julia -s msstore
+    cmd /c winget install julia -s msstore
     juliaup default 1.7
   displayName: 'Setup Julia'
 
