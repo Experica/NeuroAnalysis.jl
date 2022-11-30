@@ -16,7 +16,7 @@ steps:
 #     versionSpec: 1.8
 
 - script: |
-    sudo snap install julia
+    sudo snap install --classic julia
   displayName: 'Setup Julia'
 
 # - script: |
