@@ -15,7 +15,7 @@ steps:
 #     versionSpec: 1.8
 
 - script: |
-  expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof'
+  expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof';
   juliaup default 1.7
   displayName: 'Setup Julia'
 
