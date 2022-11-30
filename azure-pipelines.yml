@@ -21,12 +21,12 @@ steps:
 #   displayName: 'Setup Julia'
 
 - script: |
-  winget install julia -s msstore
-  juliaup default 1.7
+    winget install julia -s msstore
+    juliaup default 1.7
   displayName: 'Setup Julia'
 
 - script: |
-  julia --project -e 'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true);
-                      Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());
-                      Pkg.add("Documenter"); include("docs/make.jl")'
+    julia --project -e 'using Pkg; Pkg.build(verbose=true); Pkg.test(coverage=true);
+                        Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());
+                        Pkg.add("Documenter"); include("docs/make.jl")'
   displayName: 'Package CI'
