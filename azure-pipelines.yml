@@ -7,15 +7,21 @@ trigger:
 - master
 
 pool:
-  vmImage: ubuntu-latest
+  # vmImage: ubuntu-latest
+  vmImage: windows-latest
 
 steps:
 # - task: julia
 #   inputs:
 #     versionSpec: 1.8
 
+# - script: |
+#   expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof';
+#   juliaup default 1.7
+#   displayName: 'Setup Julia'
+
 - script: |
-  expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof';
+  winget install julia -s msstore;
   juliaup default 1.7
   displayName: 'Setup Julia'
 
