@@ -16,10 +16,14 @@ steps:
 #     versionSpec: 1.8
 
 - script: |
-    sudo apt-get update
-    curl -fsSL https://install.julialang.org | sh
-    juliaup default 1.7
+    sudo snap install julia
   displayName: 'Setup Julia'
+
+# - script: |
+#     sudo apt-get update
+#     curl -fsSL https://install.julialang.org | sh
+#     juliaup default 1.7
+#   displayName: 'Setup Julia'
 
 # - script: |
 #     expect -c 'spawn bash -c "curl -fsSL https://install.julialang.org | sh"; expect "Proceed"; send -- "\r"; expect eof'
