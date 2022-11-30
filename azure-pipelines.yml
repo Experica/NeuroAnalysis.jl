@@ -14,7 +14,6 @@ steps:
   inputs:
     versionSpec: 1.8
 
-steps:
 - script: echo Hello, world!
   displayName: 'Run a one-line script'
 
