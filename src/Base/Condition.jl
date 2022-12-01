@@ -143,23 +143,33 @@ function isresponsive(st;bi=[],ri=[],sdfactor=3)
     (;r=!(sdmaxt in bi) && (sdmaxt in ri) && sdmax > bsdm+sdfactor*bsdsd,sd=sdmax,d=sdmaxt)
 end
 
-"Check if any factors and their interactions significently modulate response by `ANOVA`"
-function ismodulative(df;alpha=0.05,interact=true)
-    xns = filter(i->i!=:Y,propertynames(df))
-    foreach(i->df[!,i]=categorical(df[!,i]),xns)
-    if interact
-        f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+# "Check if any factors and their interactions significently modulate response by `ANOVA`"
+# function ismodulative(df;alpha=0.05,interact=true)
+#     xns = filter(i->i!=:Y,propertynames(df))
+#     foreach(i->df[!,i]=categorical(df[!,i]),xns)
+#     if interact
+#         f = term(:Y) ~ reduce(+,map(i->reduce(&,term.(i)),combinations(xns)))
+#     else
+#         f = term(:Y) ~ reduce(+,term.(xns))
+#     end
+#     lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
+#     anovatype = length(xns) <= 1 ? 2 : 3
+#     any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
+# end
+
+"""
+Check if any `group in response` is significently different from at least one other `group in response`
+"""
+function ismodulative(response,gi;alpha=0.05,test=:anova)
+    gr = map(i->response[i],gi)
+    if test==:ranksum
+        h=KruskalWallisTest(gr...)
     else
-        f = term(:Y) ~ reduce(+,term.(xns))
+        h=OneWayANOVATest(gr...)
     end
-    lmr = fit(LinearModel,f,df,contrasts = Dict(x=>EffectsCoding() for x in xns))
-    anovatype = length(xns) <= 1 ? 2 : 3
-    any(Anova(lmr,anovatype = anovatype).p[1:end-1] .< alpha)
+    pvalue(h) < alpha
 end
 
-# PyOnewayANOVA=[]
-"Check if any `sub group of response` is significently different from at least one other `sub group of response` by `Welch ANOVA`"
-ismodulative(response,gi;alpha=0.05) = pvalue(OneWayANOVATest(map(i->response[i],gi)...)) < alpha
 
 # ismodulative(response,gi;alpha=0.05) = PyOnewayANOVA.anova_oneway(map(i->response[i],gi),use_var="unequal").pvalue < alpha
 

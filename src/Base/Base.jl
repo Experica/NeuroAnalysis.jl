@@ -1,6 +1,6 @@
 using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,BlackBoxOptim,HypothesisTests,Colors,Images,StatsModels,CategoricalArrays,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,ANOVA,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,#PyCall,
-Dierckx,BandedMatrices,OffsetArrays
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,#PyCall,
+Dierckx,BandedMatrices,OffsetArrays#,ANOVA
 import Base: vec,range
 import StatsBase: predict
 
