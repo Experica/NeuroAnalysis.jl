@@ -1,7 +1,7 @@
 name = "NeuroAnalysis"
 uuid = "088af2c0-9cce-11e8-35da-81725c7f79e6"
 authors = ["Li Alex Zhang <fff008@gmail.com>"]
-version = "1.1.1"
+version = "1.1.2"
 
 [deps]
 BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
