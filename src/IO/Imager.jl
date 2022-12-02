@@ -1,3 +1,4 @@
+"Read list of files encoding raw mono 8bit image"
 function readrawim_Mono8(file::Array,width,height;n=length(file),T=Float64)
     n == 0 && error("No files to read.")
     imgs = Array{T}(undef,height,width,n)
