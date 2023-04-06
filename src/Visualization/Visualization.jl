@@ -37,26 +37,34 @@ function factorunitstring(f::String,u::String)
     "$f ($u)"
 end
 
-"scatter plot of spike trains"
-function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,600))
-    nt = isempty(x) ? 0 : maximum(y)
-    ms =0.45*size[2]/(nt+5)
-    p = plot(;size,leg=false,title,grid=false)
+"scatter plot of spikes"
+function plotspiketrain(x,y;group=[],timeline=[],timespan=[],color=RGBA(0,0,0,0.7),title="",size=(800,600),spancolor=RGBA(0.5,0.5,0.5,0.3),
+                        linewidth=:auto,linecolor=:gray,linestyle=:solid,markershape=:vline,markersize=:auto,markerstrokewidth=1,frame=:axes)
+    if markersize==:auto
+        nt = isempty(x) ? 0 : maximum(y)
+        markersize =0.5*size[2]/(nt+10)
+    end
+
+    p = plot(;frame,size,leg=false,title,grid=false,tickdir=:out)
+    isempty(timespan) || vspan!(p,timespan;color=spancolor,label="TimeSpan")
+    isempty(timeline) || vline!(p,timeline;linewidth,linecolor,linestyle,label="TimeLine")
     if isempty(group)
-        scatter!(p,x,y;label="SpikeTrain",markershape=:vline,markersize=ms,markerstrokewidth = 0,color=RGBA(0,0,0,0.7))
+        scatter!(p,x,y;markershape,markersize,markerstrokewidth,color,xlabel=factorunit(:Time),ylabel="Trial",label="SpikeTrain")
     else
-        scatter!(p,x,y;group,markershape=:vline,markersize=ms,markerstrokewidth = 0,color=permutedims(color))
+        color=huecolors(length(unique(group)))'
+        scatter!(p,x,y;group,markershape,markersize,markerstrokewidth,color,xlabel=factorunit(:Time),ylabel="Trial",label="SpikeTrain")
     end
-    vline!(p,timeline;line=(:grey),label="TimeLine",xaxis=(factorunit(:Time)),yaxis=("Trial"))
 end
-function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],color=huecolors(0),title="",size=(800,600))
+"scatter plot of spike trains"
+function plotspiketrain(sts::AbstractVecOrMat;uids=[],trialorder=[],timeline=[0],timespan=[],color=RGBA(0,0,0,0.7),title="",size=(800,600),spancolor=RGBA(0.5,0.5,0.5,0.3),
+                        linewidth=:auto,linecolor=:gray,linestyle=:solid,markershape=:vline,markersize=:auto,markerstrokewidth=1,frame=:axes)
     if isempty(uids)
-        g=uids;uc=color
+        group = uids
     else
-        fuids = flatspiketrains(uids,sortvalues)[1]
-        g=map(i->"U$i",fuids);uc=huecolors(length(unique(fuids)))
+        group = flatspiketrains(uids;trialorder)[1]
     end
-    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...;group=g,timeline,color=uc,title,size)
+    plotspiketrain(flatspiketrains(sts;trialorder)[1:2]...;group,timeline,timespan,color,title,size,spancolor,
+                    linewidth,linecolor,linestyle,markershape,markersize,markerstrokewidth,frame)
 end
 
 # function plotspiketrain1(x::Vector,y::Vector,c::Vector=[];xmin=minimum(x)-10,xmax=maximum(x)+10,xgroup::Vector=[],
@@ -315,7 +323,7 @@ plotunitposition(spike::Dict;layer=nothing,color=nothing,alpha=0.4,title="",mark
 function plotunitposition(unitposition;unitgood=[],chposition=[],unitid=[],layer=nothing,color=nothing,alpha=0.4,title="",markersize=5,unitidsize=3,size=(600,450))
     nunit = Base.size(unitposition,1);ngoodunit = isempty(unitgood) ? nunit : count(unitgood);ustr = "$ngoodunit / $nunit"
     xlims = isempty(chposition) ? (minimum(unitposition[:,1])-4,maximum(unitposition[:,1])+2) : (minimum(chposition[:,1])-5,maximum(chposition[:,1])+5)
-    p = plot(;legend=:topright,xlabel="X (μm)",ylabel="Y (μm)",xlims,size)
+    p = plot(;legend=:topright,xlabel="X (μm)",ylabel="Y (μm)",xlims,size,tickdir=:out)
     if !isempty(chposition)
         scatter!(p,chposition[:,1],chposition[:,2],markershape=:rect,markerstrokewidth=0,markersize=1.5,color=:grey70,label="Electrode")
     end

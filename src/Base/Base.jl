@@ -7,6 +7,7 @@ import StatsBase: predict
 include("NeuroDataType.jl")
 include("Stats.jl")
 include("Spike.jl")
+include("Jitter.jl")
 include("LFP.jl")
 include("Image.jl")
 include("Condition.jl")
@@ -774,72 +775,78 @@ function unitdensity(pos;w=ones(length(pos)),spacerange=extrema(pos),bw=0.01(las
     end
     return (;n,y)
 end
-function spacepsth(unitpsth,unitposition;w=ones(size(unitposition,1)),spacerange=extrema(unitposition),
+function spacepsth(unitpsth,unitposition;dims=1,spacerange=extrema(unitposition[:,dims]),
                     bw=0.01(last(spacerange)-first(spacerange)),step=bw/2)
     hbw = bw/2
-    x = unitpsth[1].x
     y = first(spacerange):step:last(spacerange)
 
     n = zeros(length(y))
-    psth = zeros(length(y),length(x))
+    psth = zeros(length(y),length(unitpsth[1]))
     for i in eachindex(y)
-        @views j = y[i]-hbw .<=unitposition[:,2].< y[i]+hbw
-        n[i] = sum(w[j])
+        @views j = y[i]-hbw .<=unitposition[:,dims].< y[i]+hbw
+        n[i] = count(j)
         if n[i] > 0
-            @views psth[i,:] = mapreduce(u->u.m,.+,unitpsth[j])/n[i]
+            @views psth[i,:] = reduce(.+,unitpsth[j])/n[i]
         end
     end
-    return (;psth,x,y,n)
+    return (;psth,y,n)
 end
 
 
 """
-Normalized(coincidence/spike), condition/trial-averaged Cross-Correlogram of binary spike trains.
+Normalized(coincidence/spike), condition and trial averaged Cross-Correlogram of binary spike trains (bins x trials).
 
-- Correction: shuffle=true
+- Correction: 
+    - (shuffle=true), "all-way" nonsimultaneous trials shuffle
 
-    (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676–1697.)
+        (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676-1697.)
 
-              jitter
+    - (shufflejitter=true, l=25), shuffle jittered spikes across trials in consecutive intervals of length l
 
-    ()
+        (Smith, Matthew A., and Adam Kohn (2008). Spatial and Temporal Scales of Neuronal Correlation in Primary Visual Cortex. J. Neurosci. 28.48 : 12591-12603.)
 """
 function correlogram(bst1,bst2;lag=nothing,norm=true,correction=(;shuffle=true),condis=nothing)
     if !isnothing(condis)
-        cccg=[];x=[]
+        cccg=[];τ=[]
         @views for ci in condis
-            ccg,x = correlogram(bst1[:,ci],bst2[:,ci];lag,norm,correction,condis=nothing)
+            ccg,τ = correlogram(bst1[:,ci],bst2[:,ci];lag,norm,correction,condis=nothing)
             push!(cccg,ccg)
         end
         ccg = reduce(.+,cccg)/length(cccg)
-        return ccg,x
+        return ccg,τ
     end
-    n,nepoch = size(bst1)
-    lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
-    x = -lag:lag;xn=2lag+1
-    cc = Array{Float64}(undef,xn,nepoch)
-    @views for i in 1:nepoch
-        cc[:,i]=crosscov(bst1[:,i],bst2[:,i],x,demean=false)*n
+
+    nbin,ntrial = size(bst1)
+    lag = floor(Int,isnothing(lag) ? min(nbin-1, 10*log10(nbin)) : lag)
+    τ = -lag:lag
+    cc = Array{Float64}(undef,length(τ),ntrial)
+    @views for i in 1:ntrial
+        cc[:,i]=crosscov(bst1[:,i],bst2[:,i],τ,demean=false)*nbin
     end
     ccg = dropdims(mean(cc,dims=2),dims=2)
+
     if haskey(correction,:shuffle) && correction.shuffle
         psth1 = dropdims(mean(bst1,dims=2),dims=2)
         psth2 = dropdims(mean(bst2,dims=2),dims=2)
-        s = crosscov(psth1,psth2,x,demean=false)*n
-        shiftccg = (nepoch*s .- ccg)/(nepoch-1)
+        s = crosscov(psth1,psth2,τ,demean=false)*nbin
+        shiftccg = (ntrial*s .- ccg)/(ntrial-1)
         ccg .-= shiftccg
-    elseif haskey(correction,:jitter) && correction.jitter > 0
-
+    elseif haskey(correction,:shufflejitter) && correction.l > 0
+        jbst1 = shufflejitter(bst1;l=correction.l)
+        jbst2 = shufflejitter(bst2;l=correction.l)
+        jitterccg,_ = correlogram(jbst1,jbst2;lag,norm=false,correction=(;),condis=nothing)
+        ccg .-= jitterccg
     end
+
     if norm
         λ1 = mean(mean(bst1,dims=1))
         λ2 = mean(mean(bst2,dims=1))
         gmsr = sqrt(λ1*λ2)
-        Θ = n.-abs.(x)
+        Θ = nbin.-abs.(τ)
         normfactor = 1 ./ Θ ./ gmsr
         ccg .*= normfactor
     end
-    ccg,x
+    ccg,τ
 end
 function circuitestimate(unitbinspike;lag=nothing,correction=(;shuffle=true),maxprojlag=5,minbaselag=10,minepoch=4,minspike=4,esdfactor=5,isdfactor=3.5,nosync=true,unitid=[],condis=nothing)
     nunit=length(unitbinspike)
@@ -919,38 +926,6 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=5,minbaselag=10,esdfactor=5
     return (;ps,ei,ii,pls,pws)
 end
 
-"Check Layer Boundaries"
-function checklayer!(ls::Dict;ln=["1", "2", "3A", "3B", "3", "23", "4A", "4B", "4AB", "4Cα", "4Cβ", "4C", "5A", "5B", "5", "6A", "6B", "6", "56", "WM"])
-    n = length(ln)
-    for i in 1:n-1
-        if haskey(ls,ln[i])
-            for j in (i+1):n
-                if haskey(ls,ln[j])
-                    ls[ln[i]][1] = ls[ln[j]][2]
-                    break
-                end
-            end
-        end
-    end
-    return ls
-end
-
-"""
-Try to locate cell layer.
-
-1. y coordinate of cell postion
-2. layer definition
-"""
-function assignlayer(y,layer::Dict)
-    l = missing
-    for k in keys(layer)
-        if layer[k][1] <= y < layer[k][2]
-            l=k;break
-        end
-    end
-    return l
-end
-
 "Check circuit consistency, remove conflicts and duplicates"
 function checkcircuit(projs,eunits,iunits,projlags,projweights;debug=false)
     ivu = intersect(eunits,iunits)
@@ -965,4 +940,39 @@ function checkcircuit(projs,eunits,iunits,projlags,projweights;debug=false)
     vprojweights = projweights[.!ivp]
     ui = indexin(unique(vprojs),vprojs)
     return vprojs[ui],veunits,viunits,vprojlags[ui],vprojweights[ui]
+end
+
+"""
+Check layer boundaries, make sure no gap and overlap between layers.
+Layers are reversely ordered in layer names in `ln`, and start boundary is set to the same as the stop boundary of previous layer.
+"""
+function checklayer!(ls::Dict;ln=["1", "2", "3A", "2/3A", "3B", "3", "2/3", "4A", "4B", "4A/4B", "4Cα", "4Cβ", "4C", "4", "5A", "5B", "5", "6A", "6B", "6", "5/6", "WM"])
+    n = length(ln)
+    for i in 1:(n-1)
+        if haskey(ls,ln[i])
+            for j in (i+1):n
+                if haskey(ls,ln[j])
+                    ls[ln[i]][begin] = ls[ln[j]][end]
+                    break
+                end
+            end
+        end
+    end
+    return ls
+end
+
+"""
+Try to locate cell's layer.
+
+1. coordinate of cell on the axis perpendicular to layers
+2. layers definition
+"""
+function assignlayer(y,layer::Dict)
+    l = missing
+    for k in keys(layer)
+        if layer[k][begin] <= y < layer[k][end]
+            l=k;break
+        end
+    end
+    return l
 end

@@ -1,8 +1,15 @@
-plotspiketrain(rand(0:1000,2000),rand(1:200,2000))
-plotspiketrain(rand(0:1000,2000),rand(1:200,2000),group=rand(1:5,2000))
+x = rand(0:1000,2000)
+y = rand(1:200,2000)
+plotspiketrain(x,y,timespan=[250,750],timeline=[0,1000])
+plotspiketrain(x,y,group=rand(1:5,2000),timespan=[250,750],timeline=[0,1000])
+
+sts = [rand(0:1000,rand(5:10)) for _ in 1:200]
+uids = [rand(1:5,length(st)) for st in sts]
+plotspiketrain(sts,timespan=[250,750],timeline=[0,1000])
+plotspiketrain(sts;uids,timespan=[250,750],timeline=[0,1000])
+
 
 plotcondresponse(rand(0:50,nrow(ctc)),ctc)
-
 
 
 df = [DataFrame(m=12 .+rand(10),se=rand(1:0.1:3,10),u=fill(0,10),ug=fill("SU",10),Ori=range(0,324,length=10));

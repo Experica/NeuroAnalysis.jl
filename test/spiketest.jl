@@ -61,21 +61,39 @@ m1,se1,x1 = psthspiketrains(st1st1,10:10:30,israte=false)
 
 
 ## Poisson Model of Spike Generation, [David Heeger(2000), Poisson Model of Spike Generation](http://www.cns.nyu.edu/~david/handouts/poisson.pdf)
-rate = 50
+rate = 25
 duration = 1000
 refractoryperiod = 2
-ntrain = 100
+ntrial = 50
 
 ## Homogeneous Poisson Process, where instantaneous ﬁring rate is constant
 
 # Inter-Spike-Interval Exponential Distribution Method
-sts = [poissonspiketrain(rate,duration,rp=refractoryperiod) for _ in 1:ntrain]
+sts = [poissonspiketrain(rate,duration,rp=refractoryperiod) for _ in 1:ntrial]
 plotspiketrain(sts,timeline=[0,duration])
 
 # Instantaneous Firing Rate Method
-sts = [poissonspiketrain(t->rate,duration,rp=refractoryperiod) for _ in 1:ntrain]
+sts = [poissonspiketrain(t->rate,duration,rp=refractoryperiod) for _ in 1:ntrial]
 plotspiketrain(sts,timeline=[0,duration])
 
 ## Inhomogeneous Poisson Process, where instantaneous ﬁring rate is changing
-sts = [poissonspiketrain(t->rate*(sin(0.05t)+1),duration,rp=refractoryperiod) for _ in 1:ntrain]
+sts = [poissonspiketrain(t->rate*(sin(0.05t)+1),duration,rp=refractoryperiod) for _ in 1:ntrial]
 plotspiketrain(sts,timeline=[0,duration])
+
+
+## spike train jitter resampling
+st = sort(rand(25))*1000
+jst = spikejitter(st;n=50,l=50.5,win=:center)
+jst = spikejitter(st;n=50,l=100,win=:fix)
+plotspiketrain([st jst]',timeline=0:100:1000)
+
+st = floor.(Int,st)
+jst = spikejitter(st;n=50,l=50.5,win=:center)
+jst = spikejitter(st;n=50,l=100,win=:fix)
+plotspiketrain([st jst]',timeline=0:100:1000)
+
+
+bst = zeros(1000,50)
+foreach(t->bst[ceil.(Int,jst[:,t]),t].=1,1:size(bst,2))
+jbst = shufflejitter(bst;l=100)
+plotspiketrain(map(t->findall(jbst[:,t].==1),1:size(jbst,2)),timeline=0:100:1000)

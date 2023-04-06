@@ -134,7 +134,7 @@ end
 function subrmr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true)
 end
 
-"Generate a Poisson Spike Train"
+"Generate a Homogeneous Poisson Spike Train"
 function poissonspiketrain(r,dur;t0=0.0,rp=2.0)
     isid = Exponential(1000/r)
     st = Float64[-rp]
@@ -152,6 +152,7 @@ function poissonspiketrain(r,dur;t0=0.0,rp=2.0)
     deleteat!(st,1)
     return st.+t0
 end
+"Generate a Inhomogeneous Poisson Spike Train"
 function poissonspiketrain(ir::Function,dur;t0=0.0,rp=2.0)
     st=Float64[-rp]
     for t in 0.05:0.1:dur
@@ -161,32 +162,45 @@ function poissonspiketrain(ir::Function,dur;t0=0.0,rp=2.0)
     return st.+t0
 end
 
-"Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
-function flatspiketrains(xs,sv=[])
-    tn = length(xs)
-    if isempty(sv)
-        issort=false
-    elseif length(sv)==tn
-        issort=true
+"Flat Spike Trains to Vector of SpikeTimes and Trials"
+function flatspiketrains(sts::AbstractVector;trialorder=[])
+    nt = length(sts)
+    ntr = length(trialorder)
+    if ntr==nt
+        ti = sortperm(trialorder)
+        order = sort(trialorder)
     else
-        @warn """Length of "xs" and "sv" do not match, sorting ignored."""
-        issort=false
+        ntr>0 && @warn "Number of trials do not match, trial order ignored."
+        ti = 1:nt
+        order=[]
     end
-    if issort
-        sxs=xs[sortperm(sv)]
-        ssv=sort(sv)
-    else
-        sxs=xs
-        ssv=sv
-    end
-    x=Float64[];y=Float64[];s=[]
-    for i in 1:tn
-        v = sxs[i];n=length(v)
+
+    spike=Float64[];trial=Int[]
+    for i in 1:nt
+        st = sts[i];n=length(st)
         n==0 && continue
-        append!(x,v);append!(y,fill(i,n))
-        issort && append!(s,fill(ssv[i],n))
+        append!(spike,st);append!(trial,fill(ti[i],n))
     end
-    return x,y,s
+    isempty(order) || (order = order[trial])
+    return spike,trial,order
+end
+"Flat Spike Trains to Vector of SpikeTimes and Trials"
+function flatspiketrains(sts::AbstractMatrix;trialorder=[])
+    nt,n = size(sts)
+    ntr = length(trialorder)
+    if ntr==nt
+        ti = sortperm(trialorder)
+        order = sort(trialorder)
+    else
+        ntr>0 && @warn "Number of trials do not match, trial order ignored."
+        ti = 1:nt
+        order=[]
+    end
+
+    spike = sts[:]
+    trial = repeat(ti,outer=n)
+    isempty(order) || (order = order[trial])
+    return spike,trial,order
 end
 
 "Vertical stack same length vectors to matrix"
