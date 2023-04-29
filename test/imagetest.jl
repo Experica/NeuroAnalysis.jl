@@ -33,16 +33,18 @@ b=inv(Xᵀ*X)
 
 heatmap(a,yflip=true,aspect_ratio=1,frame=:none,color=:fire)
 
-## grating
+## image spectrum
 ori=0.5π;sf=2;ppd=30
-img = grating(θ=ori,sf=sf,ppd=ppd)
-img .+= rand(size(img)...)/3
-heatmap(img,yflip=true,aspect_ratio=:equal,frame=:none)
+img = grating(;θ=ori,sf,ppd,isnorm=false)
+img .+= randn(size(img)...)/3
+heatmap(img,yflip=true,aspect_ratio=:equal,frame=:none,clims=(-1.5,1.5))
+
 ps,f1,f2 = powerspectrum2(img,ppd,freqrange=[-6,6])
 heatmap(f2,f1,ps,aspect_ratio=:equal,frame=:grid)
+
 eori,esf = f1orisf(ps,f1,f2)
-@test sf≈esf
-@test ori≈eori
+@test sf ≈ esf
+@test ori ≈ eori
 
 
 ## image resize
@@ -71,7 +73,37 @@ findclosestangle(α,β)
 findclosestangle(α,β)
 
 
-## ROI
+## ROI highlighting local regions
+x=randn(1000)
+x[100:200].+=2
+x[500:600].-=2
+x[800:900] = 2randn(101)
+plot(x)
+
+plot(mapwindow(rms,x,(41)))
+plot!(mapwindow(mdsd,x,(41)))
+
+
+img=randn(300,300)
+img[30:70,30:70] .= 3
+img[30:70,230:270] .+= 2
+img[230:270,230:270] .= -3
+img[230:270,30:70] .-= 2
+img[130:170,130:170] = 3randn(41,41)
+Gray.(clampscale(img))
+
+lcimg = localcontrast(img,10,fun=std)
+Gray.(clampscale(lcimg))
+roi = peakroi(lcimg)
+
+lcimg = localcontrast(img,10,fun=rms)
+Gray.(clampscale(lcimg))
+roi = peakroi(lcimg)
+
+lcimg = localcontrast(img,10,fun=mdsd)
+Gray.(clampscale(lcimg))
+roi = peakroi(lcimg)
+
 clamproi((12,13),(35,17),(30,30),issquare=true)
 
 
