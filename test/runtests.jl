@@ -1,4 +1,4 @@
-using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO, FFTW
+using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO, FFTW, DSP
 
 @testset "NeuroAnalysis" begin
 
@@ -41,35 +41,37 @@ plot(gaussianf,-3,3)
 plot(gaborf,-3,3)
 plot(dogf,-3,3)
 
-funnames = ["grating","gaussian","gabor","dog"]
-plot([gratingf,gaussianf,gaborf,dogf],-3,3,labels=permutedims(funnames),lw=[2 2 3 3],xlabel="y′")
+funnames = ["grating","gaussian","dog","gabor"]
+plot([gratingf,gaussianf,dogf,gaborf],-3,3,labels=permutedims(funnames),lw=[2 2 4 4],frame=:zerolines)
 
 
 x=y=-3:0.05:3;z=[]
 push!(z,[gratingf(i,j,μ₁=0,μ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
 push!(z,[gaussianf(i,j,μ₁=0,μ₂=0.5,σ₁=0.8,σ₂=0.5,θ=0.25π) for j in y,i in x])
-push!(z,[gaborf(i,j,μ₁=0,μ₂=0.5,σ₁=1,σ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
 push!(z,[dogf(i,j,aₑ=1,aᵢ=2,μₑ₁=0,μₑ₂=0.5,μᵢ₁=0,μᵢ₂=0.5,σₑ₁=1,σₑ₂=0.6,σᵢ₁=0.7,σᵢ₂=0.42,θₑ=0.25π,θᵢ=0.25π) for j in y,i in x])
+push!(z,[gaborf(i,j,μ₁=0,μ₂=0.5,σ₁=1,σ₂=0.5,θ=0.25π,f=0.5) for j in y,i in x])
 
 p = plot(layout=(2,2),legend=false,size=(600,600))
-foreach(i->heatmap!(p[i],z[i],aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
+foreach(i->heatmap!(p[i],x,y,z[i],aspect_ratio=:equal,frame=:none,color=:coolwarm,clims=(-1,1),title=funnames[i]),1:4)
 p
 
-z[2] = [gaussianenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=0.8,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
-z[3] = [gaborenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
-z[4] = [edogenvelopemask(i,j;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for j in y,i in x]
+zm = copy(z)
+zm[2] = [gaussianenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=0.8,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
+zm[3] = [edogenvelopemask(i,j;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for j in y,i in x]
+zm[4] = [gaborenvelopemask(i,j;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for j in y,i in x]
 
-foreach(i->heatmap!(p[i],z[i],aspect_ratio=:equal,frame=:none,alpha=0.1,color=:coolwarm,clims=(-1,1),title=funnames[i]),2:4)
+foreach(i->heatmap!(p[i],x,y,zm[i],aspect_ratio=:equal,frame=:none,alpha=0.1,color=:coolwarm,clims=(-1,1),title=funnames[i]),2:4)
 p
 
+zc = copy(z)
 t = 0:0.02:2π
-z[2] = [gaussiancontour(i;fσ=2.5,μ₁=0,σ₁=0.8,μ₂=0.5,σ₂=0.5,θ=0.25π) for i in t]
-z[3] = [gaborcontour(i;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for i in t]
-z[4] = [edogcontour(i;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for i in t]
+zc[2] = [gaussiancontour(i;fσ=2.5,μ₁=0,σ₁=0.8,μ₂=0.5,σ₂=0.5,θ=0.25π) for i in t]
+zc[3] = [edogcontour(i;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=0.6,μ₂=0.5,rσᵢₑ=0.7,θ=0.25π) for i in t]
+zc[4] = [gaborcontour(i;fσ=2.5,μ₁=0,σ₁=1,μ₂=0.5,σ₂=0.5,θ=0.25π) for i in t]
 
-p = plot(layout=(2,2),legend=false,size=(600,600),frame=:none)
-foreach(i->plot!(p[i],z[i],aspect_ratio=:equal,frame=:box,xlims=(-3,3),ylims=(-3,3),title=funnames[i]),2:4)
+foreach(i->plot!(p[i],zc[i],aspect_ratio=:equal,frame=:none,xlims=(-3,3),ylims=(-3,3),lw=1,color=:black,title=funnames[i]),2:4)
 p
+
 
 # dog pattern
 x = -6:0.01:6

@@ -287,14 +287,14 @@ end
 """
 2D powerspectrum of an image.
 """
-function powerspectrum2(x::Matrix,fs;freqrange=[-15,15])
+function powerspectrum2(x::AbstractMatrix,fs;freqrange=[-15,15])
     ps = periodogram(x,fs=fs)
-    p = power(ps);freqd1,freqd2 = freq(ps)
-    fi1 = freqrange[1].<=freqd1.<=freqrange[2]
-    fi2 = freqrange[1].<=freqd2.<=freqrange[2]
-    p = p[fi1,fi2];freqd1 = freqd1[fi1];freqd2 = freqd2[fi2]
-    si1=sortperm(freqd1);si2=sortperm(freqd2)
-    return p[si1,si2],freqd1[si1],freqd2[si2]
+    p = power(ps);freq1,freq2 = freq(ps)
+    fi1 = freqrange[begin].<=freq1.<=freqrange[end]
+    fi2 = freqrange[begin].<=freq2.<=freqrange[end]
+    p = p[fi1,fi2];freq1 = freq1[fi1];freq2 = freq2[fi2]
+    si1=sortperm(freq1);si2=sortperm(freq2)
+    return p[si1,si2],freq1[si1],freq2[si2]
 end
 
 "2D powerspectrums of images in same size."
@@ -312,24 +312,34 @@ end
 Estimate the F1 Ori and SpatialFreq of an image from its 2D powerspectrum.
 
 1. x: 2D powerspectrum
-2. freqd1: frequencies of dim 1
-3. freqd2: frequencies of dim 2
+2. freq1: frequencies of dim 1
+3. freq2: frequencies of dim 2
 
 return:
-- ori: Orientation in radius[0,π], 0 is -, increase counter-clock wise
+- ori: Orientation in radius[0,π), 0 is -, increase counter-clock wise
 - sf: SpatialFreq along the line perpendicular to ori
 """
-function f1orisf(x,freqd1,freqd2)
-    f0i = (findfirst(freqd1.==0),findfirst(freqd2.==0))
+function f1orisf(x,freq1,freq2)
+    f0i = (findfirst(freq1.==0),findfirst(freq2.==0))
     p = deepcopy(x);p[f0i...]=0
     f1i = argmax(p)
-    f1freqd2d1 = [freqd2[f1i[2]],freqd1[f1i[1]]]
-    ori = mod(atan(f1freqd2d1...),π)
-    sf = norm(f1freqd2d1)
-    return ori,sf
+    f1freq_xy = (freq2[f1i[2]],freq1[f1i[1]])
+    # atan(1/v) = π/2 - atan(v), if v > 0; atan(1/v) = -π/2 - atan(v), if v < 0 
+    ori = mod(atan(f1freq_xy...),π)
+    sf = norm(f1freq_xy)
+    return (;ori,sf)
 end
 
-"extrema value of max amplitude and it's delay index"
+"Weighted average of SD and Absolute Deviation of MEAN relative to Baseline"
+function mdsd(x,mw=0.5;b=0,robust=true)
+    if robust
+        m = median(x);sd = mad(x,center=m,normalize=true)
+    else
+        m = mean(x);sd = std(x,mean=m)
+    end
+    mw*abs(m-b) + (1-mw)*sd
+end
+"extrema value of max abs amplitude and it's delay index"
 function exd(sta)
     exi = [argmin(sta),argmax(sta)]
     ex = sta[exi]
@@ -337,43 +347,43 @@ function exd(sta)
     (ex=ex[absexi],d=ndims(sta) > 2 ? exi[absexi][3] : missing)
 end
 """
-local RMS contrast of each image, highlighting local structure regions
+local contrast of each image, highlighting local structure regions
 """
-function localcontrast(csta,w::Integer)
+function localcontrast(csta,w::Integer;fun=rms)
     dims = size(csta)
     clc = Array{Float64}(undef,dims)
     w = iseven(w) ? w+1 : w
     @views for d in 1:dims[3], c in 1:dims[4]
-        clc[:,:,d,c] = mapwindow(std,csta[:,:,d,c],(w,w))
+        clc[:,:,d,c] = mapwindow(fun,csta[:,:,d,c],(w,w))
     end
     return clc
 end
-function localcontrast(data::Matrix,w::Integer)
+function localcontrast(data::AbstractMatrix,w::Integer;fun=rms)
     w = iseven(w) ? w+1 : w
-    mapwindow(std,data,(w,w))
+    mapwindow(fun,data,(w,w))
 end
-"ROI encompass peak value and its delay index"
+"ROI(odd pixels) encompass peak value and its delay index"
 function peakroi(clc)
     ds = size(clc)[1:2]
     i = [Tuple(argmax(clc))...]
     plc = clc[:,:,i[3:end]...]
     return (peakroi(plc,ds=ds,i=i[1:2])...,pdi=i[3])
 end
-function peakroi(data::Matrix;ds = size(data),i = [Tuple(argmax(data))...])
+function peakroi(data::AbstractMatrix;ds = size(data),i = [Tuple(argmax(data))...])
     segs = seeded_region_growing(data,[(CartesianIndex(1,1),1),(CartesianIndex(1,ds[2]),1),(CartesianIndex(ds[1],1),1),
                             (CartesianIndex(ds...),1),(CartesianIndex(i...),2)])
     idx = findall(labels_map(segs).==2)
     roi = roiwindow(idx)
     return (i=idx,roi...)
 end
-"Get ROI from region indices"
+"Get ROI(odd pixels) from region indices"
 function roiwindow(idx)
     idxlims = Tuple(dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2))
     center = round.(Int,mean.(idxlims))
-    radii = map((i,j)->minimum(abs.(i.-j)),idxlims,center)
+    radii = map((i,c)->minimum(abs.(i.-c)),idxlims,center)
     return (;center,radii,radius=maximum(radii))
 end
-"Get the minimum ROI encompass all rois"
+"Get the minimum ROI(odd pixels) encompassing all rois"
 # function mergeroi(rois,ds;roimargin=0)
 #     cs = mapfoldl(r->r.center,hcat,rois,init=zeros(Int,2,0))
 #     center = round.(Int,vec(mean(cs,dims=2)))
@@ -382,7 +392,7 @@ end
 #     radius = clamproi(center,radius,ds)
 #     return (;center,radius)
 # end
-function mergeroi(rois;roimargin=0,imgsize=[],issquare=false)
+function mergeroi(rois;roimargin=0,imgsize=(),issquare=false)
     isempty(rois) && return (;)
     if length(rois)==1
         center = rois[1].center
@@ -398,12 +408,12 @@ function mergeroi(rois;roimargin=0,imgsize=[],issquare=false)
         return clamproi(center,radii,imgsize;issquare)
     end
 end
-"Confine ROI so that it is not out of the image"
+"Confine ROI(odd pixels) so that it is not out of the image"
 function clamproi(cs,rs,imgsize;issquare=false)
     vr = map(i->intersect(cs[i].+(-rs[i]:rs[i]),1:imgsize[i]),(1,2))
     any(isempty,vr) && return (;)
     center = map(i->round(Int,mean(extrema(i))),vr)
-    radii = map((i,j)->minimum(abs.(extrema(i).-j)),vr,center)
+    radii = map((i,c)->minimum(abs.(extrema(i).-c)),vr,center)
     radius = maximum(radii)
     if issquare
         if abs(radii[1]-radii[2]) < 2

@@ -134,13 +134,13 @@ isresponsive(baseline,response;alpha=0.05) = pvalue(SignedRankTest(baseline,resp
 "Check if any `sub group of response` is significently different from `baseline` by `Wilcoxon Signed Rank Test`"
 isresponsive(baseline,response,gi;alpha=0.05) = any(map(i->isresponsive(baseline[i],response[i];alpha),gi))
 isresponsive(baseline::Vector,response::Matrix;alpha=0.05) = any(isresponsive.(baseline,response;alpha))
-"Check if `std` of a spatial-temporal kernal within response time window significently higher than that of the baseline time window"
-function isresponsive(st;bi=[],ri=[],sdfactor=3)
-    sd = dropdims(std(st,dims=1),dims=1)
-    sdmaxt = argmax(sd); sdmax = sd[sdmaxt]
-    bsdm = median(sd[bi]);bsdsd=mad(sd[bi],normalize=true)
+"Check if `fun` of a spatial-temporal kernal within response time window significently higher than that of the baseline time window"
+function isresponsive(st::AbstractMatrix;fun=rms,bi=[],ri=[],sdfactor=3)
+    @views p = [fun(st[:,i]) for i in 1:size(st,2)]
+    pmaxi = argmax(p); pmax = p[pmaxi]
+    bpm = median(p[bi]);bpsd=mad(p[bi],center=bpm,normalize=true)
 
-    (;r=!(sdmaxt in bi) && (sdmaxt in ri) && sdmax > bsdm+sdfactor*bsdsd,sd=sdmax,d=sdmaxt)
+    (;r=!(pmaxi in bi) && (pmaxi in ri) && pmax > bpm + sdfactor*bpsd, p=pmax, zp=(pmax-bpm)/bpsd, d=pmaxi)
 end
 
 # "Check if any factors and their interactions significently modulate response by `ANOVA`"

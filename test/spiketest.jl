@@ -94,6 +94,6 @@ plotspiketrain([st jst]',timeline=0:100:1000)
 
 
 bst = zeros(1000,50)
-foreach(t->bst[ceil.(Int,jst[:,t]),t].=1,1:size(bst,2))
+foreach(t->bst[ceil.(Int,jst[:,t]),t] .= 1,1:size(bst,2))
 jbst = shufflejitter(bst;l=100)
 plotspiketrain(map(t->findall(jbst[:,t].==1),1:size(jbst,2)),timeline=0:100:1000)
