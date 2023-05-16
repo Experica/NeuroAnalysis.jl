@@ -599,11 +599,16 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         d = mean(diff(sort(unique(θ)))) # angle spacing
         # for orientation
         oθ = mod.(θ.-0.5π,π)
-        om, = circ_mean(2oθ,w=fr)
+        # om, = circ_mean(2oθ,w=fr)
+        om=0
         oo = rad2deg(mod(angle(om),2π)/2)
         ocv = circ_var(2oθ,w=fr,d=2d)
         # for direction
+        dm=0
+        try
         dm, = circ_mean(θ,w=fr)
+        catch
+        end
         od = rad2deg(mod(angle(dm),2π))
         dcv = circ_var(θ;w=fr,d)
         # fit Generalized von Mises for direction
@@ -624,7 +629,8 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
 
         return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :SpatialFreq
-        up = PyOnewayANOVA.anova_oneway(fr,use_var="unequal").pvalue
+        # up = PyOnewayANOVA.anova_oneway(fr,use_var="unequal").pvalue
+        up = pvalue(OneWayANOVATest(fr...))
         msf = 2^(sum(fm.*log2.(fl))/sum(fm)) # weighted average
         maxr,maxi = findmax(fm)
         maxl = fl[maxi]
@@ -646,6 +652,10 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         ucid = sort(unique(fl))
         hstep = 2pi/length(ucid)
         ha = map(l->hstep*(findfirst(c->c==l,ucid)-1),fl)
+        # for axis
+        hacv, = circ_var(2ha,w=fr)
+        ham, = circ_mean(2ha,w=fr)
+        oha = mod(rad2deg(angle(ham)),180)
         # for hue direction
         hm, = circ_mean(ha,w=fr)
         oh = mod(rad2deg(angle(hm)),360)
@@ -670,7 +680,7 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
             end
         end
 
-        return (;ham,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
+        return (;ha,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     elseif factor in [:HueAngle,:Angle]
         # θ = mod2pi.(deg2rad.(ls))
         α = mod2pi.(deg2rad.(fl))
