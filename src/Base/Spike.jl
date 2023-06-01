@@ -17,7 +17,7 @@ function epochspiketrain(x,min::Real,max::Real;isminzero::Bool=false,ismaxzero::
     end
     i = findall(min .<= x .< max)
     w = (min, max)
-    n = length(i)
+    n = Float64(length(i))
     y = x[i]
     if isminzero
         y .-= min+shift
@@ -40,15 +40,15 @@ function epochspiketrain(x,mins,maxs;isminzero::Bool=false,ismaxzero::Bool=false
     ws = Vector{Tuple{Float64,Float64}}(undef,yn)
     is = Vector{Vector{Int}}(undef,yn)
     for i in 1:yn
-        ys[i],ns[i],ws[i],is[i] = epochspiketrain(x,mins[i],maxs[i],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
+        ys[i],ns[i],ws[i],is[i] = epochspiketrain(x,mins[i],maxs[i];isminzero,ismaxzero,shift,israte)
     end
     return (y=ys,n=ns,w=ws,i=is)
 end
-epochspiketrain(x,minmaxs::AbstractMatrix;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false) = @views epochspiketrain(x,minmaxs[:,1],minmaxs[:,2],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
+epochspiketrain(x,minmaxs::AbstractMatrix;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false) = @views epochspiketrain(x,minmaxs[:,1],minmaxs[:,2];isminzero,ismaxzero,shift,israte)
 "Epochs of a Spike Train in between binedges"
 function epochspiketrain(x,binedges;isminzero::Bool=false,ismaxzero::Bool=false,shift::Real=0,israte::Bool=false)
     nbinedges = length(binedges); nbinedges<2 && error("Have $nbinedges binedges, need at least two binedges.")
-    epochspiketrain(x,binedges[1:end-1],binedges[2:end],isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
+    epochspiketrain(x,binedges[1:end-1],binedges[2:end];isminzero,ismaxzero,shift,israte)
 end
 
 "Epochs for each Spike Trains"
@@ -59,7 +59,7 @@ function epochspiketrains(xs,binedges;isminzero::Bool=false,ismaxzero::Bool=fals
     ws = nothing
     iss = Vector{Vector{Vector{Int}}}(undef,tn)
     for i in 1:tn
-        yss[i],nss[i],ws,iss[i] = epochspiketrain(xs[i],binedges,isminzero=isminzero,ismaxzero=ismaxzero,shift=shift,israte=israte)
+        yss[i],nss[i],ws,iss[i] = epochspiketrain(xs[i],binedges;isminzero,ismaxzero,shift,israte)
     end
     return (y=yss,n=nss,w=ws,i=iss)
 end
@@ -69,8 +69,8 @@ Response of each epoch of a Spike Train, could be mean firing rate or number of 
 
 See also: [`epochspiketrainresponse_ono`](@ref)
 """
-epochspiketrainresponse(x,minmaxs::AbstractMatrix;israte::Bool=true) = epochspiketrain(x,minmaxs,israte=israte)[2]
-epochspiketrainresponse(x,mins,maxs;israte::Bool=true) = epochspiketrain(x,mins,maxs,israte=israte)[2]
+epochspiketrainresponse(x,minmaxs::AbstractMatrix;israte::Bool=true) = epochspiketrain(x,minmaxs;israte)[2]
+epochspiketrainresponse(x,mins,maxs;israte::Bool=true) = epochspiketrain(x,mins,maxs;israte)[2]
 
 """
 Response of each epoch of a Spike Train, could be mean firing rate or number of spikes based on kwarg `israte`.
@@ -129,9 +129,6 @@ function subrvr_onotest(rv::RealVector,mins::RealVector,maxs::RealVector;israte:
         isnan2zero && replace!(ns,NaN=>0)
     end
     return ns
-end
-
-function subrmr_ono(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true)
 end
 
 "Generate a Homogeneous Poisson Spike Train"
@@ -203,27 +200,14 @@ function flatspiketrains(sts::AbstractMatrix;trialorder=[])
     return spike,trial,order
 end
 
-"Vertical stack same length vectors to matrix"
-function vstack(xs)
-    tn = length(xs)
-    n = length(xs[1])
-    mat = Matrix{Float64}(undef,tn,n)
-    for i in 1:tn
-        mat[i,:] = xs[i]
-    end
-    return mat
-end
-
-"Vertical Mean and SEM of a matrix"
-function vmeanse(mat::AbstractMatrix;rfun=nothing,mfun=nothing)
-    n = size(mat,1)
+"Mean and SEM of an Array along `dims`"
+function meanse(x;dims=1,rfun=nothing,mfun=nothing)
+    n = size(x,dims)
     if !isnothing(rfun)
-        for i=1:n
-            mat[i,:]=rfun(mat[i,:])
-        end
+        x = stack(rfun,eachslice(x;dims);dims)
     end
-    m = dropdims(mean(mat,dims=1),dims=1)
-    se = dropdims(std(mat,dims=1),dims=1)/sqrt(n)
+    m,se=dropdims.(mean_and_std(x,dims);dims)
+    se /= sqrt(n)
     if !isnothing(mfun)
         m = mfun(m)
     end
@@ -231,13 +215,13 @@ function vmeanse(mat::AbstractMatrix;rfun=nothing,mfun=nothing)
 end
 
 "PSTH of Spike Trains"
-function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,rfun=nothing)
-    nss = epochspiketrains(xs,binedges,israte=israte)[2]
+function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,rfun=nothing,mfun=nothing)
+    nss = epochspiketrains(xs,binedges;israte)[2]
     halfbinwidth = (binedges[2]-binedges[1])/2
     x = binedges[1:end-1].+halfbinwidth
-    mat = vstack(nss)
+    mat = stack(nss,dims=1)
     if ismean
-        m,se = vmeanse(mat;rfun)
+        m,se = meanse(mat;dims=1,rfun,mfun)
         return (;m,se,x)
     else
         return (;mat,x)

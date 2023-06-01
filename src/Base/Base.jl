@@ -816,7 +816,7 @@ end
 Normalized(coincidence/spike), condition and trial averaged Cross-Correlogram of two simultaneous binary spike sequences (bins x trials).
 
 - Correction:
-    - (shuffle=true), "all-way" nonsimultaneous trials shuffle
+    - (shuffle=true), "all-way" nonsimultaneous trials shuffle(default)
 
         (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676-1697.)
 
