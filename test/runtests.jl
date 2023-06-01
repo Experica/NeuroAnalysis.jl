@@ -1,4 +1,4 @@
-using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO, FFTW, DSP
+using Test, NeuroAnalysis, BenchmarkTools, DataFrames, Plots, FileIO, FFTW, DSP, Images
 
 @testset "NeuroAnalysis" begin
 
