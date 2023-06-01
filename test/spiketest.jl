@@ -67,7 +67,6 @@ refractoryperiod = 2
 ntrial = 50
 
 ## Homogeneous Poisson Process, where instantaneous ﬁring rate is constant
-
 # Inter-Spike-Interval Exponential Distribution Method
 sts = [poissonspiketrain(rate,duration,rp=refractoryperiod) for _ in 1:ntrial]
 plotspiketrain(sts,timeline=[0,duration])
@@ -82,18 +81,22 @@ plotspiketrain(sts,timeline=[0,duration])
 
 
 ## spike train jitter resampling
-st = sort(rand(25))*1000
-jst = spikejitter(st;n=50,l=50.5,win=:center)
-jst = spikejitter(st;n=50,l=100,win=:fix)
-plotspiketrain([st jst]',timeline=0:100:1000)
+st = sort(rand(25))*duration
+jst = spikejitter(st;n=ntrial,l=50.5,win=:center)
+jst = spikejitter(st;n=ntrial,l=100,win=:fix)
+plotspiketrain([st jst]',timeline=0:100:duration)
 
 st = floor.(Int,st)
-jst = spikejitter(st;n=50,l=50.5,win=:center)
-jst = spikejitter(st;n=50,l=100,win=:fix)
-plotspiketrain([st jst]',timeline=0:100:1000)
+jst = spikejitter(st;n=ntrial,l=50.5,win=:center)
+jst = spikejitter(st;n=ntrial,l=100,win=:fix)
+plotspiketrain([st jst]',timeline=0:100:duration)
 
-
-bst = zeros(1000,50)
-foreach(t->bst[ceil.(Int,jst[:,t]),t] .= 1,1:size(bst,2))
+bst = zeros(duration,ntrial)
+foreach(t->bst[clamp!(ceil.(Int,jst[:,t]),1,duration),t] .= 1,1:size(bst,2))
 jbst = shufflejitter(bst;l=100)
-plotspiketrain(map(t->findall(jbst[:,t].==1),1:size(jbst,2)),timeline=0:100:1000)
+plotspiketrain(map(t->findall(jbst[:,t].==1),1:size(jbst,2)),timeline=0:100:duration)
+
+bst=psthspiketrains(sts,0:duration,israte=false,ismean=false).mat
+heatmap(bst,xlabel="Time (ms)",ylabel="Trials",tickdir=:out)
+jbst = shufflejitter(bst',100)
+heatmap(jbst',xlabel="Time (ms)",ylabel="Trials",tickdir=:out)

@@ -219,7 +219,7 @@ spike train stored in `jst[:,k]`.
     - :fix - the jitter window for st[k] is floor(st[k]/l)*l + [0, l]
 - sort: if sorting jittered spike trains
 """
-function spikejitter(st::AbstractVector{T};n::Signed=10,l::Tl=25,win::Symbol=:fix,sort::Bool=false) where {T<:Real,Tl<:Real}
+function spikejitter(st::AbstractVector{T};n::Integer=10,l::Tl=25,win::Symbol=:fix,sort::Bool=false) where {T<:Real,Tl<:Real}
     if T <: Integer && !(Tl <: Integer)
         @warn "Round l=$l to $T"
         l = round(T,l)
@@ -243,33 +243,57 @@ function spikejitter(st::AbstractVector{T};n::Signed=10,l::Tl=25,win::Symbol=:fi
 end
 
 """
-shuffle spikes in bined(1ms) spike trains `bst`(nbin x ntrial) between trials 
-in fixed jitter windows of length `l`(>0ms)
+Shuffle spikes of bined(1ms) spike trains `bst`(nbin x ntrial) between trials in fixed jitter windows of length `l`(>0ms)
 
 (Smith, Matthew A., and Adam Kohn (2008). Spatial and Temporal Scales of Neuronal Correlation in Primary Visual Cortex. J. Neurosci. 28.48 : 12591-12603.)
 """
-function shufflejitter(bst;l::Integer=25)
+function shufflejitter(bst;l::Integer=25,replace=true,repeat::Integer=1)
     l <= 0 && error("l <= 0")
 
     nbin,ntrial = size(bst)
     nl,rl = fldmod(nbin,l)
-    lbi=[]
-    nl>0 && append!(lbi,[(1:l) .+ l*i for i in 0:nl-1])
-    rl>0 && push!(lbi,(nl*l + 1):nbin)
+    lis=[]
+    nl>0 && append!(lis,[(1:l) .+ l*i for i in 0:nl-1])
+    rl>0 && push!(lis,(nl*l + 1):nbin)
 
-    # psth in jitter windows as resample distribution
+    # PSTH in jitter windows as resample distribution
     psth = dropdims(mean(bst,dims=2),dims=2)
-    @views lbp = map(i->psth[i],lbi)
-    lbp = map(i->weights(i./sum(i)),lbp) 
-    # n spikes in jitter windows to resample
-    @views lns = map(i->dropdims(sum(bst[i,:],dims=1),dims=1),lbi)
-    
-    jbst = zeros(nbin,ntrial)
-    jbi = map((i,p,ns)->map(n->sample(i,p,Int(n),replace=false),ns),lbi,lbp,lns)
-    for i in jbi
+    @views lps = map(i->weights(psth[i]),lis)
+    # n spikes in jitter windows of each trial to resample
+    @views ltns = map(i->Int.(dropdims(sum(bst[i,:],dims=1),dims=1)),lis)
+
+    jbst = zeros(nbin,ntrial*repeat)
+    for i in eachindex(lis)
+        li = lis[i];lp=lps[i];tn=ltns[i]
         for t in 1:ntrial
-            jbst[i[t],t] .= 1
+            n = tn[t]
+            n<=0 && continue
+            for r in 0:repeat-1
+                si = sample(li,lp,n;replace)
+                foreach(s->jbst[s,t+r*ntrial] += 1,si)
+            end
         end
     end
     jbst
+end
+"""
+The original implementation of the "jitter" method.
+
+(Smith, Matthew A., and Adam Kohn (2008). Spatial and Temporal Scales of Neuronal Correlation in Primary Visual Cortex. J. Neurosci. 28.48 : 12591-12603.)
+"""
+function shufflejitter(bst,l::Integer)
+    l <= 0 && error("l <= 0")
+
+    nbin = size(bst,1)
+    nl,rl = fldmod(nbin,l)
+    lis=[]
+    nl>0 && append!(lis,[(1:l) .+ l*i for i in 0:nl-1])
+    rl>0 && push!(lis,(nl*l + 1):nbin)
+
+    psth = dropdims(mean(bst,dims=2),dims=2)
+    @views lpn = map(i->sum(psth[i]),lis)
+    replace!(lpn,0=>1e-11)
+
+    @views tpr = vcat(map((i,pn)->repeat(sum(bst[i,:],dims=1)/pn,inner=(length(i),1)),lis,lpn)...)
+    psth.*tpr
 end

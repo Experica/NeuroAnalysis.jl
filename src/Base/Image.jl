@@ -324,7 +324,7 @@ function f1orisf(x,freq1,freq2)
     p = deepcopy(x);p[f0i...]=0
     f1i = argmax(p)
     f1freq_xy = (freq2[f1i[2]],freq1[f1i[1]])
-    # atan(1/v) = π/2 - atan(v), if v > 0; atan(1/v) = -π/2 - atan(v), if v < 0 
+    # atan(1/v) = π/2 - atan(v), if v > 0; atan(1/v) = -π/2 - atan(v), if v < 0
     ori = mod(atan(f1freq_xy...),π)
     sf = norm(f1freq_xy)
     return (;ori,sf)
@@ -378,7 +378,7 @@ function peakroi(data::AbstractMatrix;ds = size(data),i = [Tuple(argmax(data))..
 end
 "Get ROI(odd pixels) from region indices"
 function roiwindow(idx)
-    idxlims = Tuple(dropdims(extrema(mapreduce(i->[Tuple(i)...],hcat,idx),dims=2),dims=2))
+    idxlims = Tuple(dropdims(extrema(hcat(map(i->[Tuple(i)...],idx)...),dims=2),dims=2))
     center = round.(Int,mean.(idxlims))
     radii = map((i,c)->minimum(abs.(i.-c)),idxlims,center)
     return (;center,radii,radius=maximum(radii))

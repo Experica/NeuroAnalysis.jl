@@ -813,18 +813,18 @@ end
 
 
 """
-Normalized(coincidence/spike), condition and trial averaged Cross-Correlogram of binary spike trains (bins x trials).
+Normalized(coincidence/spike), condition and trial averaged Cross-Correlogram of two simultaneous binary spike sequences (bins x trials).
 
 - Correction:
     - (shuffle=true), "all-way" nonsimultaneous trials shuffle
 
         (Bair, W., Zohary, E., and Newsome, W.T. (2001). Correlated Firing in Macaque Visual Area MT: Time Scales and Relationship to Behavior. J. Neurosci. 21, 1676-1697.)
 
-    - (shufflejitter=true, l=25), shuffle jittered spikes across trials in consecutive intervals of length l
+    - (shufflejitter=true, l=25), shuffle jittered spikes across trials in consecutive intervals of length l ms
 
         (Smith, Matthew A., and Adam Kohn (2008). Spatial and Temporal Scales of Neuronal Correlation in Primary Visual Cortex. J. Neurosci. 28.48 : 12591-12603.)
 """
-function correlogram(bst1,bst2;lag=nothing,norm=true,correction=(;shuffle=true),condis=nothing)
+function correlogram(bst1,bst2;lag::Integer=100,norm=true,correction=(shuffle=true),condis=nothing)
     if !isnothing(condis)
         cccg=[];τ=[]
         @views for ci in condis
@@ -836,7 +836,6 @@ function correlogram(bst1,bst2;lag=nothing,norm=true,correction=(;shuffle=true),
     end
 
     nbin,ntrial = size(bst1)
-    lag = floor(Int,isnothing(lag) ? min(nbin-1, 10*log10(nbin)) : lag)
     τ = -lag:lag
     cc = Array{Float64}(undef,length(τ),ntrial)
     @views for i in 1:ntrial
@@ -850,9 +849,9 @@ function correlogram(bst1,bst2;lag=nothing,norm=true,correction=(;shuffle=true),
         s = crosscov(psth1,psth2,τ,demean=false)*nbin
         shiftccg = (ntrial*s .- ccg)/(ntrial-1)
         ccg .-= shiftccg
-    elseif haskey(correction,:shufflejitter) && correction.l > 0
-        jbst1 = shufflejitter(bst1;l=correction.l)
-        jbst2 = shufflejitter(bst2;l=correction.l)
+    elseif haskey(correction,:shufflejitter) && correction.shufflejitter && haskey(correction,:l) && correction.l > 0
+        jbst1 = shufflejitter(bst1,correction.l)
+        jbst2 = shufflejitter(bst2,correction.l)
         jitterccg,_ = correlogram(jbst1,jbst2;lag,norm=false,correction=(;),condis=nothing)
         ccg .-= jitterccg
     end
@@ -867,30 +866,29 @@ function correlogram(bst1,bst2;lag=nothing,norm=true,correction=(;shuffle=true),
     end
     ccg,τ
 end
-function circuitestimate(unitbinspike;lag=nothing,correction=(;shuffle=true),maxprojlag=5,minbaselag=10,minepoch=4,minspike=4,esdfactor=5,isdfactor=3.5,nosync=true,unitid=[],condis=nothing)
-    nunit=length(unitbinspike)
-    n,nepoch = size(unitbinspike[1])
-    lag = floor(Int,isnothing(lag) ? min(n-1, 10*log10(n)) : lag)
-    x = -lag:lag;xn=2lag+1
+"estimate projections among simultaneously recorded spiking units based on cross-correlogram"
+function circuitestimate(unitbinepoch;lag::Integer=100,correction=(shuffle=true),maxprojlag=10,minbaselag=50,minepoch=4,minfr=4,esdfactor=7,isdfactor=4,nosync=true,unitid=[],condis=nothing)
+    nunit=length(unitbinepoch)
+    x = -lag:lag
 
-    isenough = (i,j;minepoch=4,minspike=4) -> begin
-        vei = sum(i,dims=1) .>= minspike
-        vej = sum(j,dims=1) .>= minspike
-        count(vei) >= minepoch && count(vej) >= minepoch
+    isenough = (i,j;minepoch=4,minfr=4) -> begin
+        ive = mean(i,dims=1)*1000 .>= minfr
+        jve = mean(j,dims=1)*1000 .>= minfr
+        count(ive.&jve) >= minepoch
     end
 
     ccgs=[];ccgis=[];projs=[];eunits=[];iunits=[];projlags=[];projweights=[]
     for (i,j) in combinations(1:nunit,2)
         if isnothing(condis)
-            isenough(unitbinspike[i],unitbinspike[j];minepoch,minspike) || continue
+            isenough(unitbinepoch[i],unitbinepoch[j];minepoch,minfr) || continue
             vcondis=nothing
         else
-            @views vci = map(ci->isenough(unitbinspike[i][:,ci],unitbinspike[j][:,ci];minepoch,minspike),condis)
+            @views vci = map(ci->isenough(unitbinepoch[i][:,ci],unitbinepoch[j][:,ci];minepoch,minfr),condis)
             all(.!vci) && continue
             vcondis = condis[vci]
         end
 
-        ccg,_ = correlogram(unitbinspike[i],unitbinspike[j];lag,correction,condis=vcondis)
+        ccg,_ = correlogram(unitbinepoch[i],unitbinepoch[j];lag,correction,condis=vcondis)
         ps,es,is,pls,pws = projectionfromcorrelogram(ccg,i,j;maxprojlag,minbaselag,esdfactor,isdfactor,nosync)
         if !isempty(ps)
             push!(ccgs,ccg);push!(ccgis,(i,j))
@@ -899,47 +897,47 @@ function circuitestimate(unitbinspike;lag=nothing,correction=(;shuffle=true),max
     end
     unique!(eunits);unique!(iunits)
     if length(unitid)==nunit
-        map!(t->(unitid[t[1]],unitid[t[2]]),ccgis,ccgis)
-        map!(t->(unitid[t[1]],unitid[t[2]]),projs,projs)
-        map!(t->unitid[t],eunits,eunits)
-        map!(t->unitid[t],iunits,iunits)
+        map!(v->(unitid[v[1]],unitid[v[2]]),ccgis,ccgis)
+        map!(v->(unitid[v[1]],unitid[v[2]]),projs,projs)
+        map!(v->unitid[v],eunits,eunits)
+        map!(v->unitid[v],iunits,iunits)
     end
     return (;ccgs,x,ccgis,projs,eunits,iunits,projlags,projweights)
 end
-"excitatory and inhibitory projections between two spiking units from cross-correlogram"
-function projectionfromcorrelogram(cc,i,j;maxprojlag=5,minbaselag=10,esdfactor=5,isdfactor=5,nosync=true)
+"putative excitatory and inhibitory projections between two spiking units based on cross-correlogram"
+function projectionfromcorrelogram(cc,i,j;maxprojlag=10,minbaselag=50,esdfactor=7,isdfactor=4,nosync=true)
     midi = ceil(Int,length(cc)/2)
-    base = [cc[midi+minbaselag:end];cc[1:midi-minbaselag]]
-    bm,bsd = mean_and_std(base);hl = bm + esdfactor*bsd;ll = bm - isdfactor*bsd
-    forwardlags = midi.+(1:maxprojlag)
-    backwardlags = midi.-(1:maxprojlag)
-    @views fcc = cc[forwardlags]
-    @views bcc = cc[backwardlags]
+    basecc = [cc[midi+minbaselag:end];cc[1:midi-minbaselag]]
+    bm,bsd = mean_and_std(basecc);ht = bm + esdfactor*bsd;lt = bm - isdfactor*bsd
+    forwardis = midi.+(1:maxprojlag)
+    backwardis = midi.-(1:maxprojlag)
+    @views fcc = cc[forwardis]
+    @views bcc = cc[backwardis]
     ps=[];ei=[];ii=[];pls=[];pws=[]
 
-    if nosync && !(ll <= cc[midi] <= hl)
+    if nosync && !(lt <= cc[midi] <= ht)
         return (;ps,ei,ii,pls,pws)
     end
-    if any(fcc .> hl)
+    if any(fcc .> ht) # check peak(excitatory) first
         push!(ps,(i,j));push!(ei,i)
         mi = argmax(fcc)
-        push!(pls,mi+1)
+        push!(pls,forwardis[mi])
         push!(pws,(fcc[mi]-bm)/bsd)
-    elseif any(fcc .< ll)
+    elseif any(fcc .< lt)
         push!(ps,(i,j));push!(ii,i)
         mi = argmin(fcc)
-        push!(pls,mi+1)
+        push!(pls,forwardis[mi])
         push!(pws,(fcc[mi]-bm)/bsd)
     end
-    if any(bcc .> hl)
+    if any(bcc .> ht) # check peak(excitatory) first
         push!(ps,(j,i));push!(ei,j)
         mi = argmax(bcc)
-        push!(pls,mi+1)
+        push!(pls,backwardis[mi])
         push!(pws,(bcc[mi]-bm)/bsd)
-    elseif any(bcc .< ll)
+    elseif any(bcc .< lt)
         push!(ps,(j,i));push!(ii,j)
         mi = argmin(bcc)
-        push!(pls,mi+1)
+        push!(pls,backwardis[mi])
         push!(pws,(bcc[mi]-bm)/bsd)
     end
     return (;ps,ei,ii,pls,pws)
