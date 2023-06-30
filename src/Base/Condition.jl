@@ -174,67 +174,61 @@ end
 # ismodulative(response,gi;alpha=0.05) = PyOnewayANOVA.anova_oneway(map(i->response[i],gi),use_var="unequal").pvalue < alpha
 
 """
-Find levels for each factor and indices, repetition for each level
+Find unique levels for each factor from condition tests, with number of repeat for each level and condition test indices for each repeat.
 """
-flin(ctc::Dict)=flin(DataFrame(ctc))
-function flin(ctc::DataFrame)
-    isempty(intersect(propertynames(ctc), (:i,:n))) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor name.")
-    fl=OrderedDict{Symbol,DataFrame}()
-    for f in propertynames(ctc)
-        fl[f] = condin(ctc[!,[f]])
+flin(ctc::DataFrame;sort = true, skipmissing = true) = NamedTuple(f=>condin(ctc[!,[f]];sort,skipmissing) for f in propertynames(ctc))
+
+"""
+Find unique conditions of condition tests, with number of repeat for each condition and condition test indices for each repeat.
+"""
+function condin(ctc::DataFrame;sort = true, skipmissing = true)
+    ivn = intersect(propertynames(ctc), (:i,:n))
+    display(ivn)
+    if !isempty(ivn)
+        error("using factor names: $ivn, i and n are reserved names for condition test indices and number of condition repeat")
     end
-    return fl
+    combine(groupby(insertcols(ctc,:i => 1:nrow(ctc)), propertynames(ctc); sort, skipmissing), :i => (x->[x]) => :i, nrow => :n)
 end
 
-"""
-In Condition Tests, find each unique condition, number of repeats and its indices
-"""
-condin(ctc::Dict)=condin(DataFrame(ctc))
-function condin(ctc::DataFrame)
-    isempty(intersect(propertynames(ctc), (:i,:n))) || error("i and n are reserved for condition test indices and repeats, shouldn't be used for factor name.")
-    combine(groupby([ctc DataFrame(i=1:nrow(ctc))], propertynames(ctc), sort = true, skipmissing = true), :i => (x->[x]) => :i, nrow => :n)
-end
+"Get factor names excluding reserved names"
+condfactor(cond)=setdiff(propertynames(cond),(:i,:n,:m,:se,:u))
 
-"Get factors of conditions"
-condfactor(cond)=setdiff(propertynames(cond),(:i,:n))
-
-"Get `Final` factors of conditions"
-function finalfactor(cond::DataFrame)
+"Exclude Non-Final version of factor names"
+function finalfactor(cond)
     fs = String.(condfactor(cond))
-    filter!(f->endswith(f,"_Final") || ∉("$(f)_Final",fs),fs)
+    filter!(f->endswith(f,"_Final") || ("$(f)_Final" ∉ fs),fs)
     Symbol.(fs)
 end
 
-"Print Condition in String"
-function condstring(cond::DataFrameRow;factor=condfactor(cond))
-    join(["$f=$(cond[f])" for f in factor],", ")
-end
-function condstring(cond::DataFrame;factor=condfactor(cond))
-    [condstring(r,factor=factor) for r in eachrow(cond)]
-end
+"String representation of a condition"
+condstring(cond::DataFrameRow;factor=condfactor(cond)) = join(["$f=$(cond[f])" for f in factor],", ")
+condstring(cond::DataFrame;factor=condfactor(cond)) = [condstring(c;factor) for c in eachrow(cond)]
+
 
 """
-Group repeats of Conditions, get `Mean` and `SEM` of responses
+Get `Mean` and `SEM` of repeated responses for each condition
 
-1. rs: responses of each trial
-2. ci: trial indices of repeats for each condition
+1. rs: response of each condition test
+2. ci: condition test indices of repeats for each condition
 """
 function condresponse(rs,ci)
     crs = [rs[i] for i in ci]
-    DataFrame(m=mean.(crs),se=sem.(crs))
+    (m=mean.(crs),se=sem.(crs))
 end
-function condresponse(rs,cond::DataFrame;u=0,ug="SU")
+function condresponse(rs,cond::DataFrame;u=0,withcond::Bool=true)
     crs = [rs[i] for i in cond.i]
-    [DataFrame(m=mean.(crs),se=sem.(crs),u=fill(u,length(crs)),ug=fill(ug,length(crs))) cond[:,condfactor(cond)]]
+    cr = DataFrame(m=mean.(crs),se=sem.(crs),u=u)
+    if withcond
+        ivn = intersect(propertynames(cond), (:m,:se,:u))
+        if !isempty(ivn)
+            error("using factor names: $ivn, m, se and u are reserved names for condition response of unit")
+        end
+        cr = [cr cond[:,condfactor(cond)]]
+    end
+    cr
 end
-function condresponse(urs::Dict,cond::DataFrame)
-    mapreduce(k->condresponse(urs[k],cond,u=k),append!,keys(urs))
-end
-function condresponse(urs::Dict,ctc::DataFrame,factors)
-    vf = intersect(propertynames(ctc),factors)
-    isempty(vf) && error("No Valid Factor Found.")
-    condresponse(urs,condin(ctc[:,vf]))
-end
+condresponse(urs::Dict,cond::DataFrame;withcond::Bool=true) = mapreduce(u->condresponse(urs[u],cond;u,withcond),append!,keys(urs))
+
 """
 Mean image responses of each conditions
 
@@ -249,36 +243,33 @@ function condimageresponse(rs,ci)
     cr
 end
 
-"Condition Response in Factor Space"
-function factorresponse(df;factors = setdiff(propertynames(df),[:m,:se,:u,:ug]),fl = flin(df[!,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))
-    fm = missings(Float64,map(length,values(fa))...)
-    fse = deepcopy(fm)
-    for r in eachrow(df)
-        idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
-        fm[idx...] = r[:m]
-        fse[idx...] = r[:se]
-    end
-    return (;fm,fse,fa)
+"Get each factor name and its levels as the axes of factor space"
+function factoraxis(cond;factor=condfactor(cond))
+    fl = flin(cond[!,factor])
+    NamedTuple(f=>fl[f][!,f] for f in keys(fl))
 end
-function factorresponse(rs,cond,fa)
-    fi = missings(Any,map(length,values(fa))...)
-    fr = missings(Any,map(length,values(fa))...)
-    for r in eachrow(cond)
-        idx = [findfirst(r[f].==fa[f]) for f in keys(fa)]
-        fi[idx...] = r.i
-        fr[idx...] = rs[r.i]
+
+"Map a variable of conditions into factor space"
+function factorspace(cond;fa=factoraxis(cond),col=:i)
+    fc = missings(Any,map(length,values(fa)))
+    for c in eachrow(cond)
+        ci = [findfirst(l->l==c[f],fa[f]) for f in keys(fa)]
+        fc[ci...] = c[col]
     end
-    fm = mean.(fr)
-    fse = sem.(fr)
-    return (;fi,fr,fm,fse,fa)
+    (;fc,fa)
 end
-function factorresponse(urs,cond;factors = condfactor(cond),fl = flin(cond[!,factors]),fa = OrderedDict(f=>fl[f][!,f] for f in keys(fl)))
-    fi=[];fr=[];fm=[];fse=[]
-    for rs in urs
-        f = factorresponse(rs,cond,fa)
-        push!(fi,f.fi);push!(fr,f.fr);push!(fm,f.fm);push!(fse,f.fse)
-    end
-    return (;fi,fr,fm,fse,fa)
+
+"""
+Get `Mean` and `SEM` of repeated responses for each condition in factor space
+
+1. rs: response of each condition test
+2. fi: condition test indices of repeats for each condition in factor space
+"""
+function factorresponse(rs,fi)
+    r = map(i->ismissing(i) ? missing : rs[i],fi)
+    m = mean.(r)
+    se = sem.(r)
+    (;r,m,se)
 end
 
 function setfln(fl::Dict,n::Int)

@@ -19,8 +19,10 @@ hw = halfwidth(y,circ=true,x=x)
 y,x,y1,x1=load(joinpath(@__DIR__,"circdata.jld2"),"y","x","y1","x1")
 
 # Tuning Curve, von Mises and Generalized von Mises
-plotcondresponse(y,DataFrame(Ori=rad2deg.(x)),u=0,projection=:polar)
-plotcondresponse(y1,DataFrame(Ori=rad2deg.(x1)),u=1,projection=:polar)
+mseuc = condresponse(y,condin(DataFrame(Ori=rad2deg.(x))),u=0)
+plotcondresponse(mseuc,projection=:polar)
+mseuc1 = condresponse(y1,condin(DataFrame(Ori=rad2deg.(x1))),u=1)
+plotcondresponse(mseuc1,projection=:polar)
 
 plot([x->vmf(x,κ=200,n=2),x->gvmf(x,β=0.3,μ₁=0.25π,κ₁=1,μ₂=0.75π,κ₂=1)],0:0.01:2π,label=["vmf" "gvmf"],projection=:polar)
 

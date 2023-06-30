@@ -1,6 +1,6 @@
 using LinearAlgebra,Distributions,DataFrames,StatsBase,GLM,LsqFit,Optim,BlackBoxOptim,HypothesisTests,Colors,Images,StatsModels,CategoricalArrays,
-ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,DataStructures,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,#PyCall,
-Dierckx,BandedMatrices,OffsetArrays#,ANOVA
+ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,StatsFuns,Trapz,CircStats,ImageSegmentation,ProgressMeter,
+Dierckx,BandedMatrices,OffsetArrays#,ANOVA,DataStructures,PyCall
 import Base: vec,range
 import StatsBase: predict
 
@@ -559,8 +559,12 @@ Tuning properties of factor response
         - when Direction is →(0), then Orientation is |(-90)
 """
 function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
-    i = .!ismissing.(fr)
-    fl = fl[i];fr=fr[i];fm=fm[i]
+    i = ismissing.(fr)
+    if any(i)
+        @info "Excluding missing responses for $(factor) = $(fl[i])"
+        vi = .!i
+        fl = fl[vi]; fr = fr[vi]; fm = fm[vi]
+    end
     # ls = mapreduce((l,r)->fill(l,length(r)),append!,fl,fr)
     # rs = mapreduce(deepcopy,append!,fr)
 
@@ -861,13 +865,13 @@ function correlogram(bst1,bst2;lag::Integer=100,norm=true,correction=(shuffle=tr
         λ2 = mean(mean(bst2,dims=1))
         gmsr = sqrt(λ1*λ2)
         Θ = nbin.-abs.(τ)
-        normfactor = 1 ./ Θ ./ gmsr
-        ccg .*= normfactor
+        normterm = Θ * gmsr
+        ccg ./= normterm
     end
     ccg,τ
 end
 "estimate projections among simultaneously recorded spiking units based on cross-correlogram"
-function circuitestimate(unitbinepoch;lag::Integer=100,correction=(shuffle=true),maxprojlag=10,minbaselag=50,minepoch=4,minfr=4,esdfactor=7,isdfactor=4,nosync=true,unitid=[],condis=nothing)
+function correlogramprojection(unitbinepoch;lag::Integer=100,correction=(shuffle=true),maxprojlag=10,minbaselag=50,minepoch=4,minfr=4,esdfactor=7,isdfactor=7,nosync=true,unitid=[],condis=nothing)
     nunit=length(unitbinepoch)
     x = -lag:lag
 
@@ -877,7 +881,7 @@ function circuitestimate(unitbinepoch;lag::Integer=100,correction=(shuffle=true)
         count(ive.&jve) >= minepoch
     end
 
-    ccgs=[];ccgis=[];projs=[];ises=[];exis=[];exvs=[];exzs=[]
+    ccgs=[];ccgis=[];ccgths=[];projs=[];projeis=[];lagis=[];lagvs=[];lagzs=[]
     for (i,j) in combinations(1:nunit,2)
         if isnothing(condis)
             isenough(unitbinepoch[i],unitbinepoch[j];minepoch,minfr) || continue
@@ -889,20 +893,20 @@ function circuitestimate(unitbinepoch;lag::Integer=100,correction=(shuffle=true)
         end
 
         ccg,_ = correlogram(unitbinepoch[i],unitbinepoch[j];lag,correction,condis=vcondis)
-        proj,ise,exi,exv,exz = projectionfromcorrelogram(ccg,i,j;maxprojlag,minbaselag,esdfactor,isdfactor,nosync)
+        proj,projei,lagi,lagv,lagz,th = projectionfromcorrelogram(ccg,i,j;maxprojlag,minbaselag,esdfactor,isdfactor,nosync)
         if !isempty(proj)
-            push!(ccgs,ccg);push!(ccgis,(i,j))
-            append!(projs,proj);append!(ises,ise);append!(exis,exi);append!(exvs,exv);append!(exzs,exz)
+            push!(ccgs,ccg);push!(ccgis,(i,j));push!(ccgths,th)
+            append!(projs,proj);append!(projeis,projei);append!(lagis,lagi);append!(lagvs,lagv);append!(lagzs,lagz)
         end
     end
     if length(unitid)==nunit
         ccgis = map(t->(unitid[t[1]],unitid[t[2]]),ccgis)
         projs = map(t->(unitid[t[1]],unitid[t[2]]),projs)
     end
-    return (;ccgs,x,ccgis,projs,ises,exis,exvs,exzs)
+    return (;ccgs,x,ccgis,ccgths,projs,projeis,lagis,lagvs,lagzs)
 end
 "putative {0, 1, 2} number of excitatory and inhibitory projections between two spiking units based on cross-correlogram"
-function projectionfromcorrelogram(cc,i,j;maxprojlag=10,minbaselag=50,esdfactor=7,isdfactor=4,nosync=true)
+function projectionfromcorrelogram(cc,i,j;maxprojlag=10,minbaselag=50,esdfactor=7,isdfactor=7,nosync=true)
     midi = ceil(Int,length(cc)/2)
     basecc = [cc[midi+minbaselag:end];cc[1:midi-minbaselag]]
     bm,bsd = mean_and_std(basecc);ht = bm + esdfactor*bsd;lt = bm - isdfactor*bsd
@@ -910,64 +914,66 @@ function projectionfromcorrelogram(cc,i,j;maxprojlag=10,minbaselag=50,esdfactor=
     backwardis = midi.-(1:maxprojlag)
     @views fcc = cc[forwardis]
     @views bcc = cc[backwardis]
-    proj=[];ise=[];exi=[];exv=[];exz=[]
+    proj=[];projei=[];lagi=[];lagv=[];lagz=[];th=[]
 
-    if nosync && !(lt <= cc[midi] <= ht)
-        return (;proj,ise,exi,exv,exz)
+    if (nosync && !(lt <= cc[midi] <= ht)) || (bsd == 0)
+        return (;proj,projei,lagi,lagv,lagz,th)
     end
     if any(fcc .> ht) # check peak(excitatory:true) first
-        push!(proj,(i,j));push!(ise,true)
+        push!(proj,(i,j));push!(projei,true)
         mi = argmax(fcc);li = forwardis[mi];v = fcc[mi];z = (v-bm)/bsd
-        push!(exi,li);push!(exv,v);push!(exz,z)
+        push!(lagi,li);push!(lagv,v);push!(lagz,z);push!(th,ht)
     elseif any(fcc .< lt) # check trough(inhibitory:false)
-        push!(proj,(i,j));push!(ise,false)
+        push!(proj,(i,j));push!(projei,false)
         mi = argmin(fcc);li = forwardis[mi];v = fcc[mi];z = (v-bm)/bsd
-        push!(exi,li);push!(exv,v);push!(exz,z)
+        push!(lagi,li);push!(lagv,v);push!(lagz,z);push!(th,lt)
     end
     if any(bcc .> ht) # check peak(excitatory:true) first
-        push!(proj,(j,i));push!(ise,true)
+        push!(proj,(j,i));push!(projei,true)
         mi = argmax(bcc);li = backwardis[mi];v = bcc[mi];z = (v-bm)/bsd
-        push!(exi,li);push!(exv,v);push!(exz,z)
+        push!(lagi,li);push!(lagv,v);push!(lagz,z);push!(th,ht)
     elseif any(bcc .< lt) # check trough(inhibitory:false)
-        push!(proj,(j,i));push!(ise,false)
+        push!(proj,(j,i));push!(projei,false)
         mi = argmin(bcc);li = backwardis[mi];v = bcc[mi];z = (v-bm)/bsd
-        push!(exi,li);push!(exv,v);push!(exz,z)
+        push!(lagi,li);push!(lagv,v);push!(lagz,z);push!(th,lt)
     end
-    return (;proj,ise,exi,exv,exz)
+    return (;proj,projei,lagi,lagv,lagz,th)
 end
-"Check circuit consistency, choose among duplicates and conflicts with extrema `exvs`"
-function checkcircuit!(projs,ises,exis,exvs,exzs;debug=false)
+"Check projection consistency, choose among duplicates and conflicts with maximum extrema"
+function checkprojection!(projs,projeis,lagis,lagvs,lagzs;usez=true,debug=false)
     # duplicate characterization of the same projection
     uprojs = unique(projs)
     if length(projs) != length(uprojs)
         ug = map(p->findall(i->i==p,projs),uprojs)
         dg = filter(i->length(i) > 1,ug)
-        dgm = map(i->exvs[i],dg)
+        ms = usez ? lagzs : lagvs
+        dgm = map(i->ms[i],dg)
         
         if debug
-            dge = map(i->ises[i],dg)
-            foreach((m,e)->@info("Choose extrema in $(round.(m,digits=4)) of excitatory $(e) duplicates."),dgm,dge)
+            dge = map(i->projeis[i],dg)
+            foreach((m,e)->@info("Choose one extrema in $(round.(m,digits=4)) of excitatory $(e) duplicates."),dgm,dge)
         end
         ri = mapreduce((i,m)->deleteat!(i,argmax(abs.(m))),append!,dg,dgm) |> sort!
-        deleteat!(projs,ri);deleteat!(ises,ri);deleteat!(exis,ri);deleteat!(exvs,ri);deleteat!(exzs,ri)
+        deleteat!(projs,ri);deleteat!(projeis,ri);deleteat!(lagis,ri);deleteat!(lagvs,ri);deleteat!(lagzs,ri)
     end
 
     # projection source can not be both excitatory and inhibitory
     src = first.(projs)
     sg = map(s->findall(src.==s),unique(src))
-    cg = filter(i->length(unique(ises[i]))==2,sg)
+    cg = filter(i->length(unique(projeis[i]))==2,sg)
     if !isempty(cg)
-        cgm = map(i->exvs[i],cg)
-        cge = map(i->ises[i],cg)
+        ms = usez ? lagzs : lagvs
+        cgm = map(i->ms[i],cg)
+        cge = map(i->projeis[i],cg)
 
         if debug
             foreach((m,e)->@info("Choose excitatory $(e) projections with extrema in $(round.(m,digits=4))."),cgm,cge)
         end
         ri = mapreduce((i,m,e)->i[e.!=e[argmax(abs.(m))]],append!,cg,cgm,cge) |> sort!
-        deleteat!(projs,ri);deleteat!(ises,ri);deleteat!(exis,ri);deleteat!(exvs,ri);deleteat!(exzs,ri)
+        deleteat!(projs,ri);deleteat!(projeis,ri);deleteat!(lagis,ri);deleteat!(lagvs,ri);deleteat!(lagzs,ri)
     end
 
-    return projs,ises,exis,exvs,exzs
+    return projs,projeis,lagis,lagvs,lagzs
 end
 
 """

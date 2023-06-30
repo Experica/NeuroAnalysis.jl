@@ -8,16 +8,21 @@ uids = [rand(1:5,length(st)) for st in sts]
 plotspiketrain(sts,timespan=[250,750],timeline=[0,1000])
 plotspiketrain(sts;uids,timespan=[250,750],timeline=[0,1000])
 
+# single group
+rs = rand(0:50,nrow(ctc))
+mseuc = condresponse(rs,cond)
+plotcondresponse(mseuc)
 
-plotcondresponse(rand(0:50,nrow(ctc)),ctc)
+mseuc = condresponse(rs,condin(ctc[:,[:Ori]]))
+plotcondresponse(mseuc)
 
+# multiple groups
+mseuc = [DataFrame(m=12 .+rand(10),se=rand(1:0.1:2,10),u="SU1",Ori=range(0,step=36,length=10));
+    DataFrame(m=8 .+rand(10),se=rand(1:0.1:2,10),u="SU0",Ori=range(0,step=36,length=10));
+    DataFrame(m=4 .+rand(10),se=rand(1:0.1:3,10),u="Pre_SU0",Ori=range(0,step=36,length=10))]
 
-df = [DataFrame(m=12 .+rand(10),se=rand(1:0.1:3,10),u=fill(0,10),ug=fill("SU",10),Ori=range(0,324,length=10));
-    DataFrame(m=4 .+rand(10),se=rand(1:0.1:2,10),u=fill(0,10),ug=fill("Pre_SU",10),Ori=range(0,324,length=10));
-    DataFrame(m=8 .+rand(10),se=rand(1:0.1:3,10),u=fill(0,10),ug=fill("Suf_SU",10),Ori=range(0,324,length=10))]
-
-plotcondresponse(df,color=[:black,:gray70,:gray35],linewidth=[3,1,3],grid=true)
-plotcondresponse(df,projection=:polar,color=[:black,:gray70,:gray35],linewidth=[3,1,3],grid=true)
+plotcondresponse(mseuc,color=[:black,:gray20,:gray75],linewidth=[3,2,1],grid=true)
+plotcondresponse(mseuc,projection=:polar,color=[:black,:gray20,:gray75],linewidth=[3,2,1],grid=true)
 
 
 plotanalog(randn(100))
