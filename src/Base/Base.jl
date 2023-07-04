@@ -660,7 +660,7 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         if isfit
             try
                 # mfit = fitmodel(:sfdog,fl,fm) # fit Difference of Gaussians
-                mfit = fitmodel(:sfgaussian,fl,fm,MinDeltaFitnessTolerance=1e-3) # fit Gaussian of logarithmic sf
+                mfit = fitmodel(:sfgaussian,fl,fm,MinDeltaFitnessTolerance=1e-4) # fit Gaussian of logarithmic sf
                 fit = (;sftuningfeature(mfit,x = range(extrema(fl)...,step=0.001))...,mfit)
             catch
                 display.(stacktrace(catch_backtrace()))
