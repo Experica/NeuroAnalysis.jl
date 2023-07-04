@@ -68,9 +68,11 @@ alphablend.(alphamask(Gray.(img),masktype="DiskFade",sigma=15,radius=0.45).y,Gra
 
 α = [0,0.5π,π,1.5π,2π]
 β = 0.5π
-findclosestangle(α,β)
+@test findclosestangle(α,β) == (0,2)
+β = [0.5π]
+@test findclosestangle(α,β) == (0,2)
 β = [0.5π,1.5π]
-findclosestangle(α,β)
+@test findclosestangle(α,β) == ([0,0],[2,4])
 
 
 ## ROI highlighting local regions

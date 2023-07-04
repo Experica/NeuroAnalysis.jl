@@ -141,19 +141,19 @@ function plotcondresponse(mseuc::DataFrame;group=:u,color=:auto,style=:path,proj
     p
 end
 
-plotpsth(rvv::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvv,binedges,DataFrame(Factor="Value",i=[1:length(rvv)]),timeline=timeline,colors=colors,title=title)
-function plotpsth(rvv::RVVector,binedges::RealVector,ctc::DataFrame,factor;timeline=[0],colors=nothing,title="")
-    msexc = psth(rvv,binedges,ctc,factor)
-    plotpsth(msexc,timeline=timeline,colors=colors==nothing ? huecolors(length(levels(msexc[:c]))) : colors,title=title)
-end
-function plotpsth(rvv::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=huecolors(nrow(cond)),title="")
-    msexc = psth(rvv,binedges,cond)
-    plotpsth(msexc,timeline=timeline,colors=colors,title=title)
-end
-function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
-    @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
-    vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(responsetype)),title=(title))
-end
+# plotpsth(rvv::RVVector,binedges::RealVector;timeline=[0],colors=[:auto],title="")=plotpsth(rvv,binedges,DataFrame(Factor="Value",i=[1:length(rvv)]),timeline=timeline,colors=colors,title=title)
+# function plotpsth(rvv::RVVector,binedges::RealVector,ctc::DataFrame,factor;timeline=[0],colors=nothing,title="")
+#     msexc = psth(rvv,binedges,ctc,factor)
+#     plotpsth(msexc,timeline=timeline,colors=colors==nothing ? huecolors(length(levels(msexc[:c]))) : colors,title=title)
+# end
+# function plotpsth(rvv::RVVector,binedges::RealVector,cond::DataFrame;timeline=[0],colors=huecolors(nrow(cond)),title="")
+#     msexc = psth(rvv,binedges,cond)
+#     plotpsth(msexc,timeline=timeline,colors=colors,title=title)
+# end
+# function plotpsth(msexc::DataFrame;timeline=[0],colors=[:auto],title="")
+#     @df msexc Plots.plot(:x,:m,ribbon=:se,group=:c,fillalpha=0.2,color=reshape(colors,1,:))
+#     vline!(timeline,line=(:grey),label="TimeLine",grid=false,xaxis=(factorunit(:Time)),yaxis=(factorunit(responsetype)),title=(title))
+# end
 
 function plotsta(ps;sizepx=size(ps),sizedeg=nothing,ppd=45,index=nothing,filter=Kernel.gaussian(1),title="",color="redblue",r=[extrema(ps)...],bg="white")
     nd = ndims(ps)

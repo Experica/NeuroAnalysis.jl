@@ -183,7 +183,6 @@ Find unique conditions of condition tests, with number of repeat for each condit
 """
 function condin(ctc::DataFrame;sort = true, skipmissing = true)
     ivn = intersect(propertynames(ctc), (:i,:n))
-    display(ivn)
     if !isempty(ivn)
         error("using factor names: $ivn, i and n are reserved names for condition test indices and number of condition repeat")
     end
@@ -216,8 +215,7 @@ function condresponse(rs,ci)
     (m=mean.(crs),se=sem.(crs))
 end
 function condresponse(rs,cond::DataFrame;u=0,withcond::Bool=true)
-    crs = [rs[i] for i in cond.i]
-    cr = DataFrame(m=mean.(crs),se=sem.(crs),u=u)
+    cr = DataFrame(pairs(condresponse(rs,cond.i))...,:u=>u)
     if withcond
         ivn = intersect(propertynames(cond), (:m,:se,:u))
         if !isempty(ivn)
@@ -270,6 +268,11 @@ function factorresponse(rs,fi)
     m = mean.(r)
     se = sem.(r)
     (;r,m,se)
+end
+function factorresponse(rs::AbstractMatrix,fi)
+    r = map(i->ismissing(i) ? missing : rs[i,:],fi)
+    mse = meanse.(r;dims=1)
+    (;r,m=first.(mse),se=last.(mse))
 end
 
 function setfln(fl::Dict,n::Int)

@@ -105,32 +105,6 @@ function epochspiketrainresponse_ono(x,mins,maxs;israte::Bool=true,isnan2zero::B
     return ns
 end
 
-function subrvr_onotest(rv::RealVector,mins::RealVector,maxs::RealVector;israte::Bool=true,isnan2zero::Bool=true,isbin::Bool=true)
-    n = length(mins)
-    if n != length(maxs)
-        error("Length of mins and maxs do not match.")
-    end
-    ns = zeros(n)  # store FR in condition on/off bins
-    ni=1  # bin counter
-    sp=0
-    for v in rv
-        @label start
-        if (mins[ni]<=v) && (v<maxs[ni])
-
-        else
-            ni+=1
-            ni>n && break
-            @goto start
-        end
-        ns[ni] += 1
-    end
-    if israte
-        ns = ns ./ ((maxs.-mins).*SecondPerUnit)
-        isnan2zero && replace!(ns,NaN=>0)
-    end
-    return ns
-end
-
 "Generate a Homogeneous Poisson Spike Train"
 function poissonspiketrain(r,dur;t0=0.0,rp=2.0)
     isid = Exponential(1000/r)

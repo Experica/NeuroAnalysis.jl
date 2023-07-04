@@ -192,10 +192,10 @@ function angleabs(cmap)
     return amap,mmap
 end
 anglemode(a,theta) = theta[findclosestangle(a,theta)]
-"find closest distance and index in α to β, all in radius"
+"find closest angle distance and its index in α, between α and every β. (α and β in radius)"
 function findclosestangle(α,β)
-    m,i=findmin(abs.(circ_dist2(α,β)),dims=1)
-    length(m) == 1 ? (m[1],i[1]) : (vec(m),map(i->i[1],vec(i)))
+    d,i=findmin(abs.(circ_dist2(α,β)),dims=1)
+    length(d) == 1 ? (d[1],i[1] isa Integer ? i[1] : i[1][1]) : (vec(d),map(i->i[1],vec(i)))
 end
 
 """

@@ -56,21 +56,21 @@ gaussianenvelopemask(x,y;fσ=2.5,μ₁=0,σ₁=1,μ₂=0,σ₂=1,θ=0)=gaussiane
 f(α) =  βe^{κ(cos(n(α - μ)) - 1)}
 ```
 
-[^1]
-
-Swindale, N.V. (1998). Orientation tuning curves: empirical description and estimation of parameters. Biol Cybern 78, 45–56.
-
 - β: amplitude at μ
 - μ: angle of peak
 - κ: width parameter
 - n: frequency parameter
+
+[^1]
+
+Swindale, N.V. (1998). Orientation tuning curves: empirical description and estimation of parameters. Biol Cybern 78, 45–56.
 """
 vmf(α;β=1,μ=0,κ=1,n=1) = β*exp(κ*(cos(n*(α-μ))-1))
 """
 `Generalized von Mises` function [^1]
 
 ```math
-f(α) =  βe^{κ₁(cos(α - μ₁) - 1) + κ₂(cos2(α - μ₂) - 1)}
+f(α) =  βe^{κ₁cos(α - μ₁) + κ₂cos2(α - μ₂)}
 ```
 
 [^1]
@@ -239,7 +239,7 @@ function edogenvelopemask(x,y;fσ=2.5,μ₁=0,σₑ₁=1,rσ₂₁=1,μ₂=0,rσ
 end
 
 "Fit 1D model to data"
-function fitmodel(model,x,y)
+function fitmodel(model,x,y;MaxSteps=1e5,MinDeltaFitnessTolerance=1e-9)
     lb,ub = extrema(y)
     bm = (lb+ub)/2
     br = (ub-lb)/2
@@ -248,24 +248,31 @@ function fitmodel(model,x,y)
 
     xlb,xub = extrema(x)
     xbm = (xlb+xub)/2
+    xbr = (xub-xlb)/2
     xalb,xaub = abs.((xlb,xub))
     xab = max(xalb,xaub)
 
     rlt = fun = missing
-    if model == :vmn2
-        fun = (x,p) -> vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
+    if model == :vm
+        fun = vmff
+        ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
+
+        ub=[1.8ab,   prevfloat(float(2π)),  200]
+        lb=[nextfloat(0.0),   0,       nextfloat(0.0)]
+        p0=[ab,               0,              1]
+    elseif model == :vmn2
+        fun = vmn2ff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
         ub=[1.8ab,   prevfloat(float(π)),   200]
-        lb=[0.2ab,            0,              0]
+        lb=[nextfloat(0.0),   0,       nextfloat(0.0)]
         p0=[ab,               0,              1]
     elseif model == :gvm
-        # fun = (x,p) -> gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
         fun = gvmff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
         ub=[1.8ab,   prevfloat(float(2π)),   40,    prevfloat(float(π)),     40]
-        lb=[nextfloat(0.0),   0,              0,             0,               0]
+        lb=[nextfloat(0.0),   0,        nextfloat(0.0),      0,         nextfloat(0.0)]
         p0=[ab,               0,              1,             0,               1]
     elseif model == :dog
         fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6])
@@ -275,7 +282,6 @@ function fitmodel(model,x,y)
         lb=[0,      -10xab,   nextfloat(0.0),        0,    -10xab,     nextfloat(0.0)]
         p0=[ab,        0,                  1,       ab,         0,                  1]
     elseif model == :sfdog
-        # fun = (x,p) -> dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
         fun = sfdogff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
@@ -283,7 +289,6 @@ function fitmodel(model,x,y)
         lb=[0,         0,      nextfloat(0.0),       0,          0,        nextfloat(0.0),        0]
         p0=[ab,     0.5xab,         0.5xab,          0,        0.5xab,           0.5xab,       bm-br/3]
     elseif model == :sfgaussian
-        # fun = (x,p) -> gaussianf.(log2.(x),a=p[1],μ=p[2],σ=p[3]) .+ p[4]
         fun = sfgaussianff
         ofun = (p;x=x,y=y) -> sum((y.-fun(x,p)).^2)
 
@@ -293,22 +298,22 @@ function fitmodel(model,x,y)
         p0=[ab,          0,          1,        0]
     end
     if !ismissing(fun)
-        # ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
-        # param=ofit.minimizer
-        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=100000)
+        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps,MinDeltaFitnessTolerance)
         param = best_candidate(ofit)
 
         rlt = (;model,fun,param, goodnessoffit(y,fun(x,param),k=length(param))...)
     end
     return rlt
 end
+vmff(x,p) = vmf.(x,β=p[1],μ=p[2],κ=p[3],n=1)
+vmn2ff(x,p) = vmf.(x,β=p[1],μ=p[2],κ=p[3],n=2)
 gvmff(x,p) = gvmf.(x,β=p[1],μ₁=p[2],κ₁=p[3],μ₂=p[4],κ₂=p[5])
 sfdogff(x,p) = dogf.(x,aₑ=p[1],μₑ=p[2],σₑ=p[3],aᵢ=p[4],μᵢ=p[5],σᵢ=p[6]) .+ p[7]
 sfgaussianff(x,p) = gaussianf.(log2.(x),a=p[1],μ=p[2],σ=p[3]) .+ p[4]
 
 
 "Fit 2D model to image"
-function fitmodel2(model,data::AbstractMatrix,ppu;w=0.5,fun=rms)
+function fitmodel2(model,data::AbstractMatrix,ppu;w=0.5,fun=rms,MaxSteps=2e5,MinDeltaFitnessTolerance=1e-9)
     rspx = (size(data).-1)./2 # data should have odd pixels
     radii = rspx./ppu
     # standard 2D coordinates(rightward:x, upward:y) vector in unit
@@ -369,7 +374,7 @@ function fitmodel2(model,data::AbstractMatrix,ppu;w=0.5,fun=rms)
     if !ismissing(fun)
         # ofit = optimize(ofun,lb,ub,p0,SAMIN(rt=0.92),Optim.Options(iterations=220000))
         # param = ofit.minimizer
-        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps=200000)
+        ofit = bboptimize(ofun,p0;SearchRange=collect(zip(lb,ub)),Method=:adaptive_de_rand_1_bin_radiuslimited,MaxSteps,MinDeltaFitnessTolerance)
         param = best_candidate(ofit)
 
         @views rlt = (;model,fun,mfun,cfun,param,radii,ppu, goodnessoffit(y,fun(x[:,1],x[:,2],param),k=length(param))...)
@@ -447,61 +452,70 @@ function goodnessoffit(y,ŷ;n = length(y),e = y .- ŷ,k = missing,df = n - k,c
     (;r,mae,rmse,rae,rse,r2,adjr2,s,aic,bic)
 end
 
+"""
+search in `vs` the index of the value closest to `v`, -Inf/Inf when no `v` is found.
+
+- start: starting index in `vs` for searching
+- step: index stepping(≠0) for searching
+- circ: whether `vs` is defined on circular domain and thus searching can wrap around
+"""
 function searchclosest(v,vs;start::Integer=1,step::Integer=1,circ=false)
-    n=length(vs);ssign = sign(vs[start]-v)
-    i = start
-    for _ in 1:n
-        if !circ
-            i<1 && return -Inf
-            n<i && return Inf
-        end
-        sign(vs[i]-v) != ssign && return i
-        i += step
+    step == 0 && error("searching step == 0")
+    startsign = sign(vs[start]-v)
+    startsign == 0 && return start
+    n = length(vs); i = start + step
+    for _ in 1:n-1 # make sure every other element than vs[start] could be checked
         if circ
             i<1 && (i+=n)
             n<i && (i-=n)
+        else
+            i<1 && return -Inf
+            n<i && return Inf
         end
+        sign(vs[i]-v) != startsign && return i
+        i += step
     end
-    Inf
+    sign(step)*Inf
 end
 
 """
-left and right half width of `v` relative to `y[start]`, -Inf/Inf when no `v` is found.
+left and right half width at `v` around `y[ci]`, -Inf/Inf when no `v` is found.
 
-- start: index of `y` which is the center of the width
-- v: value on which width is cutoff
-- circ: whether `y` is defined on circular domain and width can wrap around
-- x: domain of `y`, return width when `x` provided, otherwise return cutoff indices
+- ci: index of `y` at which the center of the width locates
+- v: value on `y` where width is cut
+- circ: whether `y` is defined on circular domain and thus width can wrap around
+- x: domain of `y`, return width when `x` provided, otherwise return indices
 """
-function halfwidth(y;start=argmax(y),v=y[start]/2,circ=false,x=nothing)
-    li = searchclosest(v,y;start,step=-1,circ)
-    ri = searchclosest(v,y;start,step=1,circ)
+function halfwidth(y;ci=argmax(y),v=y[ci]/2,circ=false,x=nothing)
+    li = searchclosest(v,y;start=ci,step=-1,circ)
+    ri = searchclosest(v,y;start=ci,step=1,circ)
     if isnothing(x)
         return li,ri
     else
         if circ
-            lw = isinf(li) ? li : li<=start ? abs(x[start]-x[li]) : abs(x[start]-x[1])+abs(x[end]-x[li])
-            rw = isinf(ri) ? ri : ri>=start ? abs(x[ri]-x[start]) : abs(x[ri]-x[1])+abs(x[end]-x[start])
+            lw = isinf(li) ? li : li<=ci ? abs(x[ci]-x[li]) : abs(x[ci]-x[1])+abs(x[end]-x[li])
+            rw = isinf(ri) ? ri : ri>=ci ? abs(x[ri]-x[ci]) : abs(x[ri]-x[1])+abs(x[end]-x[ci])
         else
-            lw = isinf(li) ? li : abs(x[start]-x[li])
-            rw = isinf(ri) ? ri : abs(x[ri]-x[start])
+            lw = isinf(li) ? li : abs(x[ci]-x[li])
+            rw = isinf(ri) ? ri : abs(x[ri]-x[ci])
         end
         return lw,rw
     end
 end
 
-circtuningfeature(mfit;od=[π,0.5π],fn=:a,x = 0:0.002:2π) = circtuningfeature(x,predict(mfit,x);od,fn) # 0.002rad ≈ 0.11deg
+circtuningfeature(mfit;od=[π,0.5π],fn=:a,x = 0:0.001:2π) = circtuningfeature(x,predict(mfit,x);od,fn) # 0.001rad ≈ 0.06deg
 """
 Properties of Circular Tuning
 
     - Prefered Angle with Peak Response
-    - Selectivity Index
-        - version 1: (ResponsePeak - ResponseOpposing)/ResponsePeak
-        - version 2: (ResponsePeak - ResponseOpposing)/(ResponsePeak + ResponseOpposing)
     - Half Width at Half Peak-to-Trough
+    - Selectivity Index
+        - version 1: (PeakResponse - OpposingResponse) / PeakResponse
+        - version 2: (PeakResponse - OpposingResponse) / (PeakResponse + OpposingResponse)
 
 1. x: angles in radius
 2. y: responses
+
 - od: opposing angle distance to prefered angle, e.g. π for DSI, 0.5π for OSI
 - fn: factor name
 """
@@ -515,20 +529,20 @@ function circtuningfeature(x,y;od=[π,0.5π],fn=:a)
 
     si1 = 1 .- or./maxr
     si2 = (maxr .- or)./(maxr .+ or)
-    hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=true,x=x)
+    hw = halfwidth(y;ci=maxi,v=(maxr+minr)/2,circ=true,x)
 
     (;Symbol(:p,fn)=>rad2deg(mod2pi(maxx)),Symbol(fn,:hw)=>rad2deg.(hw),Symbol(fn,:si1)=>si1,Symbol(fn,:si2)=>si2,Symbol(fn,:od)=>od)
 end
 
-sftuningfeature(mfit;x = 0:0.003:10) = sftuningfeature(x,predict(mfit,x))
+sftuningfeature(mfit;x = 0:0.001:10) = sftuningfeature(x,predict(mfit,x))
 """
 Properties of Spatial Frequency Tuning
 
     - Prefered Spatial Frequency with Peak Response
     - Half Width at Half Peak-to-Trough
-    - Freq Passing Type {A:All Pass, H:High Pass, L:Low Pass, B:Band Pass}
+    - Frequency Passing Type {A:All Pass, H:High Pass, L:Low Pass, B:Band Pass}
     - Bandwidth ``log2(H_cut/L_cut)``
-    - Passwidth at Half Peak-to-Trough constrained by low freq lim and high freq lim
+    - Frequency Passwidth at Half Peak-to-Trough constrained by `low/high` frequency limits
 
 1. x: sf in cycle/degree
 2. y: responses
@@ -538,12 +552,20 @@ function sftuningfeature(x,y;low=minimum(x),high=maximum(x))
     minr,mini = findmin(y)
     maxx = x[maxi]
 
-    hw = halfwidth(y,start=maxi,v=(maxr+minr)/2,circ=false,x=x)
-    pt = all(isinf.(hw)) ? 'A' : isinf(hw[1]) ? 'L' : isinf(hw[2]) ? 'H' : 'B'
+    hw = halfwidth(y;ci=maxi,v=(maxr+minr)/2,circ=false,x)
     bw = log2((maxx+hw[2])/(maxx-hw[1]))
-    pw = pt == 'A' ? high-low : pt == 'L' ? maxx-low+hw[2] : pt == 'H' ? high-maxx+hw[1] : sum(hw)
+    if all(isinf.(hw))
+        pt = 'A'
+        pw = high-low
+    elseif all(.!isinf.(hw))
+        pt = 'B'
+        pw = sum(hw)
+    else
+        pt = isinf(hw[1]) ? 'L' : 'H'
+        pw = pt == 'L' ? maxx-low+hw[2] : high-maxx+hw[1]
+    end
 
-    (;psf=maxx,sfhw=hw,sftype=pt,sfbw=bw,sfpw=pw)
+    (;psf=maxx,sfhw=hw,sfpt=pt,sfbw=bw,sfpw=pw)
 end
 
 """
@@ -565,11 +587,8 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         vi = .!i
         fl = fl[vi]; fr = fr[vi]; fm = fm[vi]
     end
-    # ls = mapreduce((l,r)->fill(l,length(r)),append!,fl,fr)
-    # rs = mapreduce(deepcopy,append!,fr)
 
     if factor in [:Ori,:Ori_Final]
-        # θ = mod2pi.(deg2rad.(ls))
         α = mod2pi.(deg2rad.(fl))
         d = mean(diff(sort(unique(α)))) # angle spacing
         # for orientation
@@ -632,9 +651,8 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
 
         return (;dm,od,dcv,om,oo,ocv,fit)
     elseif factor == :SpatialFreq
-        # up = PyOnewayANOVA.anova_oneway(fr,use_var="unequal").pvalue
-        up = pvalue(OneWayANOVATest(fr...))
-        msf = 2^(sum(fm.*log2.(fl))/sum(fm)) # weighted average
+        up = pvalue(OneWayANOVATest(fr...)) # test for non-uniformity
+        sfm = 2^(sum(fm.*log2.(fl))/sum(fm)) # weighted average
         maxr,maxi = findmax(fm)
         maxl = fl[maxi]
 
@@ -642,14 +660,14 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
         if isfit
             try
                 # mfit = fitmodel(:sfdog,fl,fm) # fit Difference of Gaussians
-                mfit = fitmodel(:sfgaussian,fl,fm) # fit Gaussian of logarithm sf
-                fit = (;sftuningfeature(mfit,x = range(extrema(fl)...,step=0.003))...,mfit)
+                mfit = fitmodel(:sfgaussian,fl,fm,MinDeltaFitnessTolerance=1e-3) # fit Gaussian of logarithmic sf
+                fit = (;sftuningfeature(mfit,x = range(extrema(fl)...,step=0.001))...,mfit)
             catch
                 display.(stacktrace(catch_backtrace()))
             end
         end
 
-        return (;up,msf,max=maxl=>maxr,fit)
+        return (;up,sfm,max=maxl=>maxr,fit)
     elseif factor == :ColorID
         # transform colorId to hue angle
         ucid = sort(unique(fl))
@@ -685,7 +703,6 @@ function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
 
         return (;ha,oha,hacv,hm,oh,hcv,maxh,maxr,fit)
     elseif factor in [:HueAngle,:Angle]
-        # θ = mod2pi.(deg2rad.(ls))
         α = mod2pi.(deg2rad.(fl))
         d = mean(diff(sort(unique(α)))) # angle spacing
         # for axis
@@ -751,34 +768,34 @@ function sta(x::AbstractMatrix,y::AbstractVector;norm=nothing,whiten=nothing)
 end
 
 
-function psthsts(xs::Vector,binedges::Vector,c;israte::Bool=true,normfun=nothing)
-    m,se,x = psth(xs,binedges,israte=israte,normfun=normfun)
-    df = DataFrame(x=x,m=m,se=se,c=fill(c,length(x)))
-end
-function psthsts(xs::Vector,binedges::Vector,cond::DataFrame;israte::Bool=true,normfun=nothing)
-    fs = finalfactor(cond)
-    vcat([psth(xs[r[:i]],binedges,condstring(r,fs),israte=israte,normfun=normfun) for r in eachrow(cond)]...)
-end
-function psthsts(xs::Vector,binedges::Vector,ctc::DataFrame,factor;israte::Bool=true,normfun=nothing)
-    vf = intersect(names(ctc),factor)
-    isempty(vf) && error("No Valid Factor Found.")
-    psth(xs,binedges,condin(ctc[:,vf]),israte=israte,normfun=normfun)
-end
-function psth(ds::DataFrame,binedges::Vector,conds::Vector;normfun=nothing,spike=:spike,isse::Bool=true)
-    is,ss = findcond(ds,conds)
-    df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
-    if isse
-        df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
-        df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
-    end
-    return df,ss
-end
-function psthstss(xss::Vector,binedges::Vector,conds;normfun=nothing)
-    n = length(xss)
-    n!=length(conds) && error("Length of xss and conds don't match.")
-    dfs = [psth(xss[i],binedges,conds[i],normfun=normfun) for i=1:n]
-    return cat(1,dfs)
-end
+# function psthsts(xs::Vector,binedges::Vector,c;israte::Bool=true,normfun=nothing)
+#     m,se,x = psth(xs,binedges,israte=israte,normfun=normfun)
+#     df = DataFrame(x=x,m=m,se=se,c=fill(c,length(x)))
+# end
+# function psthsts(xs::Vector,binedges::Vector,cond::DataFrame;israte::Bool=true,normfun=nothing)
+#     fs = finalfactor(cond)
+#     vcat([psth(xs[r[:i]],binedges,condstring(r,fs),israte=israte,normfun=normfun) for r in eachrow(cond)]...)
+# end
+# function psthsts(xs::Vector,binedges::Vector,ctc::DataFrame,factor;israte::Bool=true,normfun=nothing)
+#     vf = intersect(names(ctc),factor)
+#     isempty(vf) && error("No Valid Factor Found.")
+#     psth(xs,binedges,condin(ctc[:,vf]),israte=israte,normfun=normfun)
+# end
+# function psth(ds::DataFrame,binedges::Vector,conds::Vector;normfun=nothing,spike=:spike,isse::Bool=true)
+#     is,ss = findcond(ds,conds)
+#     df = psth(map(x->ds[spike][x],is),binedges,ss,normfun=normfun)
+#     if isse
+#         df[:ymin] = df[:y]-df[:ysd]./sqrt(df[:n])
+#         df[:ymax] = df[:y]+df[:ysd]./sqrt(df[:n])
+#     end
+#     return df,ss
+# end
+# function psthstss(xss::Vector,binedges::Vector,conds;normfun=nothing)
+#     n = length(xss)
+#     n!=length(conds) && error("Length of xss and conds don't match.")
+#     dfs = [psth(xss[i],binedges,conds[i],normfun=normfun) for i=1:n]
+#     return cat(1,dfs)
+# end
 function unitdensity(pos;w=ones(length(pos)),spacerange=extrema(pos),bw=0.01(last(spacerange)-first(spacerange)),
                     step=bw/2,r=nothing,wfun=sum,s=nothing)
     hbw = bw/2
