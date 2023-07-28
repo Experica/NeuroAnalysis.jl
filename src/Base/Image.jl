@@ -61,13 +61,13 @@ function alphamask_diskfade(src,radius,sigma)
     return (y=dst,i=unmaskidx)
 end
 
-"clamp value to `min` and `max`, and linearly map range `[min, max]` to `[0, 1]`"
+"clamp value in `[min, max]`, and linearly map range `[min, max]` to `[0, 1]`"
 function clampscale(x,min::Real,max::Real)
     scaleminmax(min,max).(x)
 end
 clampscale(x) = clampscale(x,extrema(x)...)
-function clampscale(x,sdfactor)
-    m=mean(x);sd=std(x)
+function clampscale(x,sdfactor;cfun=median)
+    m = cfun(x);sd = mad(x,center=m,normalize=true)
     clampscale(x,m-sdfactor*sd,m+sdfactor*sd)
 end
 function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
@@ -83,7 +83,7 @@ function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     return r
 end
 """
-Frame Response
+Reduce sequence of frames to a single frame
 """
 function frameresponse(frames;frameindex=1:size(frames,3),baseframeindex=[],reducefun=mean,basefun=(r,b)->log2(r/b))
     @views r = dropdims(reducefun(frames[:,:,frameindex],dims=3),dims=3)
@@ -438,4 +438,25 @@ function imresize_antialiasing(img,sz)
     else
         return imresize(img, sz...)
     end
+end
+
+function dft_imager(files,w,h,fs,base,f...)
+    N = length(files)
+    ks = round.(Int,f./fs.*N)
+    Fs = [zeros(ComplexF64,h,w) for _ in f]
+    Ω = [exp(-im*2π*n/N) for n in 0:(N-1)]
+    p = ProgressMeter.Progress(N,desc="DFT at $f Hz ")
+    ls = [ReentrantLock() for _ in f]
+    @inbounds Threads.@threads for n in 0:(N-1)
+        img = readrawim_Mono12Packed(files[n+1],w,h)
+        # img = img ./ base .- 1 # reduce DC, increase SNR
+        img = log2.(img./base) # reduce DC, increase SNR
+        @inbounds for i in eachindex(f)
+            lock(ls[i]) do
+                Fs[i] .+= img .* Ω[((n*ks[i])%N)+1]
+            end
+        end
+        next!(p)
+    end
+    return Fs
 end

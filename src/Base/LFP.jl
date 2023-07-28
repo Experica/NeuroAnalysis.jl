@@ -310,12 +310,12 @@ end
 Discrete Fourier Transform at frequencies
 
 ```math
-DFT[k] = \sum_{n=0}^{N-1} x[n] e^{\frac{-2\Pi ink}{N}}, k = 0:N-1, N = length(x), fₛ sampling x, fₖ = fₛ/N sampling DTFT
+DFT[k] = \sum_{n=0}^{N-1} x[n] e^{\frac{-i2\pi kn}{N}}, k=0:N-1, N=length(x), fₛ=SamplingFreq(x), fₖ=fₛ/N=FreqResolution(DTFT)
 ```
 
-1. signal
-2. simpling frequency of signal
-3. at which frequencies DFT are directly evaluated
+1. x: signal
+2. fs: simpling frequency of signal
+3. f...: at which frequencies DFT are directly evaluated
 """
 function dft(x,fs,f...)
     N = length(x)
