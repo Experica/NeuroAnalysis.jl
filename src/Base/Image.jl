@@ -61,14 +61,14 @@ function alphamask_diskfade(src,radius,sigma)
     return (y=dst,i=unmaskidx)
 end
 
-"clamp value in `[min, max]`, and linearly map range `[min, max]` to `[0, 1]`"
-function clampscale(x,min::Real,max::Real)
-    scaleminmax(min,max).(x)
-end
+"clamp `x` value in `[min, max]`, and linearly map range `[min, max]` to `[0, 1]`"
+clampscale(x,min::Real,max::Real) = scaleminmax(min,max).(x)
+"clamp `x` value in `extrema(x)`, and linearly map the range to `[0, 1]`"
 clampscale(x) = clampscale(x,extrema(x)...)
-function clampscale(x,sdfactor;cfun=median)
+"clamp `x` value in `median ± nsd*sd`, and linearly map the range to `[0, 1]`"
+function clampscale(x,nsd;cfun=median)
     m = cfun(x);sd = mad(x,center=m,normalize=true)
-    clampscale(x,m-sdfactor*sd,m+sdfactor*sd)
+    clampscale(x,m-nsd*sd,m+nsd*sd)
 end
 function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     if frameindex==nothing
@@ -83,16 +83,25 @@ function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     return r
 end
 """
-Reduce sequence of frames to a single frame
+Get single frame response from sequence of frames
+
+1. frames: [Height, Width, nframe]
+2. is: indices of response frames
+3. bis: indices of baseline response frames
 """
-function frameresponse(frames;frameindex=1:size(frames,3),baseframeindex=[],reducefun=mean,basefun=(r,b)->log2(r/b))
-    @views r = dropdims(reducefun(frames[:,:,frameindex],dims=3),dims=3)
-    if !isempty(baseframeindex)
-        @views b = dropdims(reducefun(frames[:,:,baseframeindex],dims=3),dims=3)
-        return basefun.(r,b)
-    end
-    return r
+function frameresponse(frames::AbstractArray{T,3},is,bis;reducefun=mean,basefun=(r,b)->log2(r/b)) where T
+    r = @views dropdims(reducefun(frames[:,:,is],dims=3),dims=3)
+    b = @views dropdims(reducefun(frames[:,:,bis],dims=3),dims=3)
+    return basefun.(r,b)
 end
+function frameresponse_imager(files,w,h,is,bis;reducefun=mean,basefun=(r,b)->log2(r/b))
+    rfs = readrawim_Mono12Packed(files[is],w,h)
+    bfs = readrawim_Mono12Packed(files[bis],w,h)
+    r = dropdims(reducefun(rfs,dims=3),dims=3)
+    b = dropdims(reducefun(bfs,dims=3),dims=3)
+    return basefun.(r,b)
+end
+
 function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli=0,
     stimuligroup=Any[1:length(findall(ustimuli.!=blankstimuli))],filter=nothing,sdfactor=nothing)
     if filter==nothing
@@ -150,41 +159,28 @@ function oicomplexmap(maps,angles;isangledegree=true,isangleinpi=true,presdfacto
     return Dict("complex"=>cmap,"angle"=>amap,"abs"=>mmap,"rad"=>sort(angles),"deg"=>angledegree)
 end
 """
-Complex sum of angles and corresponding image responses
+Complex sumation of angles and corresponding image responses
 
-1. image responses [height, width, n]
-2. angles in radius [n]
+1. image response for each angle
+2. angles in radius
 
-- centerfun: function to get center for sdfactor (median)
-- presdfactor: center +- sdfactor * sd, for clamping before filtering
-- filter: filter kernel
-- sufsdfactor: center +- sdfactor * sd, for clamping after filtering
-- responsesign: increasing/decreasing(+/-) response
+- nsd: median ± nsd*sd for clamping
+- rsign: increasing/decreasing(+/-) response
+- mnorm: whether clampscale magnitude map
 
-return complex map, angle map, and magnitude map
+return complex map, angle map[0,2π) and magnitude map([0,1] if mnorm)
 """
-function complexmap(maps,angles;centerfun=median,presdfactor=3,filter=Kernel.DoG((3,3,0)),sufsdfactor=3,responsesign=-1)
-    if !isnothing(presdfactor)
-        c = centerfun(maps,dims=(1,2));sd = std(maps,dims=(1,2))
-        maps = clamp.(maps,c.-presdfactor.*sd,c.+presdfactor.*sd)
-    end
-    if !isnothing(filter)
-        # remove high/low freq artifacts [~2mm, ~0.1mm]
-        maps = imfilter(maps,filter)
-    end
-    if !isnothing(sufsdfactor)
-        c = centerfun(maps,dims=(1,2));sd = std(maps,dims=(1,2))
-        maps = clamp.(maps,c.-sufsdfactor.*sd,c.+sufsdfactor.*sd)
-    end
-    maps = sign(responsesign)*maps
-    maps .-= minimum(maps)
-    cmap = dropdims(sum(maps .* reshape(exp.(im*angles),1,1,:),dims=3),dims=3)
-    amap = mod2pi.(angle.(cmap) .+ 2π)
+function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),mnorm=true,filter=dogfilter)
+    cmap = mapreduce((r,a,s)->clampscale(sign(s)*filter(r),nsd)*exp(im*a),.+,rs,as,rsign)
+    amap = mod2pi.(angle.(cmap))
     mmap = abs.(cmap)
-    rad = sort(angles)
-    deg = rad2deg.(rad)
-    return (;cmap,amap,mmap,rad,deg)
+    mnorm && (mmap = clampscale(mmap,nsd))
+    (;cmap,amap,mmap)
 end
+complexmap(rs::AbstractArray{T,3},as;nsd=3,rsign=(-1 for _ in 1:size(rs,3)),mnorm=true,filter=dogfilter) where T = complexmap(eachslice(rs,dims=3),as;nsd,rsign,mnorm,filter)
+
+dogfilter(x::AbstractMatrix;hσ=0.5,lσ=25,l=6round(Int,max(hσ,lσ))+1) = imfilter(x,Kernel.DoG((hσ,hσ),(lσ,lσ),(l,l)))
+ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=12,clip=0.1) = adjust_histogram(clampscale(x,nsd), AdaptiveEqualization(;nbins, rblocks = nblock, cblocks = nblock, clip)) |> clamp01!
 
 function angleabs(cmap)
     amap = angle.(cmap);amap[amap.<0]=amap[amap.<0] .+ 2pi
