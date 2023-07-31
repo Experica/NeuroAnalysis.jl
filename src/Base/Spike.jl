@@ -174,11 +174,14 @@ function flatspiketrains(sts::AbstractMatrix;trialorder=[])
     return spike,trial,order
 end
 
-"Mean and SEM of an Array along `dims`"
-function meanse(x;dims=1,rfun=nothing,mfun=nothing)
+"""
+`Mean` and `SEM` of an Array along `dims`, 
+optionally apply `sfun` on each slice along `dims` before and `mfun` on mean after.
+"""
+function meanse(x;dims=1,sfun=nothing,mfun=nothing)
     n = size(x,dims)
-    if !isnothing(rfun)
-        x = stack(rfun,eachslice(x;dims);dims)
+    if !isnothing(sfun)
+        x = stack(sfun,eachslice(x;dims);dims)
     end
     m,se=dropdims.(mean_and_std(x,dims);dims)
     se /= sqrt(n)
@@ -189,13 +192,13 @@ function meanse(x;dims=1,rfun=nothing,mfun=nothing)
 end
 
 "PSTH of Spike Trains"
-function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,rfun=nothing,mfun=nothing)
+function psthspiketrains(xs,binedges;israte::Bool=true,ismean::Bool=true,sfun=nothing,mfun=nothing)
     nss = epochspiketrains(xs,binedges;israte)[2]
     halfbinwidth = (binedges[2]-binedges[1])/2
     x = binedges[1:end-1].+halfbinwidth
     mat = stack(nss,dims=1)
     if ismean
-        m,se = meanse(mat;dims=1,rfun,mfun)
+        m,se = meanse(mat;dims=1,sfun,mfun)
         return (;m,se,x)
     else
         return (;mat,x)

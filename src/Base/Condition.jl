@@ -94,13 +94,13 @@ function subcond(conds,sc...)
     return conds[sci]
 end
 
-"Find Condition with Factor = level"
+"Find condition index with kwargs: Factor = level"
 function findcond(df::DataFrame;fl...)
     i = trues(size(df,1))
     for f in keys(fl)
         i .&= df[!,f].==fl[f]
     end
-    return df[findall(i),:]
+    return findall(i)
 end
 function findcond(df::DataFrame,cond::Vector{Any};roundingdigit=3)
     i = trues(size(df,1))
@@ -228,17 +228,33 @@ end
 condresponse(urs::Dict,cond::DataFrame;withcond::Bool=true) = mapreduce(u->condresponse(urs[u],cond;u,withcond),append!,keys(urs))
 
 """
-Mean image responses of each conditions
+Get `Mean` and `SEM` of repeated image responses for each condition
 
-1. rs: responses of each epoch [height, width, nepoch]
-2. ci: epoch indices of repeats for each condition
+1. rs: response of each condition test [height, width, ncondtest]
+2. ci: condition test indices of repeats for each condition
 """
-function condimageresponse(rs,ci)
-    cr = Array{Float64}(undef,size(rs)[1:2]...,length(ci))
-    @inbounds for i in eachindex(ci)
-        @views cr[:,:,i] = dropdims(mean(rs[:,:,ci[i]],dims=3),dims=3)
+function condresponse(rs::AbstractArray{T,3},ci;sfun=nothing,mfun=nothing) where T
+    m = Array{Float64}(undef,size(rs)[1:2]...,length(ci))
+    se = similar(m)
+    for i in eachindex(ci)
+        @views r = meanse(rs[:,:,ci[i]];dims=3,sfun,mfun)
+        m[:,:,i] = r.m; se[:,:,i] = r.se
     end
-    cr
+    (;m,se)
+end
+"""
+Hypothesis test for pair of repeated condition responses
+
+1. rs: condition test responses [Height, Width, ncondtest]
+2. i1: indices of repeated responses for first condition
+3. i2: indices of repeated responses for second condition
+"""
+function condpairtest(rs::AbstractArray{T,3},i1,i2;test=UnequalVarianceTTest) where T
+    h = [@views test(rs[i,j,i1],rs[i,j,i2]) for i = 1:size(rs,1),j=1:size(rs,2)]
+    s = map(i->i.t,h); replace!(s,NaN=>NaNMath.median(s))
+    pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
+    pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
+    (;s,pl,pr)
 end
 
 "Get each factor name and its levels as the axes of factor space"

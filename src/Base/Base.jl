@@ -3,6 +3,7 @@ ImageFiltering,SpecialFunctions,DSP,HCubature,Combinatorics,StatsFuns,Trapz,Circ
 Dierckx,BandedMatrices,OffsetArrays#,ANOVA,DataStructures,PyCall
 import Base: vec,range
 import StatsBase: predict
+import NaNMath
 
 include("NeuroDataType.jl")
 include("Stats.jl")

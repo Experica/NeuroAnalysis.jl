@@ -37,3 +37,23 @@ function readrawim_Mono12Packed(file::String,width,height;raw = Vector{UInt8}(un
     end
     permutedims(reshape(img,width,height))
 end
+
+function load(source::Val{Imager},filepath;ext=".meta")
+    filedir,filename = splitdir(filepath)
+    filename = splitext(filename)[1]
+    fullfilename = filename*ext
+    fullfilepath =joinpath(filedir,fullfilename)
+    if !isfile(fullfilepath)
+        @warn "No Imager File:    $fullfilename"
+        return nothing
+    end
+
+    @info "Reading Imager File:    $fullfilename    ...."
+    dataset = Dict{String,Any}()
+    dataset["meta"] = YAML.load_file(fullfilepath)
+    dataset["filename"] = filename
+    dataset["filetime"] = ctime(fullfilepath)
+    dataset["datasource"] = Imager
+    @info "Reading Imager File:    $fullfilename    Done"
+    return dataset
+end

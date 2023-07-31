@@ -1,6 +1,14 @@
 using FileIO,JLD2,MAT,YAML,Mmap,LoopVectorization
-import FileIO: save
+import FileIO: save, load
 
+@enum DataSource begin
+    Experica
+    Imager
+    SpikeGLX
+    Scanbox
+end
+
+include("Experica.jl")
 include("SpikeGLX.jl")
 include("Imager.jl")
 
