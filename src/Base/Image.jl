@@ -178,10 +178,10 @@ Hypothesis test for pair of samples
 """
 function pairtest(rs1::AbstractArray{T,3},rs2::AbstractArray{T,3};test=UnequalVarianceTTest) where T
     h = [@views test(rs1[i,j,:],rs2[i,j,:]) for i = 1:size(rs1,1),j=1:size(rs1,2)]
-    s = map(i->i.t,h); replace!(s,NaN=>NaNMath.median(s))
+    stat = map(i->i.t,h); replace!(stat,NaN=>NaNMath.median(stat))
     pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
     pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
-    (;s,pl,pr)
+    (;stat,pl,pr)
 end
 """
 Hypothesis test for pair of samples
@@ -192,10 +192,10 @@ Hypothesis test for pair of samples
 function pairtest(rs1::AbstractVector{<:AbstractMatrix{T}},rs2::AbstractVector{<:AbstractMatrix{T}};test=UnequalVarianceTTest) where T
     s1,s2 = size(rs1[1])
     h = [test(getindex.(rs1,i,j),getindex.(rs2,i,j)) for i = 1:s1,j=1:s2]
-    s = map(i->i.t,h); replace!(s,NaN=>NaNMath.median(s))
+    stat = map(i->i.t,h); replace!(stat,NaN=>NaNMath.median(stat))
     pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
     pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
-    (;s,pl,pr)
+    (;stat,pl,pr)
 end
 
 """

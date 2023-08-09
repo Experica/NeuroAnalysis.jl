@@ -542,7 +542,7 @@ Properties of Spatial Frequency Tuning
 - Prefered Spatial Frequency with Peak Response
 - Half Width at Half Peak-to-Trough
 - Frequency Passing Type {A:All Pass, H:High Pass, L:Low Pass, B:Band Pass}
-- Bandwidth ``log2(H_cut/L_cut)``
+- Bandwidth ``log2(H_{cut}/L_{cut})``
 - Frequency Passwidth at Half Peak-to-Trough constrained by `low/high` frequency limits
 
 1. x: sf in cycle/degree
@@ -579,8 +579,8 @@ Tuning properties of factor response
 
     For cases where Orientation and Direction are interlocked(drifting grating):
 
-        - when Orientation is -(0), then Direction is ↑(90)
-        - when Direction is →(0), then Orientation is |(-90)
+    - when Orientation is -(0), then Direction is ↑(90)
+    - when Direction is →(0), then Orientation is |(-90)
 """
 function factorresponsefeature(fl,fr;fm=mean.(fr),factor=:Ori,isfit::Bool=true)
     i = ismissing.(fr)
