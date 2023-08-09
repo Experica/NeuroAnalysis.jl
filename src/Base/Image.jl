@@ -70,6 +70,9 @@ function clampscale(x,nsd;cfun=median)
     m = cfun(x);sd = mad(x,center=m,normalize=true)
     clampscale(x,m-nsd*sd,m+nsd*sd)
 end
+"clamp `x` value in `[percentile(low),percentile(high)]`, and linearly map the range to `[0, 1]`"
+clampscale(x,pp::NTuple{2,T}) where T = clampscale(x,quantile(vec(x),pp./100)...)
+
 function oiframeresponse(frames;frameindex=nothing,baseframeindex=nothing)
     if frameindex==nothing
         r = dropdims(sum(frames,dims=3),dims=3)
@@ -158,6 +161,43 @@ function oicomplexmap(maps,angles;isangledegree=true,isangleinpi=true,presdfacto
     amap,mmap = angleabs(cmap)
     return Dict("complex"=>cmap,"angle"=>amap,"abs"=>mmap,"rad"=>sort(angles),"deg"=>angledegree)
 end
+
+"""
+Hypothesis test for pair of repeated condition responses
+
+1. rs: condition test responses [Height, Width, ncondtest]
+2. i1: indices of repeated responses for first condition
+3. i2: indices of repeated responses for second condition
+"""
+pairtest(rs::AbstractArray{T,3},i1,i2;test=UnequalVarianceTTest) where T = @views pairtest(rs[:,:,i1],rs[:,:,i2];test)
+"""
+Hypothesis test for pair of samples
+
+1. rs1: sample 1 [Height, Width, nsample1]
+2. rs2: sample 2 [Height, Width, nsample2]
+"""
+function pairtest(rs1::AbstractArray{T,3},rs2::AbstractArray{T,3};test=UnequalVarianceTTest) where T
+    h = [@views test(rs1[i,j,:],rs2[i,j,:]) for i = 1:size(rs1,1),j=1:size(rs1,2)]
+    s = map(i->i.t,h); replace!(s,NaN=>NaNMath.median(s))
+    pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
+    pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
+    (;s,pl,pr)
+end
+"""
+Hypothesis test for pair of samples
+
+1. rs1: sample 1, Vector of Matrix
+2. rs2: sample 2, Vector of Matrix
+"""
+function pairtest(rs1::AbstractVector{<:AbstractMatrix{T}},rs2::AbstractVector{<:AbstractMatrix{T}};test=UnequalVarianceTTest) where T
+    s1,s2 = size(rs1[1])
+    h = [test(getindex.(rs1,i,j),getindex.(rs2,i,j)) for i = 1:s1,j=1:s2]
+    s = map(i->i.t,h); replace!(s,NaN=>NaNMath.median(s))
+    pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
+    pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
+    (;s,pl,pr)
+end
+
 """
 Complex sumation of angles and corresponding image responses
 
@@ -179,8 +219,9 @@ function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),mnorm=true,fil
 end
 complexmap(rs::AbstractArray{T,3},as;nsd=3,rsign=(-1 for _ in 1:size(rs,3)),mnorm=true,filter=dogfilter) where T = complexmap(eachslice(rs,dims=3),as;nsd,rsign,mnorm,filter)
 
+gaussianfilter(x::AbstractMatrix;σ=5,l=6round(Int,σ)+1) = imfilter(x,KernelFactors.gaussian((σ,σ),(l,l)))
 dogfilter(x::AbstractMatrix;hσ=0.5,lσ=25,l=6round(Int,max(hσ,lσ))+1) = imfilter(x,Kernel.DoG((hσ,hσ),(lσ,lσ),(l,l)))
-ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=12,clip=0.1) = adjust_histogram(clampscale(x,nsd), AdaptiveEqualization(;nbins, rblocks = nblock, cblocks = nblock, clip)) |> clamp01!
+ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=20,clip=0.1) = adjust_histogram(clampscale(x,nsd), AdaptiveEqualization(;nbins, rblocks = nblock, cblocks = nblock, clip)) |> clamp01!
 
 function angleabs(cmap)
     amap = angle.(cmap);amap[amap.<0]=amap[amap.<0] .+ 2pi

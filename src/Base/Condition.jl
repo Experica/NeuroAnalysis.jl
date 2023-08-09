@@ -242,20 +242,6 @@ function condresponse(rs::AbstractArray{T,3},ci;sfun=nothing,mfun=nothing) where
     end
     (;m,se)
 end
-"""
-Hypothesis test for pair of repeated condition responses
-
-1. rs: condition test responses [Height, Width, ncondtest]
-2. i1: indices of repeated responses for first condition
-3. i2: indices of repeated responses for second condition
-"""
-function condpairtest(rs::AbstractArray{T,3},i1,i2;test=UnequalVarianceTTest) where T
-    h = [@views test(rs[i,j,i1],rs[i,j,i2]) for i = 1:size(rs,1),j=1:size(rs,2)]
-    s = map(i->i.t,h); replace!(s,NaN=>NaNMath.median(s))
-    pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
-    pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
-    (;s,pl,pr)
-end
 
 "Get each factor name and its levels as the axes of factor space"
 function factoraxis(cond;factor=condfactor(cond))
