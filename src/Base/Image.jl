@@ -219,8 +219,8 @@ function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),mnorm=true,fil
 end
 complexmap(rs::AbstractArray{T,3},as;nsd=3,rsign=(-1 for _ in 1:size(rs,3)),mnorm=true,filter=dogfilter) where T = complexmap(eachslice(rs,dims=3),as;nsd,rsign,mnorm,filter)
 
-gaussianfilter(x::AbstractMatrix;σ=5,l=6round(Int,σ)+1) = imfilter(x,KernelFactors.gaussian((σ,σ),(l,l)))
-dogfilter(x::AbstractMatrix;hσ=0.5,lσ=25,l=6round(Int,max(hσ,lσ))+1) = imfilter(x,Kernel.DoG((hσ,hσ),(lσ,lσ),(l,l)))
+gaussianfilter(x::AbstractMatrix;σ=5,l=6round(Int,σ)+1,border="replicate") = imfilter(x,KernelFactors.gaussian((σ,σ),(l,l)),border)
+dogfilter(x::AbstractMatrix;hσ=0.5,lσ=25,l=6round(Int,max(hσ,lσ))+1,border="replicate") = imfilter(x,Kernel.DoG((hσ,hσ),(lσ,lσ),(l,l)),border)
 ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=20,clip=0.1) = adjust_histogram(clampscale(x,nsd), AdaptiveEqualization(;nbins, rblocks = nblock, cblocks = nblock, clip)) |> clamp01!
 
 function angleabs(cmap)
