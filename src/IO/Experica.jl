@@ -45,13 +45,13 @@ function tryshortenparamname!(d::Dict)
     d
 end
 
-function prepare!(source::Val{Experica},version::Val{N},ex) where N
+function prepare!(source::Val{Experica},version::Val{2},ex)
     envparam = ex["EnvParam"]
     tryshortenparamname!(envparam)
     foreach(k->envparam[k]=tryparseparam(envparam[k]), keys(envparam))
     exparam = ex["Param"]
     foreach(k->exparam[k]=tryparseparam(exparam[k]), keys(exparam))
     cond = ex["Cond"]
-    foreach(k->cond[k]=tryparseparam(cond[k]), keys(cond))
+    foreach(k->cond[k]=tryparseparam.(cond[k]), keys(cond))
     ct = ex["CondTest"]
 end
