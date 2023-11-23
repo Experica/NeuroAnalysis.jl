@@ -425,11 +425,9 @@ function getexpericafile(;subject="[A-Za-z0-9]",session="[A-Za-z0-9]",site="[A-Z
 end
 
 "Get matched file names in directory, optionally join directory to get file path"
-function matchfile(pattern::Regex;dir="",join::Bool=false)
+function matchfile(pattern::Regex;dir=pwd(),join::Bool=false)
     fs = filter!(f->occursin(pattern,f),readdir(dir))
-    if join
-        fs=joinpath.(dir,fs)
-    end
+    join && (fs=joinpath.(dir,fs))
     return fs
 end
 
