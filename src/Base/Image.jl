@@ -465,15 +465,15 @@ function clamproi(cs,rs,imgsize;issquare=false)
     return (;center,radii,radius)
 end
 
-function imresize_antialiasing(img,sz)
+function imresize_antialiasing(img,sz;f=0.2)
     isz = size(img)
     iisz = isz[1:2]
     all(iisz .== sz) && return img
     if any(sz .< iisz)
-        σ = (map((o,n)->0.2*o/n, iisz, sz)...,zeros(length(isz)-2)...)
-        return imresize(imfilter(img, KernelFactors.gaussian(σ), NA()), sz...)
+        σ = (map((o,n)->f*o/n, iisz, sz)...,zeros(length(isz)-2)...)
+        return imresize(imfilter(img, KernelFactors.gaussian(σ), NA()), sz)
     else
-        return imresize(img, sz...)
+        return imresize(img, sz)
     end
 end
 
