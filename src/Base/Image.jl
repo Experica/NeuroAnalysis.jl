@@ -227,7 +227,7 @@ ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=20,clip=0.1) = adjust_histogram(cla
 Local Homogeneity Index
 
 ```math
-LHI(\textbf{x})=\frac{1}{2πσ^{2}}|∫ exp(\frac{-|| \textbf{x}-\textbf{y} || ^{2}}{2σ^{2}}) exp(i2θ_\textbf{y})d\textbf{y}|
+LHI(𝐱)=\\frac{1}{2πσ²}|∫ exp(\\frac{-\\| 𝐱-𝐲 \\|²}{2σ²}) exp(i2θ_𝐲)d𝐲|
 ```
 
 1. amap: angle map in radius
