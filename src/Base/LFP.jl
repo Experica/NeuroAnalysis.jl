@@ -111,7 +111,7 @@ rmline(y,fs;freq=60,nh=3,bw=3) = rmline!(copy!(similar(y,Float64),y),fs;freq,nh,
 function rmline!(y,fs;freq=60,nh=3,bw=3)
     for i=1:nh
         f = iirnotch(freq*i,bw;fs)
-        @views for j = 1:size(y,1)
+        @views for j = axes(y,1)
             y[j,:]=filtfilt(f,y[j,:])
         end
     end
@@ -127,13 +127,13 @@ end
 function hlpass!(y,fs;high=0,low=Inf)
     if high>0
         f = digitalfilter(Highpass(high;fs=fs), Butterworth(4))
-        for j=1:size(y,1)
+        for j=axes(y,1)
             @views y[j,:]=filtfilt(f,y[j,:])
         end
     end
     if low<Inf
         f = digitalfilter(Lowpass(low;fs=fs), Butterworth(4))
-        for j=1:size(y,1)
+        for j=axes(y,1)
             @views y[j,:]=filtfilt(f,y[j,:])
         end
     end

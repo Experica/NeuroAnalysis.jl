@@ -223,6 +223,29 @@ gaussianfilter(x::AbstractMatrix;σ=5,l=6round(Int,σ)+1,border="replicate") = i
 dogfilter(x::AbstractMatrix;hσ=0.5,lσ=25,l=6round(Int,max(hσ,lσ))+1,border="replicate") = imfilter(x,Kernel.DoG((hσ,hσ),(lσ,lσ),(l,l)),border)
 ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=20,clip=0.1) = adjust_histogram(clampscale(x,nsd), AdaptiveEqualization(;nbins, rblocks = nblock, cblocks = nblock, clip)) |> clamp01!
 
+"""
+Local Homogeneity Index
+
+```math
+LHI(\textbf{x})=\frac{1}{2πσ^{2}}|∫ exp(\frac{-|| \textbf{x}-\textbf{y} || ^{2}}{2σ^{2}}) exp(i2θ_\textbf{y})d\textbf{y}|
+```
+
+1. amap: angle map in radius
+2. center: center coordinates of the local region
+
+- σ: spatial scale of local region (default=6 pixels)
+- n: scale factor for a circle (default=2 for orientation)
+
+return: the index and the local region of angle map
+
+Nauhaus, I., Benucci, A., Carandini, M. & Ringach, D. L. Neuronal Selectivity and Local Map Structure in Visual Cortex. Neuron 57, 673-679 (2008).
+"""
+function localhomoindex(amap,center;σ=6,n=2)
+    roi = map(c->round.(Int,c.+(-3σ,3σ)),center)
+    t = [exp(-0.5((d1-center[1])^2 + (d2-center[2])^2) / σ^2) * exp(im*n*amap[d1,d2]) for d1 in range(roi[1]...), d2 in range(roi[2]...)]
+    abs(sum(t)) / (2π*σ^2), amap[range(roi[1]...),range(roi[2]...)]
+end
+
 function angleabs(cmap)
     amap = angle.(cmap);amap[amap.<0]=amap[amap.<0] .+ 2pi
     mmap = clampscale(abs.(cmap))

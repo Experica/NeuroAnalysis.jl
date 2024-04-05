@@ -177,7 +177,7 @@ function prepare_ripple!(d::Dict)
     if haskey(d,"spike")
         st=d["spike"]["time"]
         su=d["spike"]["unitid"]
-        for i in 1:length(st)
+        for i in eachindex(st)
             if ndims(st[i])==0
                 st[i]=[st[i]]
                 su[i]=[su[i]]

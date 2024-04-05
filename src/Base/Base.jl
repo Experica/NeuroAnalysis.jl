@@ -997,9 +997,9 @@ end
 
 """
 Check layer boundaries, make sure no gap and overlap between layers.
-Layers are reversely ordered in layer names in `ln`, and start boundary is set to the same as the stop boundary of previous layer.
+Layers are ordered in layer names in `ln`, and start boundary is set to the same as the stop boundary(as the valid data) of next layer.
 """
-function checklayer!(ls::Dict;ln=["1", "2", "3A", "2/3A", "3B", "3", "2/3", "4A", "4B", "4A/4B", "4Cα", "4Cβ", "4C", "4", "5A", "5B", "5", "6A", "6B", "6", "5/6", "WM"])
+function checklayer!(ls::Dict;ln=["1", "2", "3A", "2/3A", "3B", "3", "2/3", "4A", "4B", "4A/4B", "4Cα", "4Cβ", "4C", "4", "5A", "5B", "5", "6A", "6B", "6", "5/6", "WM","GM"])
     n = length(ln)
     for i in 1:(n-1)
         if haskey(ls,ln[i])
