@@ -143,6 +143,9 @@ end
 - ky: Frequency in cycle/unit_y
 - phase: Phase of a cycle in [0, 1] scale
 - isnorm: scale `cas` in [-√2, √2] to [-1, 1]
+
+!!! note
+    ``cas(...;kx, ky, phase) = cas(...;-kx, -ky, π/2 - phase)``
 """
 function cas(x,y;kx=1,ky=1, phase=0, isnorm::Bool=true)
     r = sum(sincos(2π * (kx * x + ky * y + phase)))
@@ -164,7 +167,7 @@ cas2sin(phase) = phase + 0.125
 function cas2sin(kx,ky,phase)
     θ = atan(ky,kx) - π/2
     f = sqrt(kx*kx + ky*ky)
-    return (θ=θ,f=f,phase=phase + 0.125)
+    return (;θ,f,phase=phase + 0.125)
 end
 
 """
@@ -182,7 +185,7 @@ function sin2cas(θ,f,phase)
     sinθ,cosθ = sincos(θ + π/2)
     kx = cosθ*f
     ky = sinθ*f
-    return (kx=kx,ky=ky,phase=phase - 0.125)
+    return (;kx,ky,phase=phase - 0.125)
 end
 
 "`Gabor` function"
@@ -542,8 +545,9 @@ Properties of Spatial Frequency Tuning
 - Prefered Spatial Frequency with Peak Response
 - Half Width at Half Peak-to-Trough
 - Frequency Passing Type {A:All Pass, H:High Pass, L:Low Pass, B:Band Pass}
-- Bandwidth ``log2(H_{cut}/L_{cut})``
+- Ratio Bandwidth ``log2(H_{cut}/L_{cut})``
 - Frequency Passwidth at Half Peak-to-Trough constrained by `low/high` frequency limits
+- Quality Factor defined as ``PreferedFrequency / (H_{cut} - L_{cut})``, also the reciprocal of Fractional Bandwidth
 
 1. x: sf in cycle/degree
 2. y: responses
@@ -566,7 +570,7 @@ function sftuningfeature(x,y;low=minimum(x),high=maximum(x))
         pw = pt == 'L' ? maxx-low+hw[2] : high-maxx+hw[1]
     end
 
-    (;psf=maxx,sfhw=hw,sfpt=pt,sfbw=bw,sfpw=pw)
+    (;psf=maxx,sfhw=hw,sfpt=pt,sfbw=bw,sfpw=pw,sfqf=maxx/sum(hw))
 end
 
 """

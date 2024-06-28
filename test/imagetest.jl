@@ -12,6 +12,14 @@ hgs = map(i -> begin
 minv,maxv = extrema(reduce((i,j)->i.+j,hgs)/length(hs))
 @test minv≈maxv≈0.5
 
+
+ss=cas2sin(0.3,-0.2,0.2)
+Gray.(grating(θ = ss.θ, sf = ss.f, phase = ss.phase, size = (5, 5), ppd = 30))
+
+ss=cas2sin(-0.3,0.2,0.05)
+Gray.(grating(θ = ss.θ, sf = ss.f, phase = ss.phase, size = (5, 5), ppd = 30))
+
+
 hs = hartleysubspace(kbegin=0.2,kend=6.6,dk=0.2,addhalfcycle=true)
 hgs = map(i -> begin
           ss = cas2sin(i...)

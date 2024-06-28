@@ -204,20 +204,27 @@ Complex sumation of angles and corresponding image responses
 1. image response for each angle
 2. angles in radius
 
-- nsd: median ± nsd*sd for clamping
-- rsign: increasing/decreasing(+/-) response
-- mnorm: whether clampscale magnitude map
+- nsd: median ± nsd*sd for clamping(default=3)
+- rsign: increasing/decreasing(+/-) response(default=-1)
+- n: scale factor for a circle (default=1 for direction)
+- mnorm: :m(default) - clampscale magnitude map, :r - mean resultant length(1-circ_var)
+- filter: filter for image response(default=dogfilter)
 
-return complex map, angle map[0,2π) and magnitude map([0,1] if mnorm)
+return complex map, angle map([0,2π)/n) and magnitude map([0,1] if mnorm)
 """
-function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),mnorm=true,filter=dogfilter)
-    cmap = mapreduce((r,a,s)->clampscale(sign(s)*filter(r),nsd)*exp(im*a),.+,rs,as,rsign)
-    amap = mod2pi.(angle.(cmap))
+function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),n=1,mnorm=:m,filter=dogfilter)
+    ws = map((r,s)->clampscale(sign(s)*filter(r),nsd),rs,rsign)
+    cmap = mapreduce((w,a)->w*cis(n*a),.+,ws,as)
+    amap = mod2pi.(angle.(cmap))/n
     mmap = abs.(cmap)
-    mnorm && (mmap = clampscale(mmap,nsd))
+    if mnorm==:m
+        mmap = clampscale(mmap,nsd)
+    elseif mnorm==:r
+        mmap = mmap./reduce(.+,ws)
+    end
     (;cmap,amap,mmap)
 end
-complexmap(rs::AbstractArray{T,3},as;nsd=3,rsign=(-1 for _ in 1:size(rs,3)),mnorm=true,filter=dogfilter) where T = complexmap(eachslice(rs,dims=3),as;nsd,rsign,mnorm,filter)
+complexmap(rs::AbstractArray{T,3},as;nsd=3,rsign=(-1 for _ in 1:size(rs,3)),n=1,mnorm=:m,filter=dogfilter) where T = complexmap(eachslice(rs,dims=3),as;nsd,rsign,n,mnorm,filter)
 
 gaussianfilter(x::AbstractMatrix;σ=5,l=6round(Int,σ)+1,border="replicate") = imfilter(x,KernelFactors.gaussian((σ,σ),(l,l)),border)
 dogfilter(x::AbstractMatrix;hσ=0.5,lσ=25,l=6round(Int,max(hσ,lσ))+1,border="replicate") = imfilter(x,Kernel.DoG((hσ,hσ),(lσ,lσ),(l,l)),border)
@@ -227,23 +234,29 @@ ahe(x::AbstractMatrix;nsd=3,nbins=256,nblock=20,clip=0.1) = adjust_histogram(cla
 Local Homogeneity Index
 
 ```math
-LHI(𝐱)=\\frac{1}{2πσ²}|∫ exp(\\frac{-\\| 𝐱-𝐲 \\|²}{2σ²}) exp(i2θ_𝐲)d𝐲|
+LHI(𝐱)=\\frac{1}{2πσ²}|∫ exp(\\frac{-\\| 𝐱-𝐲 \\|²}{2σ²}) exp(inθ_𝐲)d𝐲|
 ```
 
 1. amap: angle map in radius
 2. center: center coordinates of the local region
 
 - σ: spatial scale of local region (default=6 pixels)
-- n: scale factor for a circle (default=2 for orientation)
+- n: scale factor for a circle (default=1 for direction)
 
-return: the index and the local region of angle map
+return: the index and the roi
 
 Nauhaus, I., Benucci, A., Carandini, M. & Ringach, D. L. Neuronal Selectivity and Local Map Structure in Visual Cortex. Neuron 57, 673-679 (2008).
 """
-function localhomoindex(amap,center;σ=6,n=2)
-    roi = map(c->round.(Int,c.+(-3σ,3σ)),center)
-    t = [exp(-0.5((d1-center[1])^2 + (d2-center[2])^2) / σ^2) * exp(im*n*amap[d1,d2]) for d1 in range(roi[1]...), d2 in range(roi[2]...)]
-    abs(sum(t)) / (2π*σ^2), amap[range(roi[1]...),range(roi[2]...)]
+function localhomoindex(amap,center;σ=6,n=1)
+    roi = map(c->range(round.(Int,c.+(-3σ,3σ))...),center)
+    t = [exp(-0.5((d1-center[1])^2 + (d2-center[2])^2) / σ^2) * exp(im*n*amap[d1,d2]) for d1 in roi[1], d2 in roi[2]]
+    (;lhi=abs(sum(t)) / (2π*σ^2), roi)
+end
+
+function localaverage(mmap,center;σ=6)
+    roi = map(c->range(round.(Int,c.+(-3σ,3σ))...),center)
+    t = [exp(-0.5((d1-center[1])^2 + (d2-center[2])^2) / σ^2) for d1 in roi[1], d2 in roi[2]]
+    (;la=sum(t.*mmap[roi...]) / sum(t), roi)
 end
 
 function angleabs(cmap)
