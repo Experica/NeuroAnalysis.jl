@@ -62,13 +62,14 @@ function alphamask_diskfade(src,radius,sigma)
 end
 
 "clamp `x` value in `[min, max]`, and linearly map range `[min, max]` to `[0, 1]`"
-clampscale(x,min::Real,max::Real) = scaleminmax(min,max).(x)
-"clamp `x` value in `extrema(x)`, and linearly map the range to `[0, 1]`"
-clampscale(x) = clampscale(x,extrema(x)...)
-"clamp `x` value in `median ± nsd*sd`, and linearly map the range to `[0, 1]`"
-function clampscale(x,nsd;cfun=median)
-    m = cfun(x);sd = mad(x,center=m,normalize=true)
-    clampscale(x,m-nsd*sd,m+nsd*sd)
+clampscale(x,min,max) = scaleminmax(min,max).(x)
+clampscale(x;min=minimum(x),max=maximum(x)) = scaleminmax(min,max).(x)
+"clamp `x` value in `center ± nsd*sd`, and linearly map the range to `[0, 1]`"
+function clampscale(x,nsd;center=nothing,cfun=median,mask=nothing)
+    xx = isnothing(mask) ? x : x[mask]
+    isnothing(center) && (center = cfun(xx))
+    sd = mad(xx;center,normalize=true)
+    clampscale(x,center-nsd*sd,center+nsd*sd)
 end
 "clamp `x` value in `[percentile(low),percentile(high)]`, and linearly map the range to `[0, 1]`"
 clampscale(x,pp::NTuple{2,T}) where T = clampscale(x,quantile(vec(x),pp./100)...)
@@ -91,6 +92,12 @@ Get single frame response from sequence of frames
 1. frames: [Height, Width, nframe]
 2. is: indices of response frames
 3. bis: indices of baseline response frames
+
+- basefun: two args fun for comparing response to baseline
+    default = (r,b)->log2(r/b)
+    Other commonly used ones are: 
+    (r,b)->(r/b)-1
+    (r,b)->(r-b)/(r+b)
 """
 function frameresponse(frames::AbstractArray{T,3},is,bis;reducefun=mean,basefun=(r,b)->log2(r/b)) where T
     r = @views dropdims(reducefun(frames[:,:,is],dims=3),dims=3)
@@ -103,6 +110,38 @@ function frameresponse_imager(files,w,h,is,bis;reducefun=mean,basefun=(r,b)->log
     r = dropdims(reducefun(rfs,dims=3),dims=3)
     b = dropdims(reducefun(bfs,dims=3),dims=3)
     return basefun.(r,b)
+end
+
+"""
+Get super pixel response from sequence of frames
+
+1. frames: [Height, Width, nframe]
+2. base: baseline response [Height, Width]
+3. roi: indices of pixels within super pixel
+
+- reducefun: fun for reducing pixels of roi to super pixel value
+- basefun: two args fun for comparing response to baseline
+    default = (r,b)->log2(r/b)
+    Other commonly used ones are: 
+    (r,b)->(r/b)-1
+    (r,b)->(r-b)/(r+b)
+"""
+function pixelresponse(frames::AbstractArray{T,3},base,roi;reducefun=mean,basefun=(r,b)->log2(r/b)) where T
+    bp = @views reducefun(base[roi])
+    ps = @views stack(f->reducefun(f[roi]),eachslice(frames,dims=3))
+    basefun.(ps,bp)
+end
+function pixelresponse_imager(files,w,h,base,roi;reducefun=mean,basefun=(r,b)->log2(r/b))
+    n = length(files)
+    ps = Vector{Float64}(undef,n)
+    bp = @views reducefun(base[roi])
+    p = ProgressMeter.Progress(n,desc="Pixel Response ... ")
+    @inbounds Threads.@threads for i in 1:n
+        img = readrawim_Mono12Packed(files[i],w,h)
+        ps[i] = basefun(reducefun(img[roi]),bp)
+        next!(p)
+    end
+    return ps
 end
 
 function oiresponse(response,stimuli;ustimuli=sort(unique(stimuli)),blankstimuli=0,
@@ -177,7 +216,7 @@ Hypothesis test for pair of samples
 2. rs2: sample 2 [Height, Width, nsample2]
 """
 function pairtest(rs1::AbstractArray{T,3},rs2::AbstractArray{T,3};test=UnequalVarianceTTest) where T
-    h = [@views test(rs1[i,j,:],rs2[i,j,:]) for i = 1:size(rs1,1),j=1:size(rs1,2)]
+    h = [@views test(rs1[i,j,:],rs2[i,j,:]) for i = axes(rs1,1),j=axes(rs1,2)]
     stat = map(i->i.t,h); replace!(stat,NaN=>NaNMath.median(stat))
     pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
     pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
@@ -190,8 +229,8 @@ Hypothesis test for pair of samples
 2. rs2: sample 2, Vector of Matrix
 """
 function pairtest(rs1::AbstractVector{<:AbstractMatrix{T}},rs2::AbstractVector{<:AbstractMatrix{T}};test=UnequalVarianceTTest) where T
-    s1,s2 = size(rs1[1])
-    h = [test(getindex.(rs1,i,j),getindex.(rs2,i,j)) for i = 1:s1,j=1:s2]
+    s1,s2 = axes(rs1[begin])
+    h = [test(getindex.(rs1,i,j),getindex.(rs2,i,j)) for i = s1,j=s2]
     stat = map(i->i.t,h); replace!(stat,NaN=>NaNMath.median(stat))
     pl = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:left),h)
     pr = map(i->isnan(i.t) ? 0.5 : pvalue(i,tail=:right),h)
@@ -204,7 +243,7 @@ Complex sumation of angles and corresponding image responses
 1. image response for each angle
 2. angles in radius
 
-- nsd: median ± nsd*sd for clamping(default=3)
+- nsd: median ± nsd*sd of clampscale(default=3) for response weights
 - rsign: increasing/decreasing(+/-) response(default=-1)
 - n: scale factor for a circle (default=1 for direction)
 - mnorm: :m(default) - clampscale magnitude map, :r - mean resultant length(1-circ_var)
@@ -212,13 +251,13 @@ Complex sumation of angles and corresponding image responses
 
 return complex map, angle map([0,2π)/n) and magnitude map([0,1] if mnorm)
 """
-function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),n=1,mnorm=:m,filter=dogfilter)
-    ws = map((r,s)->clampscale(sign(s)*filter(r),nsd),rs,rsign)
+function complexmap(rs,as;nsd=3,rsign=(-1 for _ in eachindex(rs)),n=1,mnorm=:m,filter=dogfilter,mask=nothing)
+    ws = map((r,s)->clampscale(sign(s)*filter(r),nsd;mask),rs,rsign)
     cmap = mapreduce((w,a)->w*cis(n*a),.+,ws,as)
     amap = mod2pi.(angle.(cmap))/n
     mmap = abs.(cmap)
     if mnorm==:m
-        mmap = clampscale(mmap,nsd)
+        mmap = clampscale(mmap,nsd;mask)
     elseif mnorm==:r
         mmap = mmap./reduce(.+,ws)
     end
@@ -249,12 +288,14 @@ Nauhaus, I., Benucci, A., Carandini, M. & Ringach, D. L. Neuronal Selectivity an
 """
 function localhomoindex(amap,center;σ=6,n=1)
     roi = map(c->range(round.(Int,c.+(-3σ,3σ))...),center)
+    roi = map((r,l)->filter(i->1<=i<=l,r),roi,size(amap))
     t = [exp(-0.5((d1-center[1])^2 + (d2-center[2])^2) / σ^2) * exp(im*n*amap[d1,d2]) for d1 in roi[1], d2 in roi[2]]
     (;lhi=abs(sum(t)) / (2π*σ^2), roi)
 end
 
 function localaverage(mmap,center;σ=6)
     roi = map(c->range(round.(Int,c.+(-3σ,3σ))...),center)
+    roi = map((r,l)->filter(i->1<=i<=l,r),roi,size(mmap))
     t = [exp(-0.5((d1-center[1])^2 + (d2-center[2])^2) / σ^2) for d1 in roi[1], d2 in roi[2]]
     (;la=sum(t.*mmap[roi...]) / sum(t), roi)
 end
@@ -513,7 +554,23 @@ function imresize_antialiasing(img,sz;f=0.2)
     end
 end
 
-function dft_imager(files,w,h,fs,base,f...)
+"""
+Discrete Fourier Transform of image sequence evaluated at few frequencies of interest.
+
+1. files: vector of image file path
+2. w: pixel width of image
+3. h: pixel height of image
+4. fs: sampling rate of image sequence(Hz)
+5. base: image response of baseline
+6. f: frequencies at which to evaluate
+
+- basefun: two args fun for comparing response to baseline
+    default = (r,b)->log2(r/b)
+    Other commonly used ones are: 
+    (r,b)->(r/b)-1
+    (r,b)->(r-b)/(r+b)
+"""
+function dft_imager(files,w,h,fs,base,f...;basefun=(r,b)->log2(r/b))
     N = length(files)
     ks = round.(Int,f./fs.*N)
     Fs = [zeros(ComplexF64,h,w) for _ in f]
@@ -522,8 +579,7 @@ function dft_imager(files,w,h,fs,base,f...)
     ls = [ReentrantLock() for _ in f]
     @inbounds Threads.@threads for n in 0:(N-1)
         img = readrawim_Mono12Packed(files[n+1],w,h)
-        # img = img ./ base .- 1 # reduce DC, increase SNR
-        img = log2.(img./base) # reduce DC, increase SNR
+        img = basefun.(img,base) # reduce DC, increase SNR
         @inbounds for i in eachindex(f)
             lock(ls[i]) do
                 Fs[i] .+= img .* Ω[((n*ks[i])%N)+1]
