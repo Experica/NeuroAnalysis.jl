@@ -18,25 +18,28 @@ Drop array dims according to `MATLAB` convention.
 - scalar: scalar instead of 1x1 array
 - rvector: vector instead of 1xN array
 - cvector: vector instead of Nx1 array
+- miss: `missing` instead of 0x0 matrix
 """
-dropmatdim!(x;scalar = true, rvector = true, cvector = true) = x
-function dropmatdim!(x::Dict;scalar = true, rvector = true, cvector = true)
-    foreach(k->x[k]=dropmatdim!(x[k],scalar=scalar,rvector=rvector,cvector=cvector),keys(x))
+dropmatdim!(x;scalar = true, rvector = true, cvector = true,miss=true) = x
+function dropmatdim!(x::Dict;scalar = true, rvector = true, cvector = true,miss=true)
+    foreach(k->x[k]=dropmatdim!(x[k];scalar,rvector,cvector,miss),keys(x))
     return x
  end
-function dropmatdim!(x::Array;scalar = true, rvector = true, cvector = true)
+function dropmatdim!(x::Array;scalar = true, rvector = true, cvector = true,miss=true)
     if ndims(x) == 2
         nr,nc = size(x)
         if nr==1 && nc==1 && scalar
-            return dropmatdim!(x[1,1],scalar=scalar,rvector=rvector,cvector=cvector)
+            return dropmatdim!(x[1,1];scalar,rvector,cvector,miss)
         elseif nr==1 && nc>1 && rvector
             x = dropdims(x,dims=1)
         elseif nr>1 && nc==1 && cvector
             x = dropdims(x,dims=2)
+        elseif nr==0 && nc==0 && miss
+            x = missing
         end
     end
     if x isa Array{Any}
-        foreach(i->x[i]=dropmatdim!(x[i],scalar=scalar,rvector=rvector,cvector=cvector),eachindex(x))
+        foreach(i->x[i]=dropmatdim!(x[i];scalar,rvector,cvector,miss),eachindex(x))
     end
     return x
 end
@@ -51,8 +54,9 @@ Read variables of a `MATLAB` MAT file into a Dictionary
 - scalar: scalar instead of 1x1 matrix
 - rvector: vector instead of 1xN matrix
 - cvector: vector instead of Nx1 matrix
+- miss: `missing` instead of 0x0 matrix
 """
-function readmat(f::AbstractString,vars...;varset=["spike","lfp","digital","analog1k","image"],scalar = true, rvector = true, cvector = true)
+function readmat(f::AbstractString,vars...;varset=["spike","lfp","digital","analog1k","image"],scalar = true, rvector = true, cvector = true, miss=true)
     if isempty(vars)
         d=matread(f)
     else
@@ -72,8 +76,8 @@ function readmat(f::AbstractString,vars...;varset=["spike","lfp","digital","anal
             end
         end
     end
-    if scalar || rvector || cvector
-        d = dropmatdim!(d,scalar=scalar,rvector=rvector,cvector=cvector)
+    if scalar || rvector || cvector || miss
+        d = dropmatdim!(d;scalar,rvector,cvector,miss)
     end
     return d
 end

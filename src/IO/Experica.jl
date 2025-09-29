@@ -55,3 +55,14 @@ function prepare!(source::Val{Experica},version::Val{2},ex)
     foreach(k->cond[k]=tryparseparam.(cond[k]), keys(cond))
     ct = ex["CondTest"]
 end
+
+function prepare!(source::Val{Experica},version::Val{3},ex)
+    envparam = ex["EnvParam"]
+    tryshortenparamname!(envparam)
+    foreach(k->envparam[k]=tryparseparam(envparam[k]), keys(envparam))
+    extparam = ex["ExtendParam"]
+    foreach(k->extparam[k]=tryparseparam(extparam[k]), keys(extparam))
+    cond = ex["Cond"]
+    foreach(k->cond[k]=tryparseparam.(cond[k]), keys(cond))
+    ct = ex["CondTest"]
+end
